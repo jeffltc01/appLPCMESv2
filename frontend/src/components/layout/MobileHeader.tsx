@@ -33,6 +33,7 @@ interface NavItem {
 const allNavItems: NavItem[] = [
   { key: "home", label: "Home", icon: <Home24Regular />, path: "/" },
   { key: "orders", label: "Orders", icon: <ClipboardTask24Regular />, path: "/orders" },
+  { key: "transportation", label: "Transportation", icon: <VehicleTruckProfile24Regular />, path: "/transportation" },
   { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
   { key: "production", label: "Production", icon: <Wrench24Regular />, path: "/production" },
   { key: "shipping", label: "Shipping", icon: <BoxCheckmark24Regular />, path: "/shipping" },

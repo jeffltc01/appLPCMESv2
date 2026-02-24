@@ -34,6 +34,12 @@ const navItems: NavItem[] = [
     path: "/orders",
   },
   {
+    key: "transportation",
+    label: "Transportation",
+    icon: <VehicleTruckProfile24Regular />,
+    path: "/transportation",
+  },
+  {
     key: "receiving",
     label: "Receiving",
     icon: <VehicleTruckProfile24Regular />,

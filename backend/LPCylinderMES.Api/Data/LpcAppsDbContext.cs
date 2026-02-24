@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using LPCylinderMES.Api.Models;
 using Microsoft.EntityFrameworkCore;
@@ -181,6 +181,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.DefaultNeedCollars).HasColumnName("default_need_collars");
             entity.Property(e => e.DefaultNeedFillers).HasColumnName("default_need_fillers");
             entity.Property(e => e.DefaultNeedFootRings).HasColumnName("default_need_foot_rings");
+            entity.Property(e => e.DefaultOrderContactId).HasColumnName("default_order_contact_id");
             entity.Property(e => e.DefaultPaymentTermId).HasColumnName("default_payment_term_id");
             entity.Property(e => e.DefaultPickUpId).HasColumnName("default_pick_up_id");
             entity.Property(e => e.DefaultReturnBrass).HasColumnName("default_return_brass");
@@ -213,6 +214,10 @@ public partial class LpcAppsDbContext : DbContext
             entity.HasOne(d => d.DefaultPaymentTerm).WithMany(p => p.Customers)
                 .HasForeignKey(d => d.DefaultPaymentTermId)
                 .HasConstraintName("FK__customers__defau__30242045");
+
+            entity.HasOne(d => d.DefaultOrderContact).WithMany()
+                .HasForeignKey(d => d.DefaultOrderContactId)
+                .HasConstraintName("FK_customers_default_order_contact");
 
             entity.HasOne(d => d.DefaultShipVia).WithMany(p => p.Customers)
                 .HasForeignKey(d => d.DefaultShipViaId)

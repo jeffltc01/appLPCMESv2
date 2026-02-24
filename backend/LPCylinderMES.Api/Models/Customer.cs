@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LPCylinderMES.Api.Models;
@@ -47,6 +47,8 @@ public partial class Customer
 
     public int? DefaultShipViaId { get; set; }
 
+    public int? DefaultOrderContactId { get; set; }
+
     public string? Email { get; set; }
 
     public virtual ICollection<Address> Addresses { get; set; } = new List<Address>();
@@ -58,6 +60,8 @@ public partial class Customer
     public virtual Customer? CustomerParent { get; set; }
 
     public virtual PaymentTerm? DefaultPaymentTerm { get; set; }
+
+    public virtual Contact? DefaultOrderContact { get; set; }
 
     public virtual ShipVia? DefaultShipVia { get; set; }
 
