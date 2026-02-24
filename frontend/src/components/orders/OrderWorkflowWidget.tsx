@@ -129,6 +129,13 @@ const useStyles = makeStyles({
 function formatDate(raw: string | null): string | null {
   if (!raw) return null;
 
+  const formatDateOnly = (dt: Date) =>
+    dt.toLocaleDateString([], {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
   // Preserve DB wall-clock time to avoid timezone shifts (e.g. 12:48 becoming 6:48 PM).
   const wallClockMatch = raw.match(
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/
@@ -143,18 +150,12 @@ function formatDate(raw: string | null): string | null {
       Number(minute),
       Number(second ?? "0")
     );
-    return dt.toLocaleString([], {
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    return formatDateOnly(dt);
   }
 
   const dt = new Date(raw);
   if (!Number.isNaN(dt.getTime())) {
-    return dt.toLocaleDateString();
+    return formatDateOnly(dt);
   }
 
   // DateOnly values serialized as YYYY-MM-DD.

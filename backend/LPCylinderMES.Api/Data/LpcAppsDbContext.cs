@@ -620,6 +620,9 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.QuantityAsReceived)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("quantity_as_received");
+            entity.Property(e => e.QuantityAsShipped)
+                .HasColumnType("numeric(18, 6)")
+                .HasColumnName("quantity_as_shipped");
             entity.Property(e => e.QuantityAsScrapped)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("quantity_as_scrapped");

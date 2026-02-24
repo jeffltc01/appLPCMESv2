@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LPCylinderMES.Api.Models;
@@ -14,6 +14,8 @@ public partial class SalesOrderDetail
     public decimal QuantityAsOrdered { get; set; }
 
     public decimal? QuantityAsReceived { get; set; }
+
+    public decimal? QuantityAsShipped { get; set; }
 
     public decimal? QuantityAsScrapped { get; set; }
 

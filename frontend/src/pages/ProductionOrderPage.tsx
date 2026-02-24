@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Body1,
   Button,
+  Field,
+  Input,
   MessageBar,
   MessageBarBody,
   Spinner,
@@ -14,6 +16,7 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
+  Textarea,
   Title2,
   makeStyles,
   tokens,
@@ -21,7 +24,8 @@ import {
 import { ArrowLeft24Regular, ArrowUpload24Regular, Delete24Regular } from "@fluentui/react-icons";
 import { ordersApi } from "../services/orders";
 import { ApiError } from "../services/api";
-import type { OrderAttachment, ProductionOrderDetail } from "../types/order";
+import type { OrderAttachment, OrderDraftDetail, ProductionOrderDetail } from "../types/order";
+import { OrderWorkflowWidget } from "../components/orders/OrderWorkflowWidget";
 
 type TabValue = "details" | "lines" | "attachments";
 
@@ -36,27 +40,32 @@ const useStyles = makeStyles({
   titleWrap: {
     flexGrow: 1,
   },
-  readOnlyGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: tokens.spacingVerticalM,
+  tabContent: {
     marginTop: tokens.spacingVerticalL,
-    "@media (max-width: 900px)": {
-      gridTemplateColumns: "1fr",
-    },
   },
-  readOnlyItem: {
-    border: `1px solid ${tokens.colorNeutralStroke1}`,
-    borderRadius: tokens.borderRadiusMedium,
-    padding: tokens.spacingHorizontalM,
-    backgroundColor: tokens.colorNeutralBackground2,
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+    maxWidth: "820px",
   },
-  readOnlyLabel: {
-    fontWeight: tokens.fontWeightSemibold,
-    color: tokens.colorNeutralForeground2,
+  row: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: tokens.spacingHorizontalM,
   },
-  readOnlyValue: {
-    marginTop: tokens.spacingVerticalXS,
+  sectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: tokens.spacingVerticalS,
+  },
+  priceCell: {
+    textAlign: "right" as const,
+  },
+  lineCellTall: {
+    paddingTop: tokens.spacingVerticalM,
+    paddingBottom: tokens.spacingVerticalM,
   },
   center: {
     display: "flex",
@@ -81,6 +90,12 @@ const useStyles = makeStyles({
 });
 
 const toMb = (sizeBytes: number) => `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
+const toDisplay = (value: string | number | null | undefined) =>
+  value == null || value === "" ? "--" : String(value);
+const toBoolDisplay = (value: number | null | undefined) =>
+  value == null ? "--" : value === 1 ? "Yes" : "No";
+const toFeatureDisplay = (value: boolean | null | undefined) =>
+  value == null ? "--" : value ? "Yes" : "No";
 
 export function ProductionOrderPage() {
   const styles = useStyles();
@@ -91,11 +106,52 @@ export function ProductionOrderPage() {
 
   const [tab, setTab] = useState<TabValue>("details");
   const [detail, setDetail] = useState<ProductionOrderDetail | null>(null);
+  const [orderHeader, setOrderHeader] = useState<OrderDraftDetail | null>(null);
   const [attachments, setAttachments] = useState<OrderAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busyAttachmentId, setBusyAttachmentId] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const productionLineRows = useMemo(() => {
+    const receivedById = new Map((detail?.lines ?? []).map((line) => [line.id, line]));
+    const detailedLines = orderHeader?.lines ?? [];
+
+    if (detailedLines.length > 0) {
+      return detailedLines.map((line) => {
+        const receivingLine = receivedById.get(line.id);
+        return {
+          id: line.id,
+          lineNo: line.lineNo,
+          itemText: `${line.itemNo} - ${line.itemDescription}`,
+          quantityAsReceived: receivingLine?.quantityAsReceived ?? "--",
+          tankColor: toDisplay(line.colorName),
+          lidColor: toDisplay(line.lidColorName),
+          collar: toFeatureDisplay(line.needCollars),
+          decal: toFeatureDisplay(line.needDecals),
+          filler: toFeatureDisplay(line.needFillers),
+          footring: toFeatureDisplay(line.needFootRings),
+          gauge: toDisplay(line.gauges),
+          valve: toDisplay(line.valveType),
+        };
+      });
+    }
+
+    return (detail?.lines ?? []).map((line) => ({
+      id: line.id,
+      lineNo: line.lineNo,
+      itemText: `${line.itemNo} - ${line.itemDescription}`,
+      quantityAsReceived: line.quantityAsReceived,
+      tankColor: "--",
+      lidColor: "--",
+      collar: "--",
+      decal: "--",
+      filler: "--",
+      footring: "--",
+      gauge: "--",
+      valve: "--",
+    }));
+  }, [detail, orderHeader]);
 
   const loadOrder = useCallback(async () => {
     if (!orderId || Number.isNaN(orderId)) {
@@ -106,12 +162,25 @@ export function ProductionOrderPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const [orderData, attachmentData] = await Promise.all([
+      const [orderData, fullOrderResult] = await Promise.all([
         ordersApi.productionDetail(orderId),
-        ordersApi.attachments(orderId),
+        ordersApi.get(orderId).catch(() => null),
       ]);
       setDetail(orderData);
-      setAttachments(attachmentData);
+      setOrderHeader(fullOrderResult);
+
+      try {
+        const attachmentData = await ordersApi.attachments(orderId);
+        setAttachments(attachmentData);
+      } catch (err) {
+        const apiError = err as ApiError;
+        const body = apiError.body as { message?: string } | undefined;
+        setAttachments([]);
+        setMsg({
+          type: "error",
+          text: body?.message ?? "Order loaded, but attachments could not be loaded.",
+        });
+      }
     } catch (err) {
       const apiError = err as ApiError;
       const body = apiError.body as { message?: string } | undefined;
@@ -205,137 +274,184 @@ export function ProductionOrderPage() {
         </MessageBar>
       )}
 
+      <OrderWorkflowWidget
+        currentStatus={detail.orderStatus}
+        dates={{
+          orderCreatedDate: orderHeader?.orderCreatedDate ?? detail.receivedDate ?? "",
+          readyForPickupDate:
+            orderHeader?.readyForPickupDate ??
+            orderHeader?.pickupScheduledDate ??
+            detail.receivedDate ??
+            orderHeader?.readyToShipDate ??
+            orderHeader?.readyToInvoiceDate ??
+            null,
+          pickupScheduledDate: orderHeader?.pickupScheduledDate ?? null,
+          receivedDate: detail.receivedDate ?? orderHeader?.receivedDate ?? null,
+          readyToShipDate: orderHeader?.readyToShipDate ?? null,
+          readyToInvoiceDate: orderHeader?.readyToInvoiceDate ?? null,
+        }}
+        canAdvance={false}
+      />
+
       <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as TabValue)}>
         <Tab value="details">Details</Tab>
         <Tab value="lines">Lines ({detail.lines.length})</Tab>
         <Tab value="attachments">Attachments ({attachments.length})</Tab>
       </TabList>
 
-      {tab === "details" && (
-        <div className={styles.readOnlyGrid}>
-          <div className={styles.readOnlyItem}>
-            <Body1 className={styles.readOnlyLabel}>Customer</Body1>
-            <Body1 className={styles.readOnlyValue}>{detail.customerName}</Body1>
-          </div>
-          <div className={styles.readOnlyItem}>
-            <Body1 className={styles.readOnlyLabel}>Received Date</Body1>
-            <Body1 className={styles.readOnlyValue}>
-              {detail.receivedDate?.slice(0, 10) ?? "--"}
-            </Body1>
-          </div>
-          <div className={styles.readOnlyItem}>
-            <Body1 className={styles.readOnlyLabel}>Pickup Address</Body1>
-            <Body1 className={styles.readOnlyValue}>{detail.pickUpAddress ?? "--"}</Body1>
-          </div>
-          <div className={styles.readOnlyItem}>
-            <Body1 className={styles.readOnlyLabel}>Trailer</Body1>
-            <Body1 className={styles.readOnlyValue}>{detail.trailerNo ?? "--"}</Body1>
-          </div>
-          <div className={styles.readOnlyItem}>
-            <Body1 className={styles.readOnlyLabel}>Comments</Body1>
-            <Body1 className={styles.readOnlyValue}>{detail.orderComments ?? "--"}</Body1>
-          </div>
-        </div>
-      )}
+      <div className={styles.tabContent}>
+        {tab === "details" && (
+          <div className={styles.form}>
+            <div className={styles.row}>
+              <Field label="Customer">
+                <Input value={detail.customerName} readOnly />
+              </Field>
+              <Field label="Received Date">
+                <Input value={detail.receivedDate?.slice(0, 10) ?? ""} type="date" readOnly />
+              </Field>
+            </div>
 
-      {tab === "lines" && (
-        <div style={{ marginTop: tokens.spacingVerticalL }}>
-          {detail.lines.length === 0 ? (
-            <Body1>No lines available.</Body1>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHeaderCell>Line</TableHeaderCell>
-                  <TableHeaderCell>Item</TableHeaderCell>
-                  <TableHeaderCell>Qty Ordered</TableHeaderCell>
-                  <TableHeaderCell>Qty Received</TableHeaderCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detail.lines.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>{line.lineNo}</TableCell>
-                    <TableCell>
-                      {line.itemNo} - {line.itemDescription}
-                    </TableCell>
-                    <TableCell>{line.quantityAsOrdered}</TableCell>
-                    <TableCell>{line.quantityAsReceived}</TableCell>
+            <div className={styles.row}>
+              <Field label="Return Scrap">
+                <Input value={toBoolDisplay(orderHeader?.returnScrap)} readOnly />
+              </Field>
+              <Field label="Return Brass">
+                <Input value={toBoolDisplay(orderHeader?.returnBrass)} readOnly />
+              </Field>
+            </div>
+
+            <div className={styles.row}>
+              <Field label="Pickup Address">
+                <Textarea value={toDisplay(detail.pickUpAddress)} rows={3} readOnly />
+              </Field>
+              <Field label="Trailer">
+                <Input value={toDisplay(detail.trailerNo)} readOnly />
+              </Field>
+            </div>
+
+            <Field label="Comments">
+              <Textarea value={toDisplay(detail.orderComments)} rows={4} readOnly />
+            </Field>
+          </div>
+        )}
+
+        {tab === "lines" && (
+          <div>
+            <div className={styles.sectionHeader}>
+              <Body1 style={{ fontWeight: tokens.fontWeightSemibold }}>Order Lines</Body1>
+            </div>
+
+            {productionLineRows.length === 0 ? (
+              <Body1>No lines available.</Body1>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHeaderCell>Line</TableHeaderCell>
+                    <TableHeaderCell>Item</TableHeaderCell>
+                    <TableHeaderCell>Qty Received</TableHeaderCell>
+                    <TableHeaderCell>Tank Color</TableHeaderCell>
+                    <TableHeaderCell>Lid Color</TableHeaderCell>
+                    <TableHeaderCell>Collar</TableHeaderCell>
+                    <TableHeaderCell>Decal</TableHeaderCell>
+                    <TableHeaderCell>Filler</TableHeaderCell>
+                    <TableHeaderCell>Footring</TableHeaderCell>
+                    <TableHeaderCell>Gauge</TableHeaderCell>
+                    <TableHeaderCell>Valve</TableHeaderCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-      )}
-
-      {tab === "attachments" && (
-        <div style={{ marginTop: tokens.spacingVerticalL }}>
-          <div className={styles.actionsRow}>
-            <input
-              ref={fileInputRef}
-              className={styles.hiddenInput}
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt"
-              onChange={(event) => void uploadAttachment(event.target.files?.[0])}
-            />
-            <Button
-              appearance="primary"
-              icon={<ArrowUpload24Regular />}
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? "Uploading..." : "Upload Attachment"}
-            </Button>
-          </div>
-
-          {attachments.length === 0 ? (
-            <Body1>No attachments yet.</Body1>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHeaderCell>File Name</TableHeaderCell>
-                  <TableHeaderCell>Type</TableHeaderCell>
-                  <TableHeaderCell>Size</TableHeaderCell>
-                  <TableHeaderCell>Created</TableHeaderCell>
-                  <TableHeaderCell>Actions</TableHeaderCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attachments.map((attachment) => {
-                  const downloadUrl = ordersApi.attachmentDownloadUrl(detail.id, attachment.id);
-                  return (
-                    <TableRow key={attachment.id}>
-                      <TableCell>{attachment.fileName}</TableCell>
-                      <TableCell>{attachment.contentType}</TableCell>
-                      <TableCell>{toMb(attachment.sizeBytes)}</TableCell>
-                      <TableCell>{new Date(attachment.createdAtUtc).toLocaleString()}</TableCell>
-                      <TableCell>
-                        <div style={{ display: "flex", gap: tokens.spacingHorizontalS }}>
-                          <a className={styles.fileLink} href={downloadUrl} target="_blank" rel="noreferrer">
-                            View
-                          </a>
-                          <a className={styles.fileLink} href={downloadUrl} download>
-                            Download
-                          </a>
-                          <Button
-                            appearance="subtle"
-                            icon={<Delete24Regular />}
-                            size="small"
-                            disabled={busyAttachmentId === attachment.id}
-                            onClick={() => void deleteAttachment(attachment)}
-                          />
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {productionLineRows.map((line) => (
+                    <TableRow key={line.id}>
+                      <TableCell className={styles.lineCellTall}>{line.lineNo}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.itemText}</TableCell>
+                      <TableCell className={`${styles.lineCellTall} ${styles.priceCell}`}>
+                        {line.quantityAsReceived}
                       </TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.tankColor}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.lidColor}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.collar}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.decal}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.filler}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.footring}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.gauge}</TableCell>
+                      <TableCell className={styles.lineCellTall}>{line.valve}</TableCell>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-      )}
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        )}
+
+        {tab === "attachments" && (
+          <div>
+            <div className={styles.actionsRow}>
+              <input
+                ref={fileInputRef}
+                className={styles.hiddenInput}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt"
+                onChange={(event) => void uploadAttachment(event.target.files?.[0])}
+              />
+              <Button
+                appearance="primary"
+                icon={<ArrowUpload24Regular />}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? "Uploading..." : "Upload Attachment"}
+              </Button>
+            </div>
+
+            {attachments.length === 0 ? (
+              <Body1>No attachments yet.</Body1>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHeaderCell>File Name</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>Size</TableHeaderCell>
+                    <TableHeaderCell>Created</TableHeaderCell>
+                    <TableHeaderCell>Actions</TableHeaderCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {attachments.map((attachment) => {
+                    const downloadUrl = ordersApi.attachmentDownloadUrl(detail.id, attachment.id);
+                    return (
+                      <TableRow key={attachment.id}>
+                        <TableCell>{attachment.fileName}</TableCell>
+                        <TableCell>{attachment.contentType}</TableCell>
+                        <TableCell>{toMb(attachment.sizeBytes)}</TableCell>
+                        <TableCell>{new Date(attachment.createdAtUtc).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div style={{ display: "flex", gap: tokens.spacingHorizontalS }}>
+                            <a className={styles.fileLink} href={downloadUrl} target="_blank" rel="noreferrer">
+                              View
+                            </a>
+                            <a className={styles.fileLink} href={downloadUrl} download>
+                              Download
+                            </a>
+                            <Button
+                              appearance="subtle"
+                              icon={<Delete24Regular />}
+                              size="small"
+                              disabled={busyAttachmentId === attachment.id}
+                              onClick={() => void deleteAttachment(attachment)}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

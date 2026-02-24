@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LPCylinderMES.Api", "LPCylinderMES.Api\LPCylinderMES.Api.csproj", "{C082BD8C-C324-4B1B-A746-DF5876B544C7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LPCylinderMES.Api.Tests", "LPCylinderMES.Api.Tests\LPCylinderMES.Api.Tests.csproj", "{AB787E4D-C12E-4F12-A46C-83FE9EBED990}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{C082BD8C-C324-4B1B-A746-DF5876B544C7}.Release|x64.Build.0 = Release|Any CPU
 		{C082BD8C-C324-4B1B-A746-DF5876B544C7}.Release|x86.ActiveCfg = Release|Any CPU
 		{C082BD8C-C324-4B1B-A746-DF5876B544C7}.Release|x86.Build.0 = Release|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Debug|x64.Build.0 = Debug|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Debug|x86.Build.0 = Debug|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Release|x64.ActiveCfg = Release|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Release|x64.Build.0 = Release|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Release|x86.ActiveCfg = Release|Any CPU
+		{AB787E4D-C12E-4F12-A46C-83FE9EBED990}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
