@@ -14,6 +14,7 @@ public class OrdersController(
     IOrderQueryService orderQueryService,
     IOrderWorkflowService orderWorkflowService,
     IReceivingService receivingService,
+    IProductionService productionService,
     IOrderAttachmentService orderAttachmentService) : ControllerBase
 {
     [HttpGet]
@@ -21,11 +22,12 @@ public class OrdersController(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
         [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
         [FromQuery] int? customerId = null,
         [FromQuery] DateOnly? dateFrom = null,
         [FromQuery] DateOnly? dateTo = null)
     {
-        var result = await orderQueryService.GetOrdersAsync(page, pageSize, search, customerId, dateFrom, dateTo);
+        var result = await orderQueryService.GetOrdersAsync(page, pageSize, search, status, customerId, dateFrom, dateTo);
         return Ok(result);
     }
 
@@ -319,6 +321,20 @@ public class OrdersController(
         try
         {
             var detail = await receivingService.CompleteReceivingAsync(id, dto);
+            return Ok(detail);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{id:int}/production/complete")]
+    public async Task<ActionResult<ProductionOrderDetailDto>> CompleteProduction(int id, CompleteProductionDto dto)
+    {
+        try
+        {
+            var detail = await productionService.CompleteProductionAsync(id, dto);
             return Ok(detail);
         }
         catch (ServiceException ex)

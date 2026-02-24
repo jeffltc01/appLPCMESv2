@@ -56,10 +56,36 @@ describe("OrderListPage", () => {
     );
 
     await waitFor(() => expect(ordersApiMock.list).toHaveBeenCalled());
+    expect(ordersApiMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "New" })
+    );
     expect(screen.getByText("SO-0099")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("SO-0099"));
     expect(screen.getByText("Order Detail Screen")).toBeInTheDocument();
+  });
+
+  it("applies Ready to Invoice filter on invoicing route", async () => {
+    orderLookupsApiMock.activeCustomers.mockResolvedValue([]);
+    ordersApiMock.list.mockResolvedValue({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 25,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/invoicing"]}>
+        <Routes>
+          <Route path="/invoicing" element={<OrderListPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(ordersApiMock.list).toHaveBeenCalled());
+    expect(ordersApiMock.list).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "Ready to Invoice" })
+    );
   });
 });
 

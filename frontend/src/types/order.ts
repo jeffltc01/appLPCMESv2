@@ -142,6 +142,7 @@ export interface OrderListParams {
   page?: number;
   pageSize?: number;
   search?: string;
+  status?: string;
   customerId?: number;
   dateFrom?: string;
   dateTo?: string;
@@ -259,7 +260,55 @@ export interface ProductionOrderDetail {
   trailerNo: string | null;
   orderComments: string | null;
   receivedDate: string | null;
-  lines: ReceivingOrderLine[];
+  lines: ProductionOrderLine[];
+}
+
+export interface ProductionSerialNumber {
+  id: number;
+  serialNo: string;
+  manufacturer: string | null;
+  manufacturingDate: string | null;
+  testDate: string | null;
+  scrapReasonId: number | null;
+  testStatus: string;
+  lidColor: string | null;
+  lidSize: string | null;
+}
+
+export interface ProductionOrderLine {
+  id: number;
+  lineNo: number;
+  itemId: number;
+  itemNo: string;
+  itemDescription: string;
+  quantityAsOrdered: number;
+  quantityAsReceived: number;
+  quantityAsShipped: number;
+  quantityAsScrapped: number;
+  requiresSerialNumbers: boolean;
+  serialNumbers: ProductionSerialNumber[];
+}
+
+export interface ProductionSerialNumberUpsert {
+  id?: number | null;
+  serialNo: string;
+  manufacturer?: string | null;
+  manufacturingDate?: string | null;
+  testDate?: string | null;
+  scrapReasonId?: number | null;
+  lidColor?: string | null;
+  lidSize?: string | null;
+}
+
+export interface ProductionLineUpdate {
+  lineId: number;
+  quantityAsShipped: number;
+  quantityAsScrapped: number;
+  serialNumbers?: ProductionSerialNumberUpsert[] | null;
+}
+
+export interface CompleteProductionRequest {
+  lines: ProductionLineUpdate[];
 }
 
 export interface OrderAttachment {

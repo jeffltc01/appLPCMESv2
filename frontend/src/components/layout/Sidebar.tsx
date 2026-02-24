@@ -23,6 +23,7 @@ interface NavItem {
   label: string;
   icon: React.ReactElement;
   path: string;
+  navigateTo?: string;
 }
 
 const navItems: NavItem[] = [
@@ -32,12 +33,7 @@ const navItems: NavItem[] = [
     label: "Orders",
     icon: <ClipboardTask24Regular />,
     path: "/orders",
-  },
-  {
-    key: "transportation",
-    label: "Transportation",
-    icon: <VehicleTruckProfile24Regular />,
-    path: "/transportation",
+    navigateTo: "/orders?status=New",
   },
   {
     key: "receiving",
@@ -62,6 +58,7 @@ const navItems: NavItem[] = [
     label: "Invoicing",
     icon: <Receipt24Regular />,
     path: "/invoicing",
+    navigateTo: "/invoicing?status=Ready%20to%20Invoice",
   },
   {
     key: "customers",
@@ -196,7 +193,7 @@ export function Sidebar() {
             styles.navItem,
             active && styles.navItemActive
           )}
-          onClick={() => navigate(item.path)}
+          onClick={() => navigate(item.navigateTo ?? item.path)}
         >
           {item.icon}
           {expanded && <span className={styles.label}>{item.label}</span>}

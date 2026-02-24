@@ -56,7 +56,7 @@ internal sealed class FakeOrderQueryService : IOrderQueryService
     public Func<int, CancellationToken, Task<ReceivingOrderDetailDto?>>? GetReceivingDetailHandler { get; set; }
 
     public Task<PaginatedResponse<OrderDraftListDto>> GetOrdersAsync(
-        int page, int pageSize, string? search, int? customerId, DateOnly? dateFrom, DateOnly? dateTo, CancellationToken cancellationToken = default) =>
+        int page, int pageSize, string? search, string? status, int? customerId, DateOnly? dateFrom, DateOnly? dateTo, CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();
 
     public Task<OrderDraftDetailDto?> GetOrderDetailAsync(int id, CancellationToken cancellationToken = default) =>

@@ -22,6 +22,7 @@ import {
 } from "@fluentui/react-components";
 import {
   ArrowClockwise24Regular,
+  BoxCheckmark24Regular,
   Save24Regular,
   VehicleTruckProfile24Regular,
 } from "@fluentui/react-icons";
@@ -661,33 +662,6 @@ function toTransportDateFromMonthDay(value: string, existingValue: string | null
   return `${year}-${mm}-${dd}T00:00:00`;
 }
 
-function OpenHandIcon({
-  className,
-  title,
-}: {
-  className?: string;
-  title?: string;
-}) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      aria-label={title}
-      role="img"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 14.5h5.8c.8 0 1.6.3 2.2.9l1.5 1.5c.4.4 1 .6 1.6.6H17c1.7 0 3 1.3 3 3v.5H9.8c-1 0-2-.3-2.8-.9L3 17.8z" />
-      <path d="M9 14.5V7.8c0-.9.7-1.6 1.6-1.6h0c.9 0 1.6.7 1.6 1.6v4.7" />
-      <path d="M12.2 12.5v-1.8c0-.8.6-1.4 1.4-1.4h0c.8 0 1.4.6 1.4 1.4v1.8" />
-      <path d="M15 12.8v-.9c0-.7.5-1.2 1.2-1.2h0c.7 0 1.2.5 1.2 1.2v1.6" />
-    </svg>
-  );
-}
-
 function formatPanelDate(value: string | null): string {
   if (!value) return "--";
   const raw = value.trim();
@@ -983,12 +957,12 @@ export function TransportationBoardPage() {
                           <span className={styles.orderNoCell}>
                             <span className={styles.orderNoPrimary}>
                               {row.movementType === "Shipment" ? (
-                                <VehicleTruckProfile24Regular
+                                <BoxCheckmark24Regular
                                   className={styles.movementIconShipment}
                                   title="Shipment"
                                 />
                               ) : (
-                                <OpenHandIcon
+                                <VehicleTruckProfile24Regular
                                   className={styles.movementIconPickup}
                                   title="Pickup"
                                 />

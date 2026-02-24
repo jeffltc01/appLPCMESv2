@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Body1,
   Button,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  DialogTrigger,
   Field,
   Input,
   MessageBar,
   MessageBarBody,
+  Select,
   Spinner,
   Tab,
   TabList,
@@ -19,15 +27,36 @@ import {
   Textarea,
   Title2,
   makeStyles,
+  mergeClasses,
   tokens,
 } from "@fluentui/react-components";
 import { ArrowLeft24Regular, ArrowUpload24Regular, Delete24Regular } from "@fluentui/react-icons";
-import { ordersApi } from "../services/orders";
+import { orderLookupsApi, ordersApi } from "../services/orders";
 import { ApiError } from "../services/api";
-import type { OrderAttachment, OrderDraftDetail, ProductionOrderDetail } from "../types/order";
+import type {
+  CompleteProductionRequest,
+  OrderAttachment,
+  OrderDraftDetail,
+  ProductionOrderDetail,
+  ProductionSerialNumberUpsert,
+} from "../types/order";
+import type { Lookup } from "../types/customer";
 import { OrderWorkflowWidget } from "../components/orders/OrderWorkflowWidget";
 
 type TabValue = "details" | "lines" | "attachments";
+type EditableSerial = ProductionSerialNumberUpsert;
+type EditingSerialState = {
+  lineId: number;
+  serialIndex: number | null;
+  value: EditableSerial;
+};
+type PendingSerialDeleteState = {
+  lineId: number;
+  serialIndex: number;
+  serialNo: string;
+};
+
+const LID_SIZE_OPTIONS = ["14.25", "14.5", "15", "15.75", "16", "16.25"] as const;
 
 const useStyles = makeStyles({
   header: {
@@ -64,8 +93,18 @@ const useStyles = makeStyles({
     textAlign: "right" as const,
   },
   lineCellTall: {
-    paddingTop: tokens.spacingVerticalM,
-    paddingBottom: tokens.spacingVerticalM,
+    paddingTop: tokens.spacingVerticalXS,
+    paddingBottom: tokens.spacingVerticalXS,
+  },
+  lineTopRow: {
+    "& > td": {
+      borderBottom: "none !important",
+    },
+  },
+  lineDetailRow: {
+    "& > td": {
+      borderTop: "none !important",
+    },
   },
   center: {
     display: "flex",
@@ -87,6 +126,135 @@ const useStyles = makeStyles({
     color: tokens.colorBrandForeground1,
     textDecorationLine: "none",
   },
+  lineQuantityInput: {
+    width: "120px",
+  },
+  lineActions: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  serialSummaryText: {
+    color: tokens.colorNeutralForeground2,
+  },
+  serialCardsWrap: {
+    marginTop: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalS,
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))",
+    gap: tokens.spacingHorizontalM,
+  },
+  serialCard: {
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
+    borderRadius: "12px",
+    backgroundColor: tokens.colorNeutralBackground1,
+    boxShadow: tokens.shadow4,
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: tokens.spacingHorizontalM,
+    cursor: "pointer",
+    transitionDuration: tokens.durationNormal,
+    transitionTimingFunction: tokens.curveEasyEase,
+    transitionProperty: "box-shadow, border-color, transform, background-color",
+    ":hover": {
+      backgroundColor: tokens.colorNeutralBackground1Hover,
+      border: `1px solid ${tokens.colorBrandStroke1}`,
+      boxShadow: tokens.shadow8,
+      transform: "translateY(-1px)",
+    },
+    ":focus-within": {
+      border: `1px solid ${tokens.colorBrandStroke1}`,
+      boxShadow: `0 0 0 2px ${tokens.colorBrandStroke2}`,
+    },
+  },
+  serialCardMain: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXXS,
+  },
+  serialCardSerialNo: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontFamily: tokens.fontFamilyMonospace,
+    fontSize: tokens.fontSizeBase300,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  serialCardStatus: {
+    width: "fit-content",
+    borderRadius: tokens.borderRadiusCircular,
+    padding: `0 ${tokens.spacingHorizontalS}`,
+    fontSize: tokens.fontSizeBase200,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: tokens.lineHeightBase200,
+    border: `1px solid ${tokens.colorNeutralStroke1}`,
+  },
+  serialCardStatusGood: {
+    color: "#107C10",
+    backgroundColor: "#E6F4EA",
+    border: "1px solid #107C10",
+  },
+  serialCardStatusBad: {
+    color: "#E41E2F",
+    backgroundColor: "#FDEBEC",
+    border: "1px solid #E41E2F",
+  },
+  serialCardDeleteButton: {
+    flexShrink: 0,
+    color: tokens.colorNeutralForeground3,
+    ":hover": {
+      color: tokens.colorPaletteRedForeground1,
+    },
+  },
+  serialAddButton: {
+    borderRadius: tokens.borderRadiusMedium,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  topRowActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: tokens.spacingVerticalS,
+    gap: tokens.spacingHorizontalM,
+    flexWrap: "wrap",
+  },
+  lineDetailCell: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    paddingTop: tokens.spacingVerticalXS,
+    paddingBottom: tokens.spacingVerticalXS,
+    borderTopStyle: "none",
+  },
+  lineDetailGrid: {
+    display: "grid",
+    gridTemplateColumns: "130px 130px minmax(520px, 1fr) 190px",
+    gap: tokens.spacingHorizontalM,
+    alignItems: "start",
+  },
+  lineDetailField: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+  },
+  lineDetailLabel: {
+    color: tokens.colorNeutralForeground2,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  lineDetailFieldQty: {
+    minWidth: "120px",
+    maxWidth: "140px",
+  },
+  lineDetailFieldSerials: {
+    minWidth: "520px",
+    width: "100%",
+  },
+  lineDetailFieldValidation: {
+    minWidth: "160px",
+    maxWidth: "220px",
+    whiteSpace: "normal",
+  },
 });
 
 const toMb = (sizeBytes: number) => `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`;
@@ -96,6 +264,23 @@ const toBoolDisplay = (value: number | null | undefined) =>
   value == null ? "--" : value === 1 ? "Yes" : "No";
 const toFeatureDisplay = (value: boolean | null | undefined) =>
   value == null ? "--" : value ? "Yes" : "No";
+const parseNonNegative = (value: string): number => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+};
+const stringEqualsIgnoreCase = (value: string | undefined, expected: string) =>
+  (value ?? "").trim().toUpperCase() === expected.toUpperCase();
+const normalizeSerial = (serial: EditableSerial): EditableSerial => ({
+  id: serial.id ?? undefined,
+  serialNo: serial.serialNo.trim(),
+  manufacturer: serial.manufacturer?.trim() || null,
+  manufacturingDate: serial.manufacturingDate?.trim() || null,
+  testDate: serial.testDate?.trim() || null,
+  scrapReasonId: serial.scrapReasonId ?? null,
+  lidColor: serial.lidColor?.trim() || null,
+  lidSize: serial.lidSize?.trim() || null,
+});
 
 export function ProductionOrderPage() {
   const styles = useStyles();
@@ -109,22 +294,45 @@ export function ProductionOrderPage() {
   const [orderHeader, setOrderHeader] = useState<OrderDraftDetail | null>(null);
   const [attachments, setAttachments] = useState<OrderAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingLines, setSavingLines] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busyAttachmentId, setBusyAttachmentId] = useState<number | null>(null);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [lidColors, setLidColors] = useState<Lookup[]>([]);
+  const [scrapReasons, setScrapReasons] = useState<Lookup[]>([]);
+  const [serialByLineId, setSerialByLineId] = useState<Record<number, EditableSerial[]>>({});
+  const [qtyByLineId, setQtyByLineId] = useState<
+    Record<number, { quantityAsReceived: number; quantityAsShipped: number; quantityAsScrapped: number }>
+  >({});
+  const [editingSerial, setEditingSerial] = useState<EditingSerialState | null>(null);
+  const [pendingSerialDelete, setPendingSerialDelete] = useState<PendingSerialDeleteState | null>(null);
+  const scrapReasonNameById = useMemo(
+    () => new Map(scrapReasons.map((reason) => [reason.id, reason.name])),
+    [scrapReasons]
+  );
 
   const productionLineRows = useMemo(() => {
-    const receivedById = new Map((detail?.lines ?? []).map((line) => [line.id, line]));
+    const productionById = new Map((detail?.lines ?? []).map((line) => [line.id, line]));
     const detailedLines = orderHeader?.lines ?? [];
 
     if (detailedLines.length > 0) {
       return detailedLines.map((line) => {
-        const receivingLine = receivedById.get(line.id);
+        const productionLine = productionById.get(line.id);
+        const qtyState = qtyByLineId[line.id];
+        const qtyReceived = qtyState?.quantityAsReceived ?? productionLine?.quantityAsReceived ?? 0;
+        const qtyShipped = qtyState?.quantityAsShipped ?? productionLine?.quantityAsShipped ?? 0;
+        const qtyScrapped = qtyState?.quantityAsScrapped ?? productionLine?.quantityAsScrapped ?? 0;
+        const requiresSerialNumbers = productionLine?.requiresSerialNumbers ?? false;
+        const serialNumbers = serialByLineId[line.id] ?? productionLine?.serialNumbers ?? [];
         return {
           id: line.id,
           lineNo: line.lineNo,
           itemText: `${line.itemNo} - ${line.itemDescription}`,
-          quantityAsReceived: receivingLine?.quantityAsReceived ?? "--",
+          quantityAsReceived: qtyReceived,
+          quantityAsShipped: qtyShipped,
+          quantityAsScrapped: qtyScrapped,
+          requiresSerialNumbers,
+          serialNumbers,
           tankColor: toDisplay(line.colorName),
           lidColor: toDisplay(line.lidColorName),
           collar: toFeatureDisplay(line.needCollars),
@@ -141,7 +349,11 @@ export function ProductionOrderPage() {
       id: line.id,
       lineNo: line.lineNo,
       itemText: `${line.itemNo} - ${line.itemDescription}`,
-      quantityAsReceived: line.quantityAsReceived,
+      quantityAsReceived: qtyByLineId[line.id]?.quantityAsReceived ?? line.quantityAsReceived,
+      quantityAsShipped: qtyByLineId[line.id]?.quantityAsShipped ?? line.quantityAsShipped,
+      quantityAsScrapped: qtyByLineId[line.id]?.quantityAsScrapped ?? line.quantityAsScrapped,
+      requiresSerialNumbers: line.requiresSerialNumbers,
+      serialNumbers: serialByLineId[line.id] ?? line.serialNumbers,
       tankColor: "--",
       lidColor: "--",
       collar: "--",
@@ -151,7 +363,7 @@ export function ProductionOrderPage() {
       gauge: "--",
       valve: "--",
     }));
-  }, [detail, orderHeader]);
+  }, [detail, orderHeader, qtyByLineId, serialByLineId]);
 
   const loadOrder = useCallback(async () => {
     if (!orderId || Number.isNaN(orderId)) {
@@ -162,12 +374,16 @@ export function ProductionOrderPage() {
     setLoading(true);
     setMsg(null);
     try {
-      const [orderData, fullOrderResult] = await Promise.all([
+      const [orderData, fullOrderResult, colorResult, scrapReasonResult] = await Promise.all([
         ordersApi.productionDetail(orderId),
         ordersApi.get(orderId).catch(() => null),
+        orderLookupsApi.colors().catch(() => [] as Lookup[]),
+        orderLookupsApi.scrapReasons().catch(() => [] as Lookup[]),
       ]);
       setDetail(orderData);
       setOrderHeader(fullOrderResult);
+      setLidColors(colorResult);
+      setScrapReasons(scrapReasonResult);
 
       try {
         const attachmentData = await ordersApi.attachments(orderId);
@@ -198,6 +414,223 @@ export function ProductionOrderPage() {
   useEffect(() => {
     void loadOrder();
   }, [loadOrder]);
+
+  useEffect(() => {
+    if (!detail) return;
+    const nextQty: Record<
+      number,
+      { quantityAsReceived: number; quantityAsShipped: number; quantityAsScrapped: number }
+    > = {};
+    const nextSerials: Record<number, EditableSerial[]> = {};
+    for (const line of detail.lines) {
+      nextQty[line.id] = {
+        quantityAsReceived: line.quantityAsReceived,
+        quantityAsShipped: line.quantityAsShipped,
+        quantityAsScrapped: line.quantityAsScrapped,
+      };
+      nextSerials[line.id] = line.serialNumbers.map((serial) => ({
+        id: serial.id,
+        serialNo: serial.serialNo,
+        manufacturer: serial.manufacturer,
+        manufacturingDate: serial.manufacturingDate,
+        testDate: serial.testDate,
+        scrapReasonId: serial.scrapReasonId,
+        lidColor: serial.lidColor,
+        lidSize: serial.lidSize,
+      }));
+    }
+    setQtyByLineId(nextQty);
+    setSerialByLineId(nextSerials);
+  }, [detail]);
+
+  const setNonSerialShipped = (lineId: number, rawValue: string) => {
+    setQtyByLineId((prev) => {
+      const current = prev[lineId];
+      if (!current) return prev;
+      const clampedShipped = Math.min(parseNonNegative(rawValue), current.quantityAsReceived);
+      return {
+        ...prev,
+        [lineId]: {
+          ...current,
+          quantityAsShipped: clampedShipped,
+          quantityAsScrapped: current.quantityAsReceived - clampedShipped,
+        },
+      };
+    });
+  };
+
+  const setNonSerialScrapped = (lineId: number, rawValue: string) => {
+    setQtyByLineId((prev) => {
+      const current = prev[lineId];
+      if (!current) return prev;
+      const clampedScrapped = Math.min(parseNonNegative(rawValue), current.quantityAsReceived);
+      return {
+        ...prev,
+        [lineId]: {
+          ...current,
+          quantityAsScrapped: clampedScrapped,
+          quantityAsShipped: current.quantityAsReceived - clampedScrapped,
+        },
+      };
+    });
+  };
+
+  const openAddSerialDialog = (lineId: number) => {
+    setEditingSerial({
+      lineId,
+      serialIndex: null,
+      value: {
+        serialNo: "",
+        manufacturer: "",
+        manufacturingDate: "",
+        testDate: "",
+        scrapReasonId: scrapReasons[0]?.id ?? null,
+        lidColor: "",
+        lidSize: "",
+      },
+    });
+  };
+
+  const openEditSerialDialog = (lineId: number, serialIndex: number) => {
+    const lineSerials = serialByLineId[lineId] ?? [];
+    const target = lineSerials[serialIndex];
+    if (!target) return;
+    setEditingSerial({
+      lineId,
+      serialIndex,
+      value: {
+        id: target.id,
+        serialNo: target.serialNo,
+        manufacturer: target.manufacturer ?? "",
+        manufacturingDate: target.manufacturingDate ?? "",
+        testDate: target.testDate ?? "",
+        scrapReasonId: target.scrapReasonId ?? null,
+        lidColor: target.lidColor ?? "",
+        lidSize: target.lidSize ?? "",
+      },
+    });
+  };
+
+  const saveSerialDialog = () => {
+    if (!editingSerial) return;
+    const normalized = normalizeSerial(editingSerial.value);
+    if (!normalized.serialNo) {
+      setMsg({ type: "error", text: "Serial No is required." });
+      return;
+    }
+
+    setSerialByLineId((prev) => {
+      const next = [...(prev[editingSerial.lineId] ?? [])];
+      if (editingSerial.serialIndex == null) {
+        next.push(normalized);
+      } else {
+        next[editingSerial.serialIndex] = normalized;
+      }
+      return {
+        ...prev,
+        [editingSerial.lineId]: next,
+      };
+    });
+    setEditingSerial(null);
+  };
+
+  const deleteSerial = (lineId: number, serialIndex: number) => {
+    setSerialByLineId((prev) => ({
+      ...prev,
+      [lineId]: (prev[lineId] ?? []).filter((_, idx) => idx !== serialIndex),
+    }));
+  };
+  const serialStatusLabel = (serial: EditableSerial) =>
+    scrapReasonNameById.get(serial.scrapReasonId ?? -1) ?? "--";
+
+  useEffect(() => {
+    const serialLineIds = new Set((detail?.lines ?? []).filter((l) => l.requiresSerialNumbers).map((l) => l.id));
+    if (serialLineIds.size === 0) return;
+
+    setQtyByLineId((prev) => {
+      const next = { ...prev };
+      for (const lineId of serialLineIds) {
+        const serials = serialByLineId[lineId] ?? [];
+        const goodCount = serials.filter(
+          (sn) =>
+            stringEqualsIgnoreCase(scrapReasonNameById.get(sn.scrapReasonId ?? -1), "GOOD")
+        ).length;
+        const badCount = serials.filter(
+          (sn) =>
+            stringEqualsIgnoreCase(scrapReasonNameById.get(sn.scrapReasonId ?? -1), "BAD")
+        ).length;
+        if (!next[lineId]) continue;
+        next[lineId] = {
+          ...next[lineId],
+          quantityAsShipped: goodCount,
+          quantityAsScrapped: badCount,
+        };
+      }
+      return next;
+    });
+  }, [detail, scrapReasonNameById, serialByLineId]);
+
+  const lineValidationMessage = (line: (typeof productionLineRows)[number]) => {
+    const qtyState = qtyByLineId[line.id];
+    if (!qtyState) return null;
+    if (qtyState.quantityAsShipped + qtyState.quantityAsScrapped !== qtyState.quantityAsReceived) {
+      return "Shipped + Scrapped must equal Qty Received.";
+    }
+
+    if (!line.requiresSerialNumbers) return null;
+
+    const serials = serialByLineId[line.id] ?? [];
+    if (serials.length !== qtyState.quantityAsReceived) {
+      return "Serial count must equal Qty Received.";
+    }
+    if (serials.some((serial) => !serial.scrapReasonId)) {
+      return "All serial rows require Test Status.";
+    }
+    const hasBlankSerial = serials.some((serial) => !serial.serialNo?.trim());
+    if (hasBlankSerial) return "All serial rows require Serial No.";
+    const normalized = serials.map((serial) => serial.serialNo.trim().toLowerCase());
+    if (new Set(normalized).size !== normalized.length) {
+      return "Duplicate serial numbers are not allowed.";
+    }
+    return null;
+  };
+
+  const saveProductionLines = async () => {
+    if (!detail) return;
+    const firstError = productionLineRows.map(lineValidationMessage).find((msgText) => msgText);
+    if (firstError) {
+      setMsg({ type: "error", text: firstError });
+      return;
+    }
+
+    const payload: CompleteProductionRequest = {
+      lines: productionLineRows.map((line) => {
+        const qtyState = qtyByLineId[line.id];
+        return {
+          lineId: line.id,
+          quantityAsShipped: qtyState?.quantityAsShipped ?? 0,
+          quantityAsScrapped: qtyState?.quantityAsScrapped ?? 0,
+          serialNumbers: line.requiresSerialNumbers
+            ? (serialByLineId[line.id] ?? []).map((serial) => normalizeSerial(serial))
+            : [],
+        };
+      }),
+    };
+
+    setSavingLines(true);
+    setMsg(null);
+    try {
+      const updated = await ordersApi.completeProduction(detail.id, payload);
+      setDetail(updated);
+      setMsg({ type: "success", text: "Production lines updated." });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMsg({ type: "error", text: body?.message ?? "Failed to update production lines." });
+    } finally {
+      setSavingLines(false);
+    }
+  };
 
   const uploadAttachment = async (file?: File) => {
     if (!file || !detail) return;
@@ -337,8 +770,11 @@ export function ProductionOrderPage() {
 
         {tab === "lines" && (
           <div>
-            <div className={styles.sectionHeader}>
+            <div className={styles.topRowActions}>
               <Body1 style={{ fontWeight: tokens.fontWeightSemibold }}>Order Lines</Body1>
+              <Button appearance="primary" disabled={savingLines} onClick={() => void saveProductionLines()}>
+                {savingLines ? "Saving..." : "Save Lines"}
+              </Button>
             </div>
 
             {productionLineRows.length === 0 ? (
@@ -362,21 +798,172 @@ export function ProductionOrderPage() {
                 </TableHeader>
                 <TableBody>
                   {productionLineRows.map((line) => (
-                    <TableRow key={line.id}>
-                      <TableCell className={styles.lineCellTall}>{line.lineNo}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.itemText}</TableCell>
-                      <TableCell className={`${styles.lineCellTall} ${styles.priceCell}`}>
-                        {line.quantityAsReceived}
-                      </TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.tankColor}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.lidColor}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.collar}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.decal}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.filler}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.footring}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.gauge}</TableCell>
-                      <TableCell className={styles.lineCellTall}>{line.valve}</TableCell>
-                    </TableRow>
+                    <Fragment key={line.id}>
+                      <TableRow
+                        className={styles.lineTopRow}
+                        data-testid={`line-top-row-${line.id}`}
+                        style={{ borderBottom: "none" }}
+                      >
+                        <TableCell className={styles.lineCellTall}>{line.lineNo}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.itemText}</TableCell>
+                        <TableCell className={`${styles.lineCellTall} ${styles.priceCell}`}>
+                          {line.quantityAsReceived}
+                        </TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.tankColor}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.lidColor}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.collar}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.decal}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.filler}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.footring}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.gauge}</TableCell>
+                        <TableCell className={styles.lineCellTall}>{line.valve}</TableCell>
+                      </TableRow>
+                      <TableRow
+                        className={styles.lineDetailRow}
+                        data-testid={`line-detail-row-${line.id}`}
+                        style={{ borderTop: "none" }}
+                      >
+                        <TableCell className={styles.lineDetailCell} />
+                        <TableCell className={styles.lineDetailCell} colSpan={10}>
+                          <div
+                            className={styles.lineDetailGrid}
+                            style={{
+                              gridTemplateColumns: line.requiresSerialNumbers
+                                ? "130px 130px minmax(520px, 1fr) 190px"
+                                : "130px 130px minmax(190px, 1fr)",
+                            }}
+                          >
+                            <div
+                              className={`${styles.lineDetailField} ${styles.lineDetailFieldQty}`}
+                              data-testid={`line-qty-shipped-field-${line.id}`}
+                            >
+                              <Body1 className={styles.lineDetailLabel}>Qty Shipped</Body1>
+                              {line.requiresSerialNumbers ? (
+                                <Body1>{qtyByLineId[line.id]?.quantityAsShipped ?? line.quantityAsShipped}</Body1>
+                              ) : (
+                                <Input
+                                  className={styles.lineQuantityInput}
+                                  type="number"
+                                  min={0}
+                                  value={String(qtyByLineId[line.id]?.quantityAsShipped ?? line.quantityAsShipped)}
+                                  onChange={(event) => setNonSerialShipped(line.id, event.target.value)}
+                                />
+                              )}
+                            </div>
+                            <div
+                              className={`${styles.lineDetailField} ${styles.lineDetailFieldQty}`}
+                              data-testid={`line-qty-scrapped-field-${line.id}`}
+                            >
+                              <Body1 className={styles.lineDetailLabel}>Qty Scrapped</Body1>
+                              {line.requiresSerialNumbers ? (
+                                <Body1>{qtyByLineId[line.id]?.quantityAsScrapped ?? line.quantityAsScrapped}</Body1>
+                              ) : (
+                                <Input
+                                  className={styles.lineQuantityInput}
+                                  type="number"
+                                  min={0}
+                                  value={String(qtyByLineId[line.id]?.quantityAsScrapped ?? line.quantityAsScrapped)}
+                                  onChange={(event) => setNonSerialScrapped(line.id, event.target.value)}
+                                />
+                              )}
+                            </div>
+                            {line.requiresSerialNumbers && (
+                              <div
+                                className={`${styles.lineDetailField} ${styles.lineDetailFieldSerials}`}
+                                data-testid={`line-serials-field-${line.id}`}
+                              >
+                                <Body1 className={styles.lineDetailLabel}>
+                                  {`Serials (Good: ${
+                                    (serialByLineId[line.id] ?? []).filter((sn) =>
+                                      stringEqualsIgnoreCase(
+                                        scrapReasonNameById.get(sn.scrapReasonId ?? -1),
+                                        "GOOD"
+                                      )
+                                    ).length
+                                  } Bad: ${
+                                    (serialByLineId[line.id] ?? []).filter((sn) =>
+                                      stringEqualsIgnoreCase(
+                                        scrapReasonNameById.get(sn.scrapReasonId ?? -1),
+                                        "BAD"
+                                      )
+                                    ).length
+                                  })`}
+                                </Body1>
+                                <div>
+                                  <div className={styles.lineActions}>
+                                    <Button
+                                      className={styles.serialAddButton}
+                                      size="small"
+                                      appearance="secondary"
+                                      onClick={() => openAddSerialDialog(line.id)}
+                                    >
+                                      Add Serial Number
+                                    </Button>
+                                  </div>
+                                  <div className={styles.serialCardsWrap}>
+                                    {(serialByLineId[line.id] ?? []).map((serial, index) => (
+                                      <div
+                                        key={serial.id ?? `${serial.serialNo}-${index}`}
+                                        className={styles.serialCard}
+                                        data-testid={`serial-card-${line.id}-${index}`}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => openEditSerialDialog(line.id, index)}
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            openEditSerialDialog(line.id, index);
+                                          }
+                                        }}
+                                      >
+                                        <div className={styles.serialCardMain}>
+                                          <Body1 className={styles.serialCardSerialNo}>
+                                            {serial.serialNo || "--"}
+                                          </Body1>
+                                          <Body1
+                                            className={mergeClasses(
+                                              styles.serialCardStatus,
+                                              stringEqualsIgnoreCase(serialStatusLabel(serial), "BAD")
+                                                ? styles.serialCardStatusBad
+                                                : styles.serialCardStatusGood
+                                            )}
+                                          >
+                                            {serialStatusLabel(serial)}
+                                          </Body1>
+                                        </div>
+                                        <Button
+                                          className={styles.serialCardDeleteButton}
+                                          size="small"
+                                          appearance="subtle"
+                                          icon={<Delete24Regular />}
+                                          aria-label={`Delete serial ${serial.serialNo || index + 1}`}
+                                          data-testid={`serial-card-delete-${line.id}-${index}`}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            setPendingSerialDelete({
+                                              lineId: line.id,
+                                              serialIndex: index,
+                                              serialNo: serial.serialNo || "this serial",
+                                            });
+                                          }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div
+                              className={`${styles.lineDetailField} ${styles.lineDetailFieldValidation}`}
+                              data-testid={`line-validation-field-${line.id}`}
+                            >
+                              <Body1 className={styles.lineDetailLabel}>Validation</Body1>
+                              <Body1>{lineValidationMessage(line) ?? "--"}</Body1>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
@@ -452,6 +1039,196 @@ export function ProductionOrderPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={editingSerial != null} onOpenChange={(_, data) => !data.open && setEditingSerial(null)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>{editingSerial?.serialIndex == null ? "Add Serial Number" : "Edit Serial Number"}</DialogTitle>
+            <DialogContent>
+              {editingSerial && (
+                <div className={styles.form}>
+                  <Field label="Serial No" required>
+                    <Input
+                      value={editingSerial.value.serialNo}
+                      onChange={(_, data) =>
+                        setEditingSerial((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                value: { ...prev.value, serialNo: data.value },
+                              }
+                            : prev
+                        )
+                      }
+                    />
+                  </Field>
+                  <Field label="Manufacturer">
+                    <Input
+                      value={editingSerial.value.manufacturer ?? ""}
+                      onChange={(_, data) =>
+                        setEditingSerial((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                value: { ...prev.value, manufacturer: data.value },
+                              }
+                            : prev
+                        )
+                      }
+                    />
+                  </Field>
+                  <div className={styles.row}>
+                    <Field label="Manfu. Date">
+                      <Input
+                        value={editingSerial.value.manufacturingDate ?? ""}
+                        onChange={(_, data) =>
+                          setEditingSerial((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  value: { ...prev.value, manufacturingDate: data.value },
+                                }
+                              : prev
+                          )
+                        }
+                      />
+                    </Field>
+                    <Field label="Test Date">
+                      <Input
+                        value={editingSerial.value.testDate ?? ""}
+                        onChange={(_, data) =>
+                          setEditingSerial((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  value: { ...prev.value, testDate: data.value },
+                                }
+                              : prev
+                          )
+                        }
+                      />
+                    </Field>
+                  </div>
+                  <div className={styles.row}>
+                    <Field label="Test Status">
+                      <Select
+                        value={String(editingSerial.value.scrapReasonId ?? "")}
+                        onChange={(_, data) =>
+                          setEditingSerial((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  value: {
+                                    ...prev.value,
+                                    scrapReasonId: data.value
+                                      ? Number(data.value)
+                                      : null,
+                                  },
+                                }
+                              : prev
+                          )
+                        }
+                      >
+                        <option value="">--</option>
+                        {scrapReasons.map((reason) => (
+                          <option key={reason.id} value={String(reason.id)}>
+                            {reason.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Lid Color">
+                      <Select
+                        value={editingSerial.value.lidColor ?? ""}
+                        onChange={(_, data) =>
+                          setEditingSerial((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  value: { ...prev.value, lidColor: data.value },
+                                }
+                              : prev
+                          )
+                        }
+                      >
+                        <option value="">--</option>
+                        {lidColors.map((color) => (
+                          <option key={color.id} value={color.name}>
+                            {color.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+                  <Field label="Lid Size">
+                    <Select
+                      value={editingSerial.value.lidSize ?? ""}
+                      onChange={(_, data) =>
+                        setEditingSerial((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                value: { ...prev.value, lidSize: data.value },
+                              }
+                            : prev
+                        )
+                      }
+                    >
+                      <option value="">--</option>
+                      {LID_SIZE_OPTIONS.map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance="secondary">Cancel</Button>
+              </DialogTrigger>
+              <Button appearance="primary" onClick={saveSerialDialog}>
+                Save Serial
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      <Dialog
+        open={pendingSerialDelete != null}
+        onOpenChange={(_, data) => {
+          if (!data.open) {
+            setPendingSerialDelete(null);
+          }
+        }}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Delete Serial Number</DialogTitle>
+            <DialogContent>
+              <Body1>{`Are you sure you want to delete serial "${pendingSerialDelete?.serialNo ?? ""}"?`}</Body1>
+            </DialogContent>
+            <DialogActions>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance="secondary">Cancel</Button>
+              </DialogTrigger>
+              <Button
+                appearance="primary"
+                onClick={() => {
+                  if (!pendingSerialDelete) return;
+                  deleteSerial(pendingSerialDelete.lineId, pendingSerialDelete.serialIndex);
+                  setPendingSerialDelete(null);
+                }}
+              >
+                Delete
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }

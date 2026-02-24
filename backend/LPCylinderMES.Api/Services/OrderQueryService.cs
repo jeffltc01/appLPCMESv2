@@ -11,6 +11,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
         int page,
         int pageSize,
         string? search,
+        string? status,
         int? customerId,
         DateOnly? dateFrom,
         DateOnly? dateTo,
@@ -28,6 +29,9 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
 
         if (customerId.HasValue)
             query = query.Where(o => o.CustomerId == customerId.Value);
+
+        if (!string.IsNullOrWhiteSpace(status))
+            query = query.Where(o => o.OrderStatus == status);
 
         if (dateFrom.HasValue)
             query = query.Where(o => o.OrderDate >= dateFrom.Value);
@@ -273,6 +277,8 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             .Include(o => o.PickUpAddress)
             .Include(o => o.SalesOrderDetails)
                 .ThenInclude(d => d.Item)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.SalesOrderDetailSns)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
         if (order is null)
@@ -288,6 +294,9 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             .Include(o => o.PickUpAddress)
             .Include(o => o.SalesOrderDetails)
                 .ThenInclude(d => d.Item)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.SalesOrderDetailSns)
+                    .ThenInclude(sn => sn.ScrapReason)
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
         if (order is null)
@@ -440,8 +449,29 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             .OrderBy(d => d.LineNo)
             .Select(d =>
             {
-                var qtyReceived = d.QuantityAsReceived ?? 0;
-                return new ReceivingOrderLineDto(
+                var qtyReceived = d.QuantityAsReceived ?? 0m;
+                var qtyShipped = d.QuantityAsShipped ?? 0m;
+                var qtyScrapped = d.QuantityAsScrapped ?? 0m;
+                var serials = d.SalesOrderDetailSns
+                    .OrderBy(sn => sn.Id)
+                    .Select(sn =>
+                    {
+                        var statusName = TrimToNull(sn.ScrapReason?.Name)
+                            ?? (string.Equals(sn.Status, "BAD", StringComparison.OrdinalIgnoreCase) ? "BAD" : "GOOD");
+                        return new ProductionSerialNumberDto(
+                            sn.Id,
+                            sn.SerialNumber,
+                            TrimToNull(sn.Mfg),
+                            TrimToNull(sn.MfgDate),
+                            TrimToNull(sn.MfgTestDate),
+                            sn.ScrapReasonId,
+                            statusName,
+                            TrimToNull(sn.LidColor),
+                            TrimToNull(sn.LidSize));
+                    })
+                    .ToList();
+
+                return new ProductionOrderLineDto(
                     d.Id,
                     d.LineNo,
                     d.ItemId,
@@ -449,7 +479,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                     d.Item.ItemDescription ?? d.Item.ItemNo,
                     d.QuantityAsOrdered,
                     qtyReceived,
-                    qtyReceived > 0);
+                    qtyShipped,
+                    qtyScrapped,
+                    d.Item.RequiresSerialNumbers == 1,
+                    serials);
             })
             .ToList();
 

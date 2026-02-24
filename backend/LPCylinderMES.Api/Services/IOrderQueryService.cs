@@ -8,6 +8,7 @@ public interface IOrderQueryService
         int page,
         int pageSize,
         string? search,
+        string? status,
         int? customerId,
         DateOnly? dateFrom,
         DateOnly? dateTo,

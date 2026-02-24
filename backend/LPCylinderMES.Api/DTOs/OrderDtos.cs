@@ -182,7 +182,50 @@ public record ProductionOrderDetailDto(
     string? TrailerNo,
     string? OrderComments,
     DateTime? ReceivedDate,
-    List<ReceivingOrderLineDto> Lines);
+    List<ProductionOrderLineDto> Lines);
+
+public record ProductionSerialNumberDto(
+    int Id,
+    string SerialNo,
+    string? Manufacturer,
+    string? ManufacturingDate,
+    string? TestDate,
+    int? ScrapReasonId,
+    string TestStatus,
+    string? LidColor,
+    string? LidSize);
+
+public record ProductionOrderLineDto(
+    int Id,
+    decimal LineNo,
+    int ItemId,
+    string ItemNo,
+    string ItemDescription,
+    decimal QuantityAsOrdered,
+    decimal QuantityAsReceived,
+    decimal QuantityAsShipped,
+    decimal QuantityAsScrapped,
+    bool RequiresSerialNumbers,
+    List<ProductionSerialNumberDto> SerialNumbers);
+
+public record ProductionLineUpdateDto(
+    int LineId,
+    decimal QuantityAsShipped,
+    decimal QuantityAsScrapped,
+    List<ProductionSerialNumberUpsertDto>? SerialNumbers);
+
+public record ProductionSerialNumberUpsertDto(
+    int? Id,
+    string SerialNo,
+    string? Manufacturer,
+    string? ManufacturingDate,
+    string? TestDate,
+    int? ScrapReasonId,
+    string? LidColor,
+    string? LidSize);
+
+public record CompleteProductionDto(
+    List<ProductionLineUpdateDto> Lines);
 
 public record ReceivingLineUpdateDto(
     int LineId,

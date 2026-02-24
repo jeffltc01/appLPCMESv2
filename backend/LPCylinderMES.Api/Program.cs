@@ -41,6 +41,7 @@ builder.Services.AddSingleton<IAttachmentStorage, AzureBlobAttachmentStorage>();
 builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
 builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 builder.Services.AddScoped<IReceivingService, ReceivingService>();
+builder.Services.AddScoped<IProductionService, ProductionService>();
 builder.Services.AddScoped<IOrderAttachmentService, OrderAttachmentService>();
 builder.Services.AddScoped<IOrderLineService, OrderLineService>();
 

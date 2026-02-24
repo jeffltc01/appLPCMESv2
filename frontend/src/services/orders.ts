@@ -19,6 +19,7 @@ import type {
   ProductionOrderListItem,
   ProductionOrderDetail,
   OrderAttachment,
+  CompleteProductionRequest,
 } from "../types/order";
 import type {
   Lookup,
@@ -33,6 +34,7 @@ export const ordersApi = {
     if (params.page) qs.set("page", String(params.page));
     if (params.pageSize) qs.set("pageSize", String(params.pageSize));
     if (params.search) qs.set("search", params.search);
+    if (params.status) qs.set("status", params.status);
     if (params.customerId) qs.set("customerId", String(params.customerId));
     if (params.dateFrom) qs.set("dateFrom", params.dateFrom);
     if (params.dateTo) qs.set("dateTo", params.dateTo);
@@ -84,6 +86,9 @@ export const ordersApi = {
   productionList: () => api.get<ProductionOrderListItem[]>("/orders/production"),
 
   productionDetail: (id: number) => api.get<ProductionOrderDetail>(`/orders/${id}/production`),
+
+  completeProduction: (id: number, data: CompleteProductionRequest) =>
+    api.post<ProductionOrderDetail>(`/orders/${id}/production/complete`, data),
 
   attachments: (id: number) => api.get<OrderAttachment[]>(`/orders/${id}/attachments`),
 
@@ -139,6 +144,7 @@ export const orderLookupsApi = {
   shipVias: () => api.get<Lookup[]>("/lookups/ship-vias"),
   salesPeople: () => api.get<SalesPersonLookup[]>("/lookups/sales-people"),
   colors: () => api.get<Lookup[]>("/lookups/colors"),
+  scrapReasons: () => api.get<Lookup[]>("/lookups/scrap-reasons"),
   defaultItemPrice: (orderId: number, itemId: number) =>
     api.get<number | null>(
       `/orders/${orderId}/lines/default-price?itemId=${itemId}`

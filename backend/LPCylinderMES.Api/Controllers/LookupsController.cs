@@ -19,6 +19,16 @@ public class LookupsController(LpcAppsDbContext db) : ControllerBase
         return Ok(items);
     }
 
+    [HttpGet("scrap-reasons")]
+    public async Task<ActionResult<List<LookupDto>>> GetScrapReasons()
+    {
+        var items = await db.ScrapReasons
+            .OrderBy(sr => sr.Name)
+            .Select(sr => new LookupDto(sr.Id, sr.Name))
+            .ToListAsync();
+        return Ok(items);
+    }
+
     [HttpGet("payment-terms")]
     public async Task<ActionResult<List<LookupDto>>> GetPaymentTerms()
     {

@@ -28,16 +28,28 @@ interface NavItem {
   label: string;
   icon: React.ReactElement;
   path: string;
+  navigateTo?: string;
 }
 
 const allNavItems: NavItem[] = [
   { key: "home", label: "Home", icon: <Home24Regular />, path: "/" },
-  { key: "orders", label: "Orders", icon: <ClipboardTask24Regular />, path: "/orders" },
-  { key: "transportation", label: "Transportation", icon: <VehicleTruckProfile24Regular />, path: "/transportation" },
+  {
+    key: "orders",
+    label: "Orders",
+    icon: <ClipboardTask24Regular />,
+    path: "/orders",
+    navigateTo: "/orders?status=New",
+  },
   { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
   { key: "production", label: "Production", icon: <Wrench24Regular />, path: "/production" },
   { key: "shipping", label: "Shipping", icon: <BoxCheckmark24Regular />, path: "/shipping" },
-  { key: "invoicing", label: "Invoicing", icon: <Receipt24Regular />, path: "/invoicing" },
+  {
+    key: "invoicing",
+    label: "Invoicing",
+    icon: <Receipt24Regular />,
+    path: "/invoicing",
+    navigateTo: "/invoicing?status=Ready%20to%20Invoice",
+  },
   { key: "customers", label: "Customers", icon: <People24Regular />, path: "/customers" },
   { key: "orderboard", label: "Order Board", icon: <Board24Regular />, path: "/orderboard" },
   { key: "setup", label: "Setup", icon: <Settings24Regular />, path: "/setup" },
@@ -161,7 +173,7 @@ export function MobileHeader() {
                   isActive(item.path) && styles.navItemActive
                 )}
                 onClick={() => {
-                  navigate(item.path);
+                  navigate(item.navigateTo ?? item.path);
                   setDrawerOpen(false);
                 }}
               >

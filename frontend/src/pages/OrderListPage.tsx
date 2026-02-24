@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   makeStyles,
   tokens,
@@ -72,6 +72,8 @@ const PAGE_SIZE = 25;
 export function OrderListPage() {
   const styles = useStyles();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [data, setData] = useState<PaginatedResponse<OrderDraftListItem> | null>(
     null
@@ -83,6 +85,8 @@ export function OrderListPage() {
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [customers, setCustomers] = useState<Lookup[]>([]);
+  const statusFilter = searchParams.get("status")?.trim()
+    || (location.pathname.startsWith("/invoicing") ? "Ready to Invoice" : "New");
 
   useEffect(() => {
     orderLookupsApi.activeCustomers().then(setCustomers);
@@ -95,6 +99,7 @@ export function OrderListPage() {
         page,
         pageSize: PAGE_SIZE,
         search: search || undefined,
+        status: statusFilter || undefined,
         customerId: customerId ? Number(customerId) : undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
@@ -103,7 +108,7 @@ export function OrderListPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, customerId, dateFrom, dateTo]);
+  }, [page, search, customerId, dateFrom, dateTo, statusFilter]);
 
   useEffect(() => {
     load();
@@ -111,7 +116,7 @@ export function OrderListPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, customerId, dateFrom, dateTo]);
+  }, [search, customerId, dateFrom, dateTo, statusFilter]);
 
   const totalPages = data ? Math.ceil(data.totalCount / PAGE_SIZE) : 0;
 
