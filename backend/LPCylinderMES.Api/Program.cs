@@ -38,6 +38,11 @@ builder.Services.AddOpenApi();
 builder.Services.AddDbContext<LpcAppsDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddSingleton<IAttachmentStorage, AzureBlobAttachmentStorage>();
+builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
+builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
+builder.Services.AddScoped<IReceivingService, ReceivingService>();
+builder.Services.AddScoped<IOrderAttachmentService, OrderAttachmentService>();
+builder.Services.AddScoped<IOrderLineService, OrderLineService>();
 
 builder.Services.AddCors(options =>
 {

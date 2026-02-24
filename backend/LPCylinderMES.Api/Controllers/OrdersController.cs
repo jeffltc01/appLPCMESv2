@@ -11,40 +11,11 @@ namespace LPCylinderMES.Api.Controllers;
 [Route("api/[controller]")]
 public class OrdersController(
     LpcAppsDbContext db,
-    IAttachmentStorage attachmentStorage,
-    IConfiguration configuration) : ControllerBase
+    IOrderQueryService orderQueryService,
+    IOrderWorkflowService orderWorkflowService,
+    IReceivingService receivingService,
+    IOrderAttachmentService orderAttachmentService) : ControllerBase
 {
-    private const long DefaultMaxAttachmentSizeBytes = 25 * 1024 * 1024;
-    private readonly long _maxAttachmentSizeBytes = ResolveMaxAttachmentSizeBytes(configuration);
-    private readonly HashSet<string> _allowedAttachmentExtensions =
-        ResolveAllowedAttachmentExtensions(configuration);
-    private static readonly string[] WorkflowSteps =
-    {
-        "New",
-        "Ready for Pickup",
-        "Pickup Scheduled",
-        "Received",
-        "Ready to Ship",
-        "Ready to Invoice",
-    };
-    private static readonly HashSet<string> ShipmentStatuses = new(StringComparer.Ordinal)
-    {
-        "Ready to Ship",
-        "Ready to Invoice",
-    };
-    private static readonly HashSet<string> TransportBoardVisibleStatuses = new(StringComparer.Ordinal)
-    {
-        "Ready for Pickup",
-        "Ready to Ship",
-    };
-    private static readonly HashSet<string> TransportEditableStatuses = new(StringComparer.Ordinal)
-    {
-        "Ready for Pickup",
-        "Pickup Scheduled",
-        "Ready to Ship",
-        "Ready to Invoice",
-    };
-
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<OrderDraftListDto>>> GetAll(
         [FromQuery] int page = 1,
@@ -54,48 +25,8 @@ public class OrdersController(
         [FromQuery] DateOnly? dateFrom = null,
         [FromQuery] DateOnly? dateTo = null)
     {
-        var query = db.SalesOrders.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(o =>
-                o.SalesOrderNo.Contains(search) ||
-                o.Customer.Name.Contains(search) ||
-                (o.CustomerPoNo != null && o.CustomerPoNo.Contains(search)));
-        }
-
-        if (customerId.HasValue)
-            query = query.Where(o => o.CustomerId == customerId.Value);
-
-        if (dateFrom.HasValue)
-            query = query.Where(o => o.OrderDate >= dateFrom.Value);
-
-        if (dateTo.HasValue)
-            query = query.Where(o => o.OrderDate <= dateTo.Value);
-
-        var totalCount = await query.CountAsync();
-
-        var items = await query
-            .OrderByDescending(o => o.OrderDate)
-            .ThenByDescending(o => o.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(o => new OrderDraftListDto(
-                o.Id,
-                o.SalesOrderNo,
-                o.OrderDate,
-                o.OrderStatus,
-                o.CustomerId,
-                o.Customer.Name,
-                o.SiteId,
-                o.Site.Name,
-                o.CustomerPoNo,
-                o.Contact,
-                o.SalesOrderDetails.Count(),
-                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
-            .ToListAsync();
-
-        return Ok(new PaginatedResponse<OrderDraftListDto>(items, totalCount, page, pageSize));
+        var result = await orderQueryService.GetOrdersAsync(page, pageSize, search, customerId, dateFrom, dateTo);
+        return Ok(result);
     }
 
     [HttpGet("transport-board")]
@@ -108,131 +39,19 @@ public class OrdersController(
         [FromQuery] int? siteId = null,
         [FromQuery] string? carrier = null)
     {
-        var query = db.SalesOrders
-            .Where(o => TransportBoardVisibleStatuses.Contains(o.OrderStatus))
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(o =>
-                o.SalesOrderNo.Contains(search) ||
-                o.Customer.Name.Contains(search) ||
-                (o.Contact != null && o.Contact.Contains(search)) ||
-                (o.Comments != null && o.Comments.Contains(search)) ||
-                (o.TransportationStatus != null && o.TransportationStatus.Contains(search)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(o => o.OrderStatus == status);
-
-        if (siteId.HasValue)
-            query = query.Where(o => o.SiteId == siteId.Value);
-
-        if (!string.IsNullOrWhiteSpace(carrier))
-            query = query.Where(o => o.Carrier != null && o.Carrier.Contains(carrier));
-
-        if (!string.IsNullOrWhiteSpace(movementType))
-        {
-            if (movementType.Equals("Shipment", StringComparison.OrdinalIgnoreCase))
-            {
-                query = query.Where(o => ShipmentStatuses.Contains(o.OrderStatus));
-            }
-            else if (movementType.Equals("Pickup", StringComparison.OrdinalIgnoreCase))
-            {
-                query = query.Where(o => !ShipmentStatuses.Contains(o.OrderStatus));
-            }
-        }
-
-        var totalCount = await query.CountAsync();
-
-        var pageIds = await query
-            .OrderByDescending(o => o.OrderDate)
-            .ThenByDescending(o => o.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(o => o.Id)
-            .ToListAsync();
-
-        var orders = await db.SalesOrders
-            .Where(o => pageIds.Contains(o.Id))
-            .Include(o => o.Customer)
-            .Include(o => o.Site)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.ShipToAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .ToListAsync();
-
-        var orderLookup = orders.ToDictionary(o => o.Id);
-        var items = pageIds
-            .Select(id => orderLookup[id])
-            .Select(ToTransportBoardItemDto)
-            .ToList();
-
-        return Ok(new PaginatedResponse<TransportBoardItemDto>(items, totalCount, page, pageSize));
+        var result = await orderQueryService.GetTransportBoardAsync(
+            page, pageSize, search, movementType, status, siteId, carrier);
+        return Ok(result);
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<OrderDraftDetailDto>> Get(int id)
     {
-        var order = await db.SalesOrders
-            .Include(o => o.Customer)
-            .Include(o => o.Site)
-            .Include(o => o.BillToAddress)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.ShipToAddress)
-            .Include(o => o.PickUpVia)
-            .Include(o => o.ShipToVia)
-            .Include(o => o.PaymentTerm)
-            .Include(o => o.SalesPerson)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Color)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.LidColor)
-            .Where(o => o.Id == id)
-            .FirstOrDefaultAsync();
-
-        if (order is null)
+        var detail = await orderQueryService.GetOrderDetailAsync(id);
+        if (detail is null)
             return NotFound();
 
-        var lines = order.SalesOrderDetails
-            .OrderBy(d => d.LineNo)
-            .Select(d => ToOrderLineDto(d))
-            .ToList();
-
-        return Ok(new OrderDraftDetailDto(
-            order.Id,
-            order.SalesOrderNo,
-            order.OrderDate,
-            order.OrderStatus,
-            order.OrderDate,
-            order.PickupDate,
-            order.PickupScheduledDate,
-            order.ReceivedDate,
-            order.ReadyToShipDate,
-            order.InvoiceDate,
-            order.CustomerId,
-            order.Customer.Name,
-            order.SiteId,
-            order.Site.Name,
-            order.CustomerPoNo,
-            order.Contact,
-            order.Phone,
-            order.Comments,
-            order.Priority,
-            order.SalesPersonId,
-            order.SalesPerson?.Name,
-            order.BillToAddressId,
-            order.PickUpAddressId,
-            order.ShipToAddressId,
-            order.PickUpViaId,
-            order.ShipToViaId,
-            order.PaymentTermId,
-            order.ReturnScrap,
-            order.ReturnBrass,
-            lines));
+        return Ok(detail);
     }
 
     [HttpPost]
@@ -285,7 +104,8 @@ public class OrdersController(
         db.SalesOrders.Add(order);
         await db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(Get), new { id = order.Id }, await GetDetailDto(order.Id));
+        var detail = await orderQueryService.GetOrderDetailAsync(order.Id);
+        return CreatedAtAction(nameof(Get), new { id = order.Id }, detail);
     }
 
     [HttpPut("{id:int}")]
@@ -327,57 +147,22 @@ public class OrdersController(
 
         await db.SaveChangesAsync();
 
-        return Ok(await GetDetailDto(id));
+        var detail = await orderQueryService.GetOrderDetailAsync(id);
+        return Ok(detail);
     }
 
     [HttpPost("{id:int}/advance-status")]
     public async Task<ActionResult<OrderDraftDetailDto>> AdvanceStatus(int id, OrderAdvanceStatusDto dto)
     {
-        var order = await db.SalesOrders.FindAsync(id);
-        if (order is null)
-            return NotFound();
-
-        var currentIdx = Array.IndexOf(WorkflowSteps, order.OrderStatus);
-        if (currentIdx < 0)
-            return Conflict(new { message = $"Order is in unsupported status '{order.OrderStatus}'." });
-
-        var expectedNext = currentIdx < WorkflowSteps.Length - 1
-            ? WorkflowSteps[currentIdx + 1]
-            : null;
-        var expectedPrevious = currentIdx > 0
-            ? WorkflowSteps[currentIdx - 1]
-            : null;
-
-        var isImmediateNext = expectedNext is not null &&
-            string.Equals(dto.TargetStatus, expectedNext, StringComparison.Ordinal);
-        var isImmediatePrevious = expectedPrevious is not null &&
-            string.Equals(dto.TargetStatus, expectedPrevious, StringComparison.Ordinal);
-
-        if (!isImmediateNext && !isImmediatePrevious)
+        try
         {
-            return Conflict(new
-            {
-                message =
-                    $"Only immediate adjacent step is allowed. Current='{order.OrderStatus}', " +
-                    $"previous='{expectedPrevious ?? "(none)"}', next='{expectedNext ?? "(none)"}'."
-            });
+            var detail = await orderWorkflowService.AdvanceStatusAsync(id, dto.TargetStatus);
+            return Ok(detail);
         }
-
-        var previousStatus = order.OrderStatus;
-        order.OrderStatus = dto.TargetStatus;
-
-        if (isImmediateNext)
+        catch (ServiceException ex)
         {
-            ApplyTransitionTimestamp(order, dto.TargetStatus);
+            return this.ToActionResult(ex);
         }
-        else if (isImmediatePrevious)
-        {
-            ClearTransitionTimestamp(order, previousStatus);
-        }
-
-        await db.SaveChangesAsync();
-
-        return Ok(await GetDetailDto(id));
     }
 
     [HttpPut("transport-board")]
@@ -390,12 +175,6 @@ public class OrdersController(
         var updateIds = updates.Select(u => u.Id).Distinct().ToList();
         var orders = await db.SalesOrders
             .Where(o => updateIds.Contains(o.Id))
-            .Include(o => o.Customer)
-            .Include(o => o.Site)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.ShipToAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
             .ToListAsync();
 
         if (orders.Count != updateIds.Count)
@@ -405,7 +184,7 @@ public class OrdersController(
         foreach (var dto in updates)
         {
             var order = orderById[dto.Id];
-            if (!TransportEditableStatuses.Contains(order.OrderStatus))
+            if (!OrderStatusCatalog.TransportEditableStatuses.Contains(order.OrderStatus))
             {
                 return Conflict(new
                 {
@@ -423,143 +202,67 @@ public class OrdersController(
 
         await db.SaveChangesAsync();
 
-        var response = updates
-            .Select(u => ToTransportBoardItemDto(orderById[u.Id]))
-            .ToList();
+        var refreshed = await orderQueryService.GetTransportBoardAsync(
+            1, updateIds.Count, null, null, null, null, null);
+        var response = refreshed.Items.Where(i => updateIds.Contains(i.Id)).ToList();
         return Ok(response);
     }
 
     [HttpGet("statuses")]
     public async Task<ActionResult<List<string>>> GetStatuses()
     {
-        var statuses = await db.SalesOrders
-            .Select(o => o.OrderStatus)
-            .Distinct()
-            .OrderBy(s => s)
-            .ToListAsync();
-        return statuses;
+        return Ok(await orderQueryService.GetStatusesAsync());
     }
 
     [HttpGet("receiving")]
     public async Task<ActionResult<List<ReceivingOrderListItemDto>>> GetReceivingQueue()
     {
-        var orders = await db.SalesOrders
-            .Where(o => o.OrderStatus == "Pickup Scheduled")
-            .Include(o => o.Customer)
-            .Include(o => o.Site)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .OrderByDescending(o => o.Id)
-            .ToListAsync();
-
-        var items = orders
-            .Select(o => new ReceivingOrderListItemDto(
-                o.Id,
-                o.SalesOrderNo,
-                o.IpadOrderId.HasValue ? o.IpadOrderId.Value.ToString() : null,
-                o.Customer.Name,
-                o.Site.Name,
-                string.IsNullOrWhiteSpace(o.TrailerNo) ? "Customer Drop Off" : "Trailer Pickup",
-                o.Priority,
-                FormatAddressLabel(o.PickUpAddress),
-                TrimToNull(o.PickUpAddress?.City),
-                TrimToNull(o.PickUpAddress?.State),
-                TrimToNull(o.PickUpAddress?.PostalCode),
-                TrimToNull(o.PickUpAddress?.Country),
-                BuildLineSummary(o.SalesOrderDetails),
-                o.TrailerNo,
-                o.PickupScheduledDate,
-                o.SalesOrderDetails.Count,
-                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
-            .ToList();
-
-        return Ok(items);
+        return Ok(await orderQueryService.GetReceivingQueueAsync());
     }
 
     [HttpGet("production")]
     public async Task<ActionResult<List<ProductionOrderListItemDto>>> GetProductionQueue()
     {
-        var orders = await db.SalesOrders
-            .Where(o => o.OrderStatus == "Received")
-            .Include(o => o.Customer)
-            .Include(o => o.Site)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .OrderByDescending(o => o.ReceivedDate.HasValue)
-            .ThenByDescending(o => o.ReceivedDate)
-            .ThenByDescending(o => o.Id)
-            .ToListAsync();
-
-        var items = orders
-            .Select(o => new ProductionOrderListItemDto(
-                o.Id,
-                o.SalesOrderNo,
-                o.Customer.Name,
-                o.Site.Name,
-                o.Priority,
-                BuildLineSummary(o.SalesOrderDetails),
-                o.ReceivedDate,
-                o.SalesOrderDetails.Count,
-                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
-            .ToList();
-
-        return Ok(items);
+        return Ok(await orderQueryService.GetProductionQueueAsync());
     }
 
     [HttpGet("{id:int}/receiving")]
     public async Task<ActionResult<ReceivingOrderDetailDto>> GetReceivingDetail(int id)
     {
-        var order = await db.SalesOrders
-            .Include(o => o.Customer)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .FirstOrDefaultAsync(o => o.Id == id);
-
-        if (order is null)
+        var detail = await orderQueryService.GetReceivingDetailAsync(id);
+        if (detail is null)
             return NotFound();
 
-        if (order.OrderStatus != "Pickup Scheduled")
+        if (detail.OrderStatus != "Pickup Scheduled")
             return Conflict(new { message = "Only orders in status 'Pickup Scheduled' can be received." });
 
-        return Ok(ToReceivingDetailDto(order));
+        return Ok(detail);
     }
 
     [HttpGet("{id:int}/production")]
     public async Task<ActionResult<ProductionOrderDetailDto>> GetProductionDetail(int id)
     {
-        var order = await db.SalesOrders
-            .Include(o => o.Customer)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .FirstOrDefaultAsync(o => o.Id == id);
-
-        if (order is null)
+        var detail = await orderQueryService.GetProductionDetailAsync(id);
+        if (detail is null)
             return NotFound();
 
-        if (order.OrderStatus != "Received")
+        if (detail.OrderStatus != "Received")
             return Conflict(new { message = "Only orders in status 'Received' can be viewed in Production." });
 
-        return Ok(ToProductionDetailDto(order));
+        return Ok(detail);
     }
 
     [HttpGet("{id:int}/attachments")]
-    public async Task<ActionResult<List<OrderAttachmentDto>>> GetAttachments(int id)
+    public async Task<ActionResult<List<OrderAttachmentDto>>> GetAttachments(int id, CancellationToken cancellationToken)
     {
-        var orderExists = await db.SalesOrders.AnyAsync(o => o.Id == id);
-        if (!orderExists)
-            return NotFound();
-
-        var attachments = await db.OrderAttachments
-            .Where(a => a.OrderId == id)
-            .OrderByDescending(a => a.CreatedAtUtc)
-            .ThenByDescending(a => a.Id)
-            .Select(a => ToAttachmentDto(a))
-            .ToListAsync();
-
-        return Ok(attachments);
+        try
+        {
+            return Ok(await orderAttachmentService.GetAttachmentsAsync(id, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
     }
 
     [HttpPost("{id:int}/attachments")]
@@ -568,209 +271,60 @@ public class OrdersController(
         [FromForm] IFormFile? file,
         CancellationToken cancellationToken)
     {
-        if (file is null || file.Length == 0)
-            return BadRequest(new { message = "A non-empty file is required." });
-
-        if (file.Length > _maxAttachmentSizeBytes)
+        try
         {
-            return BadRequest(new
-            {
-                message = $"Attachment exceeds the maximum size of {_maxAttachmentSizeBytes / (1024 * 1024)} MB."
-            });
+            var attachment = await orderAttachmentService.UploadAttachmentAsync(id, file, cancellationToken);
+            return CreatedAtAction(
+                nameof(DownloadAttachment),
+                new { id, attachmentId = attachment.Id },
+                attachment);
         }
-
-        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
-        if (order is null)
-            return NotFound();
-
-        if (order.OrderStatus != "Received")
-            return Conflict(new { message = "Attachments can only be added for orders in status 'Received'." });
-
-        var safeFileName = Path.GetFileName(file.FileName);
-        if (string.IsNullOrWhiteSpace(safeFileName))
-            return BadRequest(new { message = "Invalid file name." });
-        var extension = Path.GetExtension(safeFileName).Trim().ToLowerInvariant();
-        if (_allowedAttachmentExtensions.Count > 0 &&
-            !_allowedAttachmentExtensions.Contains(extension))
+        catch (ServiceException ex)
         {
-            return BadRequest(new
-            {
-                message = $"File type '{extension}' is not allowed."
-            });
+            return this.ToActionResult(ex);
         }
-
-        var blobPath = $"orders/{id}/{Guid.NewGuid():N}-{safeFileName}";
-        var contentType = string.IsNullOrWhiteSpace(file.ContentType)
-            ? "application/octet-stream"
-            : file.ContentType;
-
-        await using (var stream = file.OpenReadStream())
-        {
-            await attachmentStorage.UploadAsync(
-                blobPath,
-                stream,
-                contentType,
-                cancellationToken);
-        }
-
-        var attachment = new OrderAttachment
-        {
-            OrderId = id,
-            FileName = safeFileName,
-            BlobPath = blobPath,
-            ContentType = contentType,
-            SizeBytes = file.Length,
-            CreatedAtUtc = DateTime.UtcNow,
-        };
-
-        db.OrderAttachments.Add(attachment);
-        await db.SaveChangesAsync(cancellationToken);
-
-        return CreatedAtAction(
-            nameof(DownloadAttachment),
-            new { id, attachmentId = attachment.Id },
-            ToAttachmentDto(attachment));
     }
 
     [HttpGet("{id:int}/attachments/{attachmentId:int}")]
     public async Task<IActionResult> DownloadAttachment(int id, int attachmentId, CancellationToken cancellationToken)
     {
-        var attachment = await db.OrderAttachments
-            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.OrderId == id, cancellationToken);
-        if (attachment is null)
-            return NotFound();
-
-        var stream = await attachmentStorage.OpenReadAsync(attachment.BlobPath, cancellationToken);
-        if (stream is null)
-            return NotFound(new { message = "Attachment file not found in storage." });
-
-        return File(stream, attachment.ContentType, attachment.FileName);
+        try
+        {
+            var result = await orderAttachmentService.DownloadAttachmentAsync(id, attachmentId, cancellationToken);
+            return File(result.Stream, result.ContentType, result.FileName);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
     }
 
     [HttpDelete("{id:int}/attachments/{attachmentId:int}")]
     public async Task<IActionResult> DeleteAttachment(int id, int attachmentId, CancellationToken cancellationToken)
     {
-        var attachment = await db.OrderAttachments
-            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.OrderId == id, cancellationToken);
-        if (attachment is null)
-            return NotFound();
-
-        await attachmentStorage.DeleteIfExistsAsync(attachment.BlobPath, cancellationToken);
-        db.OrderAttachments.Remove(attachment);
-        await db.SaveChangesAsync(cancellationToken);
-
-        return NoContent();
+        try
+        {
+            await orderAttachmentService.DeleteAttachmentAsync(id, attachmentId, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
     }
 
     [HttpPost("{id:int}/receiving/complete")]
     public async Task<ActionResult<ReceivingOrderDetailDto>> CompleteReceiving(int id, CompleteReceivingDto dto)
     {
-        var order = await db.SalesOrders
-            .Include(o => o.Customer)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .FirstOrDefaultAsync(o => o.Id == id);
-
-        if (order is null)
-            return NotFound();
-
-        if (order.OrderStatus != "Pickup Scheduled")
-            return Conflict(new { message = "Only orders in status 'Pickup Scheduled' can be received." });
-
-        if (dto.Lines is null || dto.Lines.Count == 0)
-            return BadRequest(new { message = "At least one line update is required." });
-
-        var detailById = order.SalesOrderDetails.ToDictionary(d => d.Id);
-        foreach (var line in dto.Lines)
+        try
         {
-            if (!detailById.TryGetValue(line.LineId, out var detail))
-                return BadRequest(new { message = $"Line {line.LineId} is invalid for this order." });
-
-            if (line.QuantityAsReceived < 0)
-                return BadRequest(new { message = "Quantity received cannot be negative." });
-
-            detail.QuantityAsReceived = line.IsReceived ? line.QuantityAsReceived : 0;
+            var detail = await receivingService.CompleteReceivingAsync(id, dto);
+            return Ok(detail);
         }
-
-        var nextLineNo = order.SalesOrderDetails.Count == 0
-            ? 1
-            : order.SalesOrderDetails.Max(d => d.LineNo) + 1;
-
-        if (dto.AddedLines is not null && dto.AddedLines.Count > 0)
+        catch (ServiceException ex)
         {
-            var itemIds = dto.AddedLines.Select(a => a.ItemId).Distinct().ToList();
-            var itemLookup = await db.Items
-                .Where(i => itemIds.Contains(i.Id))
-                .ToDictionaryAsync(i => i.Id);
-
-            foreach (var added in dto.AddedLines)
-            {
-                if (!itemLookup.TryGetValue(added.ItemId, out var item))
-                    return BadRequest(new { message = $"Item {added.ItemId} is invalid." });
-
-                if (added.QuantityAsReceived <= 0)
-                    return BadRequest(new { message = "Added lines must have quantity received greater than zero." });
-
-                var created = new SalesOrderDetail
-                {
-                    SalesOrderId = order.Id,
-                    LineNo = nextLineNo,
-                    ItemId = item.Id,
-                    ItemName = item.ItemDescription ?? item.ItemNo,
-                    QuantityAsOrdered = 0,
-                    QuantityAsReceived = added.QuantityAsReceived,
-                    SiteId = order.SiteId,
-                };
-                nextLineNo += 1;
-                order.SalesOrderDetails.Add(created);
-            }
+            return this.ToActionResult(ex);
         }
-
-        order.ReceivedDate = dto.ReceivedDate;
-        order.OrderStatus = "Received";
-
-        await db.SaveChangesAsync();
-
-        var refreshed = await db.SalesOrders
-            .Include(o => o.Customer)
-            .Include(o => o.PickUpAddress)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .FirstAsync(o => o.Id == id);
-
-        return Ok(ToReceivingDetailDto(refreshed));
-    }
-
-    private async Task<OrderDraftDetailDto> GetDetailDto(int id)
-    {
-        var result = await Get(id);
-        return ((OkObjectResult)result.Result!).Value as OrderDraftDetailDto
-            ?? throw new InvalidOperationException("Failed to load order detail");
-    }
-
-    private static OrderLineDto ToOrderLineDto(SalesOrderDetail detail)
-    {
-        return new OrderLineDto(
-            detail.Id,
-            detail.LineNo,
-            detail.ItemId,
-            detail.Item.ItemNo,
-            detail.Item.ItemDescription ?? detail.Item.ItemNo,
-            detail.QuantityAsOrdered,
-            detail.UnitPrice,
-            detail.Extension,
-            detail.Notes,
-            detail.ColorId,
-            detail.Color?.Name,
-            detail.LidColorId,
-            detail.LidColor?.Name,
-            detail.NeedCollars,
-            detail.NeedFillers,
-            detail.NeedFootRings,
-            detail.NeedDecals,
-            detail.ValveType,
-            detail.Gauges);
     }
 
     private async Task<string> GenerateOrderNumber()
@@ -786,132 +340,10 @@ public class OrdersController(
         throw new InvalidOperationException("Unable to generate a unique order number.");
     }
 
-    private static void ApplyTransitionTimestamp(SalesOrder order, string targetStatus)
-    {
-        var now = DateTime.Now;
-        switch (targetStatus)
-        {
-            case "Ready for Pickup":
-                order.PickupDate = now;
-                break;
-            case "Pickup Scheduled":
-                order.PickupScheduledDate = now;
-                break;
-            case "Received":
-                order.ReceivedDate = now;
-                break;
-            case "Ready to Ship":
-                order.ReadyToShipDate = now;
-                break;
-            case "Ready to Invoice":
-                order.InvoiceDate = now;
-                break;
-        }
-    }
-
-    private static TransportBoardItemDto ToTransportBoardItemDto(SalesOrder order)
-    {
-        var lineCount = order.SalesOrderDetails.Count;
-        var totalQuantity = order.SalesOrderDetails.Sum(d => d.QuantityAsOrdered);
-        var topLines = order.SalesOrderDetails
-            .OrderBy(d => d.LineNo)
-            .Take(3)
-            .Select(d =>
-            {
-                var itemNo = d.Item?.ItemNo ?? d.ItemName ?? $"Item {d.ItemId}";
-                return $"{itemNo} x {d.QuantityAsOrdered:0.##}";
-            });
-        var lineSummary = lineCount == 0
-            ? "No lines"
-            : string.Join("; ", topLines) + (lineCount > 3 ? "; ..." : string.Empty);
-
-        return new TransportBoardItemDto(
-            order.Id,
-            order.SalesOrderNo,
-            order.OrderStatus,
-            ShipmentStatuses.Contains(order.OrderStatus) ? "Shipment" : "Pickup",
-            order.OrderDate,
-            order.CustomerId,
-            order.Customer.Name,
-            order.SiteId,
-            order.Site.Name,
-            FormatAddressLabel(order.PickUpAddress),
-            FormatAddressLabel(order.ShipToAddress),
-            TrimToNull(order.PickUpAddress?.Address1),
-            TrimToNull(order.ShipToAddress?.Address1),
-            lineCount,
-            totalQuantity,
-            lineSummary,
-            order.Contact,
-            order.Phone,
-            order.Comments,
-            order.TrailerNo,
-            order.Carrier,
-            order.DispatchDate,
-            order.PickupScheduledDate,
-            order.TransportationStatus,
-            order.TransportationNotes);
-    }
-
-    private static string? FormatAddressLabel(Address? address)
-    {
-        if (address is null) return null;
-        var line1 = string.IsNullOrWhiteSpace(address.AddressName) ? address.Address1 : address.AddressName;
-        line1 = string.IsNullOrWhiteSpace(line1) ? "(no address)" : line1.Trim();
-        var cityStateZip = string.Join(" ",
-            new[] { address.City, address.State, address.PostalCode }
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x!.Trim()));
-        return string.IsNullOrWhiteSpace(cityStateZip) ? line1 : $"{line1}, {cityStateZip}";
-    }
-
-    private static string BuildLineSummary(IEnumerable<SalesOrderDetail> details)
-    {
-        var lines = details
-            .OrderBy(d => d.LineNo)
-            .Take(4)
-            .Select(d =>
-            {
-                var itemNo = d.Item?.ItemNo ?? d.ItemName ?? $"Item {d.ItemId}";
-                return $"{itemNo} ({d.QuantityAsOrdered:0.##})";
-            })
-            .ToList();
-
-        if (lines.Count == 0)
-            return "No items";
-
-        var extraCount = details.Count() - lines.Count;
-        return extraCount > 0
-            ? $"{string.Join("; ", lines)}; +{extraCount} more"
-            : string.Join("; ", lines);
-    }
-
     private static string? TrimToNull(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return value.Trim();
-    }
-
-    private static void ClearTransitionTimestamp(SalesOrder order, string fromStatus)
-    {
-        switch (fromStatus)
-        {
-            case "Ready for Pickup":
-                order.PickupDate = null;
-                break;
-            case "Pickup Scheduled":
-                order.PickupScheduledDate = null;
-                break;
-            case "Received":
-                order.ReceivedDate = null;
-                break;
-            case "Ready to Ship":
-                order.ReadyToShipDate = null;
-                break;
-            case "Ready to Invoice":
-                order.InvoiceDate = null;
-                break;
-        }
     }
 
     private static string? FormatContactName(Contact? contact)
@@ -920,101 +352,5 @@ public class OrdersController(
         var fullName = $"{contact.FirstName} {contact.LastName}".Trim();
         return string.IsNullOrWhiteSpace(fullName) ? null : fullName;
     }
-
-    private static ReceivingOrderDetailDto ToReceivingDetailDto(SalesOrder order)
-    {
-        var lines = order.SalesOrderDetails
-            .OrderBy(d => d.LineNo)
-            .Select(d =>
-            {
-                var qtyReceived = d.QuantityAsReceived ?? 0;
-                return new ReceivingOrderLineDto(
-                    d.Id,
-                    d.LineNo,
-                    d.ItemId,
-                    d.Item.ItemNo,
-                    d.Item.ItemDescription ?? d.Item.ItemNo,
-                    d.QuantityAsOrdered,
-                    qtyReceived,
-                    qtyReceived > 0);
-            })
-            .ToList();
-
-        return new ReceivingOrderDetailDto(
-            order.Id,
-            order.SalesOrderNo,
-            order.OrderStatus,
-            order.Customer.Name,
-            FormatAddressLabel(order.PickUpAddress),
-            order.TrailerNo,
-            TrimToNull(order.Comments),
-            order.ReceivedDate,
-            lines);
-    }
-
-    private static ProductionOrderDetailDto ToProductionDetailDto(SalesOrder order)
-    {
-        var lines = order.SalesOrderDetails
-            .OrderBy(d => d.LineNo)
-            .Select(d =>
-            {
-                var qtyReceived = d.QuantityAsReceived ?? 0;
-                return new ReceivingOrderLineDto(
-                    d.Id,
-                    d.LineNo,
-                    d.ItemId,
-                    d.Item.ItemNo,
-                    d.Item.ItemDescription ?? d.Item.ItemNo,
-                    d.QuantityAsOrdered,
-                    qtyReceived,
-                    qtyReceived > 0);
-            })
-            .ToList();
-
-        return new ProductionOrderDetailDto(
-            order.Id,
-            order.SalesOrderNo,
-            order.OrderStatus,
-            order.Customer.Name,
-            FormatAddressLabel(order.PickUpAddress),
-            order.TrailerNo,
-            TrimToNull(order.Comments),
-            order.ReceivedDate,
-            lines);
-    }
-
-    private static OrderAttachmentDto ToAttachmentDto(OrderAttachment attachment)
-    {
-        return new OrderAttachmentDto(
-            attachment.Id,
-            attachment.OrderId,
-            attachment.FileName,
-            attachment.ContentType,
-            attachment.SizeBytes,
-            attachment.CreatedAtUtc);
-    }
-
-    private static long ResolveMaxAttachmentSizeBytes(IConfiguration configuration)
-    {
-        if (!int.TryParse(configuration["AttachmentValidation:MaxSizeMb"], out var configuredMb) ||
-            configuredMb <= 0)
-        {
-            return DefaultMaxAttachmentSizeBytes;
-        }
-
-        return configuredMb * 1024L * 1024L;
-    }
-
-    private static HashSet<string> ResolveAllowedAttachmentExtensions(IConfiguration configuration)
-    {
-        var values = configuration
-            .GetSection("AttachmentValidation:AllowedExtensions")
-            .GetChildren()
-            .Select(child => child.Value?.Trim().ToLowerInvariant())
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value!.StartsWith('.') ? value : $".{value}")
-            .ToList();
-
-        return new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
-    }
 }
+
