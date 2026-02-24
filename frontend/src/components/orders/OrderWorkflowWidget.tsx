@@ -225,7 +225,7 @@ export function OrderWorkflowWidget({
                   {isAdvancing
                     ? "Updating..."
                     : isPrevious
-                    ? "Click to move back"
+                    ? (dateText ?? "—")
                     : "Click to advance"}
                 </Caption1>
               ) : (

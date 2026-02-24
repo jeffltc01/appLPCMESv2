@@ -486,7 +486,8 @@ public class OrdersController(
             .Include(o => o.Site)
             .Include(o => o.SalesOrderDetails)
                 .ThenInclude(d => d.Item)
-            .OrderByDescending(o => o.ReceivedDate ?? DateTime.MinValue)
+            .OrderByDescending(o => o.ReceivedDate.HasValue)
+            .ThenByDescending(o => o.ReceivedDate)
             .ThenByDescending(o => o.Id)
             .ToListAsync();
 

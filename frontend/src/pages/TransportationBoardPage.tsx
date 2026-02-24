@@ -58,7 +58,7 @@ const useStyles = makeStyles({
     alignItems: "center",
     justifyContent: "space-between",
     gap: tokens.spacingHorizontalM,
-    marginBottom: tokens.spacingVerticalS,
+    marginBottom: tokens.spacingVerticalL,
     flexWrap: "wrap",
   },
   title: {
@@ -92,6 +92,9 @@ const useStyles = makeStyles({
   },
   toolbarButton: {
     minHeight: "32px",
+    backgroundColor: "#d9edf9",
+    border: "1px solid #bad5e7",
+    color: "#2d6f99",
   },
   filters: {
     display: "flex",
@@ -298,6 +301,23 @@ const useStyles = makeStyles({
     fontSize: "10px",
     fontWeight: 700,
     whiteSpace: "nowrap",
+  },
+  statusCellWrap: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: "4px",
+  },
+  statusActionButton: {
+    minHeight: "22px",
+    fontSize: "10px",
+    fontWeight: 600,
+    paddingLeft: "8px",
+    paddingRight: "8px",
+    border: "1px solid #7f8fa6",
+    borderRadius: "999px",
+    backgroundColor: "#eef4ff",
+    color: "#214c9b",
   },
   statusOpen: {
     backgroundColor: "#fff3bf",
@@ -701,6 +721,7 @@ export function TransportationBoardPage() {
   const [carrier, setCarrier] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [advancingId, setAdvancingId] = useState<number | null>(null);
   const [dirtyById, setDirtyById] = useState<Record<number, Partial<TransportBoardUpdate>>>(
     {}
   );
@@ -795,6 +816,38 @@ export function TransportationBoardPage() {
     }
   };
 
+  const getNextStatusAction = (orderStatus: string) => {
+    if (orderStatus === "Ready for Pickup") {
+      return { label: "Set Pickup Scheduled", targetStatus: "Pickup Scheduled" };
+    }
+    if (orderStatus === "Ready to Ship") {
+      return { label: "Set Ready to Invoice", targetStatus: "Ready to Invoice" };
+    }
+    return null;
+  };
+
+  const advanceTransportRowStatus = async (row: TransportBoardItem) => {
+    const action = getNextStatusAction(row.orderStatus);
+    if (!action) return;
+
+    setAdvancingId(row.id);
+    setMsg(null);
+    try {
+      await ordersApi.advanceStatus(row.id, action.targetStatus);
+      setMsg({ type: "success", text: `Order ${row.salesOrderNo} moved to ${action.targetStatus}.` });
+      await load();
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMsg({
+        type: "error",
+        text: body?.message ?? `Failed to move order ${row.salesOrderNo} to ${action.targetStatus}.`,
+      });
+    } finally {
+      setAdvancingId(null);
+    }
+  };
+
   const dirtyCount = Object.keys(dirtyById).length;
   const panelLineItems = useMemo(() => {
     if (!selectedRow?.lineSummary) return [];
@@ -814,7 +867,7 @@ export function TransportationBoardPage() {
     <div className={styles.root}>
       <div className={styles.headerBar}>
         <div className={styles.titleWrap}>
-          <Title2 className={styles.title}>Transportation Dispatch Board - V2</Title2>
+          <Title2 className={styles.title}>Transportation Dispatch</Title2>
         </div>
         <div className={styles.toolbar}>
           <Button
@@ -966,15 +1019,42 @@ export function TransportationBoardPage() {
                           className={isSelected ? styles.selectedCell : ""}
                           style={isSelected ? { backgroundColor: "#eaf3ff" } : undefined}
                         >
-                          <span
-                            className={`${styles.statusPill} ${
-                              row.orderStatus === "Ready to Ship"
-                                ? styles.statusScheduled
-                                : styles.statusOpen
-                            }`}
-                          >
-                            {row.orderStatus}
-                          </span>
+                          <div className={styles.statusCellWrap}>
+                            <span
+                              className={`${styles.statusPill} ${
+                                row.orderStatus === "Ready to Ship"
+                                  ? styles.statusScheduled
+                                  : styles.statusOpen
+                              }`}
+                            >
+                              {row.orderStatus}
+                            </span>
+                            {(() => {
+                              const action = getNextStatusAction(row.orderStatus);
+                              if (!action) return null;
+                              return (
+                                <Button
+                                  size="small"
+                                  appearance="secondary"
+                                  className={styles.statusActionButton}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (dirtyById[row.id]) {
+                                      setMsg({
+                                        type: "error",
+                                        text: `Save or discard changes for order ${row.salesOrderNo} before changing status.`,
+                                      });
+                                      return;
+                                    }
+                                    void advanceTransportRowStatus(row);
+                                  }}
+                                  disabled={advancingId === row.id}
+                                >
+                                  {advancingId === row.id ? "Updating..." : action.label}
+                                </Button>
+                              );
+                            })()}
+                          </div>
                         </TableCell>
                         <TableCell
                           rowSpan={2}

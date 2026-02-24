@@ -5,6 +5,12 @@ import {
   Card,
   CardHeader,
   Combobox,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
   Field,
   Input,
   makeStyles,
@@ -12,17 +18,18 @@ import {
   MessageBarBody,
   Option,
   Spinner,
-  Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  Title2,
+  Title1,
   tokens,
 } from "@fluentui/react-components";
-import { Add24Regular, CheckmarkCircle24Regular } from "@fluentui/react-icons";
+import {
+  Add24Regular,
+  ArrowDownload24Regular,
+  ArrowLeft24Regular,
+  Checkmark24Regular,
+  CheckmarkCircle24Regular,
+  Dismiss24Regular,
+  VehicleTruckProfile24Regular,
+} from "@fluentui/react-icons";
 import { ApiError } from "../services/api";
 import { orderLookupsApi, ordersApi } from "../services/orders";
 import type {
@@ -33,57 +40,278 @@ import type {
 } from "../types/order";
 
 const useStyles = makeStyles({
-  root: {
+  page: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    minHeight: 0,
+  },
+  headerArea: {
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    backgroundColor: tokens.colorNeutralBackground1,
+    paddingBottom: tokens.spacingVerticalM,
+    borderBottom: `2px solid ${tokens.colorNeutralStroke1}`,
+  },
+  headerContent: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+  },
+  contentArea: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    paddingTop: tokens.spacingVerticalM,
+  },
+  queuePanel: {
     display: "grid",
-    gridTemplateColumns: "minmax(280px, 360px) 1fr",
-    gap: tokens.spacingHorizontalL,
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: tokens.spacingVerticalM,
+    "@media (max-width: 1200px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
     "@media (max-width: 900px)": {
       gridTemplateColumns: "1fr",
     },
   },
-  listPanel: {
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalS,
-  },
-  listCard: {
+  queueCard: {
     cursor: "pointer",
-    border: `1px solid ${tokens.colorNeutralStroke1}`,
+    border: `2px solid ${tokens.colorNeutralStroke1}`,
+    padding: tokens.spacingHorizontalM,
+    borderRadius: tokens.borderRadiusLarge,
+    minHeight: "112px",
+    backgroundColor: tokens.colorNeutralBackground1,
+    position: "relative",
   },
-  listCardSelected: {
-    border: `2px solid ${tokens.colorBrandStroke1}`,
+  queueCardSelected: {
+    border: `3px solid ${tokens.colorBrandStroke1}`,
     backgroundColor: tokens.colorBrandBackground2,
+  },
+  queueOrderNo: {
+    fontWeight: tokens.fontWeightBold,
+    fontSize: tokens.fontSizeBase500,
+  },
+  queueMeta: {
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  queueAddress: {
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  queueMetaInline: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: tokens.spacingHorizontalM,
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  queueMoveIconBadge: {
+    position: "absolute",
+    top: tokens.spacingVerticalS,
+    right: tokens.spacingHorizontalS,
+    border: `2px solid ${tokens.colorNeutralStroke1}`,
+    borderRadius: tokens.borderRadiusCircular,
+    width: "36px",
+    height: "36px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: tokens.colorNeutralBackground1,
+    color: tokens.colorNeutralForeground1,
+  },
+  queueItemsSummary: {
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
   },
   detailPanel: {
     display: "flex",
     flexDirection: "column",
     gap: tokens.spacingVerticalM,
   },
-  headerGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+  detailHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: tokens.spacingHorizontalM,
+    flexWrap: "wrap",
+  },
+  detailHeaderLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    flexWrap: "wrap",
+  },
+  detailHeaderRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    flexWrap: "wrap",
+  },
+  detailReceivedRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
+  },
+  detailReceivedLabel: {
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+    whiteSpace: "nowrap",
+  },
+  detailOrderNo: {
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightBold,
+  },
+  compactActionButton: {
+    minHeight: "44px",
+    minWidth: "112px",
+  },
+  touchButton: {
+    minHeight: "52px",
+    minWidth: "140px",
+  },
+  detailSummaryBar: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1.2fr 2fr 0.8fr",
+    gap: tokens.spacingHorizontalM,
+    padding: `${tokens.spacingVerticalS} 0`,
+    "@media (max-width: 1200px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
     "@media (max-width: 900px)": {
       gridTemplateColumns: "1fr",
     },
   },
-  linesCard: {
-    overflowX: "auto",
+  detailSummaryItem: {
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
-  qtyInput: {
-    minWidth: "120px",
+  detailTrailer: {
+    maxWidth: "180px",
+  },
+  detailCommentsRow: {
+    width: "100%",
+    marginTop: tokens.spacingVerticalXS,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+    whiteSpace: "normal",
+  },
+  detailDateInput: {
+    width: "220px",
+    "& input": {
+      minHeight: "48px",
+      fontSize: tokens.fontSizeBase300,
+      fontWeight: tokens.fontWeightSemibold,
+    },
+  },
+  sectionTitle: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase400,
+  },
+  sectionHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: tokens.spacingHorizontalM,
+    flexWrap: "wrap",
+  },
+  lineList: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: tokens.spacingVerticalM,
+    "@media (max-width: 1400px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  lineCard: {
+    padding: tokens.spacingHorizontalM,
+    border: `2px solid ${tokens.colorNeutralStroke1}`,
+    borderRadius: tokens.borderRadiusLarge,
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  lineHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: tokens.spacingHorizontalM,
+  },
+  lineHeaderMain: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
+    minWidth: 0,
+  },
+  lineTitle: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase400,
+  },
+  lineOrdered: {
+    color: tokens.colorNeutralForeground1,
+    fontSize: tokens.fontSizeBase400,
+    fontWeight: tokens.fontWeightSemibold,
+    whiteSpace: "nowrap",
+  },
+  lineControls: {
+    display: "grid",
+    gridTemplateColumns: "80px 80px minmax(140px, 1fr)",
+    gap: tokens.spacingHorizontalM,
+    alignItems: "end",
+    "@media (max-width: 1024px)": {
+      gridTemplateColumns: "80px 80px",
+      "& > div": {
+        gridColumn: "1 / span 2",
+      },
+    },
+  },
+  lineDecisionButton: {
+    width: "80px",
+    height: "80px",
+    minWidth: "80px",
+    minHeight: "80px",
+    alignSelf: "end",
   },
   touchInput: {
     "& input": {
-      minHeight: "42px",
+      minHeight: "50px",
+      fontSize: tokens.fontSizeBase300,
     },
+    "& button": {
+      minHeight: "50px",
+    },
+  },
+  qtyField: {
+    minWidth: "160px",
   },
   addRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 140px auto",
+    gridTemplateColumns: "1fr 180px auto",
     gap: tokens.spacingHorizontalM,
     alignItems: "end",
-    "@media (max-width: 900px)": {
+    "@media (max-width: 1024px)": {
       gridTemplateColumns: "1fr",
     },
   },
@@ -96,13 +324,45 @@ const useStyles = makeStyles({
     display: "flex",
     justifyContent: "space-between",
     gap: tokens.spacingHorizontalM,
-    padding: tokens.spacingVerticalXS,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    padding: tokens.spacingVerticalS,
+    border: `2px solid ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+    backgroundColor: tokens.colorNeutralBackground1,
   },
-  completeButton: {
-    alignSelf: "flex-start",
-    minHeight: "44px",
+  actionButton: {
+    minHeight: "46px",
+    minWidth: "170px",
+    borderRadius: tokens.borderRadiusLarge,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  addLineDialogSurface: {
+    width: "560px",
+    maxWidth: "92vw",
+  },
+  addLineDialogForm: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalM,
+  },
+  addLineDialogRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: tokens.spacingHorizontalM,
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  addLineListbox: {
+    maxHeight: "320px !important",
+    overflowY: "scroll",
+  },
+  addLineField: {
+    "& input": {
+      minHeight: "40px",
+    },
   },
 });
 
@@ -116,6 +376,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export function ReceivingPage() {
   const styles = useStyles();
+  const [view, setView] = useState<"queue" | "detail">("queue");
   const [orders, setOrders] = useState<ReceivingOrderListItem[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ReceivingOrderDetail | null>(null);
@@ -133,6 +394,7 @@ export function ReceivingPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [addQty, setAddQty] = useState("");
   const [addedLines, setAddedLines] = useState<AddedLineDraft[]>([]);
+  const [isAddLineDialogOpen, setIsAddLineDialogOpen] = useState(false);
 
   const loadQueue = useCallback(async () => {
     setLoadingList(true);
@@ -140,6 +402,8 @@ export function ReceivingPage() {
       const data = await ordersApi.receivingList();
       setOrders(data);
       setSelectedId((prev) => prev ?? data[0]?.id ?? null);
+    } catch {
+      setMsg({ type: "error", text: "Unable to load receiving queue." });
     } finally {
       setLoadingList(false);
     }
@@ -163,6 +427,9 @@ export function ReceivingPage() {
         };
       });
       setLineState(nextState);
+    } catch {
+      setDetail(null);
+      setMsg({ type: "error", text: "Unable to load order details." });
     } finally {
       setLoadingDetail(false);
     }
@@ -170,7 +437,10 @@ export function ReceivingPage() {
 
   useEffect(() => {
     void loadQueue();
-    orderLookupsApi.items().then(setItems);
+    orderLookupsApi
+      .items()
+      .then(setItems)
+      .catch(() => setMsg({ type: "error", text: "Unable to load item lookup list." }));
   }, [loadQueue]);
 
   useEffect(() => {
@@ -183,12 +453,10 @@ export function ReceivingPage() {
 
   const filteredItems = useMemo(() => {
     const q = itemQuery.trim().toLowerCase();
-    if (!q) return items.slice(0, 25);
-    return items
-      .filter((i) =>
-        `${i.itemNo} ${i.itemDescription ?? ""}`.toLowerCase().includes(q)
-      )
-      .slice(0, 25);
+    if (!q) return items;
+    return items.filter((i) =>
+      `${i.itemNo} ${i.itemDescription ?? ""}`.toLowerCase().includes(q)
+    );
   }, [items, itemQuery]);
 
   const addTrailerLine = () => {
@@ -213,6 +481,7 @@ export function ReceivingPage() {
     setSelectedItemId("");
     setItemQuery("");
     setAddQty("");
+    setIsAddLineDialogOpen(false);
     setMsg(null);
   };
 
@@ -259,6 +528,7 @@ export function ReceivingPage() {
       const refreshedQueue = await ordersApi.receivingList();
       setOrders(refreshedQueue);
       setSelectedId(refreshedQueue[0]?.id ?? null);
+      setView("queue");
     } catch (err) {
       const apiError = err as ApiError;
       const body = apiError.body as { message?: string } | undefined;
@@ -268,213 +538,348 @@ export function ReceivingPage() {
     }
   };
 
+  const setLineReceived = (lineId: number, isReceived: boolean, fallbackQty: number) => {
+    setLineState((prev) => ({
+      ...prev,
+      [lineId]: {
+        ...(prev[lineId] ?? { quantityAsReceived: String(fallbackQty) }),
+        isReceived,
+        quantityAsReceived: isReceived ? prev[lineId]?.quantityAsReceived ?? String(fallbackQty) : "0",
+      },
+    }));
+  };
+
+  const setLineQty = (lineId: number, value: string) => {
+    setLineState((prev) => ({
+      ...prev,
+      [lineId]: {
+        ...(prev[lineId] ?? { isReceived: true }),
+        quantityAsReceived: value,
+      },
+    }));
+  };
+
+  const openOrder = (id: number) => {
+    setSelectedId(id);
+    setView("detail");
+    setMsg(null);
+  };
+
+  const openAddLineDialog = () => {
+    setItemQuery("");
+    setSelectedItemId("");
+    setAddQty("");
+    setIsAddLineDialogOpen(true);
+  };
+
+  const canAddLine = Boolean(selectedItemId) && Number(addQty) > 0;
+
   return (
-    <div>
-      <Title2 style={{ marginBottom: tokens.spacingVerticalM }}>Tank Receiving</Title2>
-      {msg && (
-        <MessageBar intent={msg.type} style={{ marginBottom: tokens.spacingVerticalM }}>
-          <MessageBarBody>{msg.text}</MessageBarBody>
-        </MessageBar>
-      )}
-      <div className={styles.root}>
-        <div className={styles.listPanel}>
-          <Body1 style={{ fontWeight: tokens.fontWeightSemibold }}>
-            Pickup Scheduled Orders
-          </Body1>
-          {loadingList ? (
-            <Spinner label="Loading receiving queue..." />
-          ) : orders.length === 0 ? (
-            <Body1>No orders ready for receiving.</Body1>
-          ) : (
-            orders.map((order) => (
-              <Card
-                key={order.id}
-                className={`${styles.listCard} ${
-                  selectedId === order.id ? styles.listCardSelected : ""
-                }`}
-                onClick={() => setSelectedId(order.id)}
-              >
-                <CardHeader
-                  header={<Body1 style={{ fontWeight: 600 }}>{order.salesOrderNo}</Body1>}
-                  description={
-                    <Body1>
-                      {order.customerName} - {order.lineCount} lines
-                    </Body1>
-                  }
-                />
-                <Body1>{order.pickUpAddress ?? "--"}</Body1>
-              </Card>
-            ))
-          )}
+    <div className={styles.page}>
+      {view === "queue" && (
+        <div className={styles.headerArea}>
+          <div className={styles.headerContent}>
+            <Title1>Tank Receiving</Title1>
+            {msg && (
+              <MessageBar intent={msg.type}>
+                <MessageBarBody>{msg.text}</MessageBarBody>
+              </MessageBar>
+            )}
+          </div>
         </div>
+      )}
 
-        <div className={styles.detailPanel}>
-          {loadingDetail ? (
-            <Spinner label="Loading order..." />
-          ) : !detail ? (
-            <Body1>Select an order to start receiving.</Body1>
-          ) : (
-            <>
-              <Card>
-                <div className={styles.headerGrid}>
-                  <Field label="Order Number">
-                    <Input value={detail.salesOrderNo} readOnly className={styles.touchInput} />
-                  </Field>
-                  <Field label="Customer">
-                    <Input value={detail.customerName} readOnly className={styles.touchInput} />
-                  </Field>
-                  <Field label="Pick Up Address">
-                    <Input value={detail.pickUpAddress ?? "--"} readOnly className={styles.touchInput} />
-                  </Field>
-                  <Field label="Trailer No">
-                    <Input value={detail.trailerNo ?? "--"} readOnly className={styles.touchInput} />
-                  </Field>
-                </div>
-              </Card>
+      <div className={styles.contentArea}>
+        {view === "queue" ? (
+          <div className={styles.queuePanel}>
+            {loadingList ? (
+              <Spinner label="Loading receiving queue..." />
+            ) : orders.length === 0 ? (
+              <Body1>No orders ready for receiving.</Body1>
+            ) : (
+              orders.map((order) => (
+                <Card
+                  key={order.id}
+                  className={`${styles.queueCard} ${
+                    selectedId === order.id ? styles.queueCardSelected : ""
+                  }`}
+                  onClick={() => openOrder(order.id)}
+                >
+                  {(() => {
+                    const orderDisplay = order.ipadOrderNo
+                      ? `${order.salesOrderNo} - ${order.ipadOrderNo}`
+                      : order.salesOrderNo;
+                    const pickupLocation = [
+                      order.pickUpCity,
+                      order.pickUpState,
+                      order.pickUpPostalCode,
+                      order.pickUpCountry,
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
 
-              <Card>
-                <Field label="Received Date">
+                    return (
+                      <>
+                        <span className={styles.queueMoveIconBadge} title={order.receivingMode}>
+                          {order.receivingMode === "Trailer Pickup" ? (
+                            <VehicleTruckProfile24Regular />
+                          ) : (
+                            <ArrowDownload24Regular />
+                          )}
+                        </span>
+                        <CardHeader
+                          header={<span className={styles.queueOrderNo}>{orderDisplay}</span>}
+                        />
+                        <Body1 className={styles.queueMeta}>Customer: {order.customerName}</Body1>
+                        <Body1 className={styles.queueAddress}>{pickupLocation || "--"}</Body1>
+                        <div className={styles.queueMetaInline}>
+                          <span>Site: {order.siteName}</span>
+                          <span>Priority: {order.priority ?? "--"}</span>
+                        </div>
+                        <Body1 className={styles.queueItemsSummary}>
+                          Items Ordered: {order.itemsOrderedSummary || "--"}
+                        </Body1>
+                      </>
+                    );
+                  })()}
+                </Card>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className={styles.detailPanel}>
+            {msg && (
+              <MessageBar intent={msg.type}>
+                <MessageBarBody>{msg.text}</MessageBarBody>
+              </MessageBar>
+            )}
+            <div className={styles.detailHeader}>
+              <div className={styles.detailHeaderLeft}>
+                <Button
+                  appearance="secondary"
+                  className={styles.compactActionButton}
+                  icon={<ArrowLeft24Regular />}
+                  onClick={() => setView("queue")}
+                >
+                  Back
+                </Button>
+              </div>
+              <div className={styles.detailHeaderRight}>
+                <div className={styles.detailReceivedRow}>
+                  <span className={styles.detailReceivedLabel}>Received</span>
                   <Input
                     type="date"
                     value={receivedDate}
                     onChange={(_, data) => setReceivedDate(data.value)}
-                    className={styles.touchInput}
+                    className={styles.detailDateInput}
+                    aria-label="Received date"
                   />
-                </Field>
-              </Card>
+                </div>
+                <Button
+                  appearance="primary"
+                  className={styles.actionButton}
+                  icon={<CheckmarkCircle24Regular />}
+                  disabled={saving || !detail}
+                  onClick={completeReceiving}
+                >
+                  {saving ? "Marking..." : "Mark Received"}
+                </Button>
+              </div>
+            </div>
 
-              <Card className={styles.linesCard}>
-                <Body1 style={{ fontWeight: tokens.fontWeightSemibold, marginBottom: 8 }}>
-                  Reconcile Ordered vs Received
-                </Body1>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHeaderCell>Line</TableHeaderCell>
-                      <TableHeaderCell>Item</TableHeaderCell>
-                      <TableHeaderCell>Qty Ordered</TableHeaderCell>
-                      <TableHeaderCell>Received?</TableHeaderCell>
-                      <TableHeaderCell>Qty Received</TableHeaderCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detail.lines.map((line) => {
-                      const state = lineState[line.id];
-                      return (
-                        <TableRow key={line.id}>
-                          <TableCell>{line.lineNo}</TableCell>
-                          <TableCell>
-                            {line.itemNo} - {line.itemDescription}
-                          </TableCell>
-                          <TableCell>{line.quantityAsOrdered}</TableCell>
-                          <TableCell>
-                            <Switch
-                              checked={state?.isReceived ?? false}
-                              onChange={(_, data) =>
-                                setLineState((prev) => ({
-                                  ...prev,
-                                  [line.id]: {
-                                    ...(prev[line.id] ?? {
-                                      quantityAsReceived: String(line.quantityAsReceived ?? 0),
-                                    }),
-                                    isReceived: data.checked,
-                                    quantityAsReceived: data.checked
-                                      ? prev[line.id]?.quantityAsReceived ?? String(line.quantityAsReceived ?? 0)
-                                      : "0",
-                                  },
-                                }))
-                              }
-                              label={(state?.isReceived ?? false) ? "Received" : "Not received"}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              className={styles.qtyInput}
-                              type="number"
-                              value={state?.quantityAsReceived ?? "0"}
-                              onChange={(_, data) =>
-                                setLineState((prev) => ({
-                                  ...prev,
-                                  [line.id]: {
-                                    ...(prev[line.id] ?? { isReceived: true }),
-                                    quantityAsReceived: data.value,
-                                  },
-                                }))
-                              }
-                              disabled={!(state?.isReceived ?? false)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Card>
-
-              <Card>
-                <Body1 style={{ fontWeight: tokens.fontWeightSemibold, marginBottom: 8 }}>
-                  Add Trailer-Only Line
-                </Body1>
-                <div className={styles.addRow}>
-                  <Field label="Item">
-                    <Combobox
-                      value={itemQuery}
-                      selectedOptions={selectedItemId ? [selectedItemId] : []}
-                      onChange={(e) => {
-                        setItemQuery(e.target.value);
-                        if (!e.target.value) setSelectedItemId("");
-                      }}
-                      onOptionSelect={(_, data) => {
-                        setSelectedItemId(data.optionValue ?? "");
-                        setItemQuery(data.optionText ?? "");
-                      }}
-                      placeholder="Type item number or description..."
-                    >
-                      {filteredItems.map((item) => (
-                        <Option key={item.id} value={String(item.id)}>
-                          {item.itemDescription
-                            ? `${item.itemNo} - ${item.itemDescription}`
-                            : item.itemNo}
-                        </Option>
-                      ))}
-                    </Combobox>
-                  </Field>
-                  <Field label="Qty Received">
-                    <Input
-                      type="number"
-                      value={addQty}
-                      onChange={(_, data) => setAddQty(data.value)}
-                    />
-                  </Field>
-                  <Button appearance="secondary" icon={<Add24Regular />} onClick={addTrailerLine}>
-                    Add
-                  </Button>
+            {loadingDetail ? (
+              <Spinner label="Loading order..." />
+            ) : !detail ? (
+              <Body1>Select an order to start receiving.</Body1>
+            ) : (
+              <>
+                <div className={styles.detailSummaryBar}>
+                  <span className={styles.detailSummaryItem}>Order: {detail.salesOrderNo}</span>
+                  <span className={styles.detailSummaryItem}>Customer: {detail.customerName}</span>
+                  <span className={styles.detailSummaryItem}>Address: {detail.pickUpAddress ?? "--"}</span>
+                  <span className={`${styles.detailSummaryItem} ${styles.detailTrailer}`}>
+                    Trailer: {detail.trailerNo ?? "--"}
+                  </span>
+                </div>
+                <div className={styles.detailCommentsRow}>
+                  Order Comments: {detail.orderComments ?? "--"}
                 </div>
 
-                {addedLines.length > 0 && (
-                  <div className={styles.addedList} style={{ marginTop: 12 }}>
-                    {addedLines.map((line, idx) => (
-                      <div className={styles.addedItemRow} key={`${line.itemId}-${idx}`}>
-                        <span>{line.itemLabel}</span>
-                        <span>Qty Received: {line.quantityAsReceived}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
+                <Dialog
+                  open={isAddLineDialogOpen}
+                  onOpenChange={(_, data) => setIsAddLineDialogOpen(data.open)}
+                >
+                  <DialogSurface className={styles.addLineDialogSurface}>
+                    <DialogBody>
+                      <DialogTitle>Add New Line Item Received</DialogTitle>
+                      <DialogContent>
+                        <div className={styles.addLineDialogForm}>
+                          <Field label="Item" required>
+                            <Combobox
+                              className={styles.addLineField}
+                              value={itemQuery}
+                              selectedOptions={selectedItemId ? [selectedItemId] : []}
+                              onChange={(e) => {
+                                setItemQuery(e.target.value);
+                                if (!e.target.value) setSelectedItemId("");
+                              }}
+                              onOptionSelect={(_, data) => {
+                                setSelectedItemId(data.optionValue ?? "");
+                                setItemQuery(data.optionText ?? "");
+                              }}
+                              placeholder="Type to search item..."
+                              listbox={{
+                                className: styles.addLineListbox,
+                                style: { maxHeight: "320px", overflowY: "scroll" },
+                              }}
+                            >
+                              {filteredItems.map((item) => (
+                                <Option key={item.id} value={String(item.id)}>
+                                  {item.itemDescription
+                                    ? `${item.itemNo} - ${item.itemDescription}`
+                                    : item.itemNo}
+                                </Option>
+                              ))}
+                            </Combobox>
+                          </Field>
 
-              <Button
-                appearance="primary"
-                className={styles.completeButton}
-                icon={<CheckmarkCircle24Regular />}
-                disabled={saving}
-                onClick={completeReceiving}
-              >
-                {saving ? "Marking Received..." : "Mark Received"}
-              </Button>
-            </>
-          )}
-        </div>
+                          <div className={styles.addLineDialogRow}>
+                            <Field label="Quantity As Received" required>
+                              <Input
+                                className={styles.addLineField}
+                                type="number"
+                                value={addQty}
+                                onChange={(_, data) => setAddQty(data.value)}
+                              />
+                            </Field>
+                          </div>
+                        </div>
+                      </DialogContent>
+                      <DialogActions>
+                        <Button
+                          appearance="secondary"
+                          onClick={() => setIsAddLineDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          appearance="primary"
+                          disabled={!canAddLine}
+                          onClick={addTrailerLine}
+                        >
+                          Save
+                        </Button>
+                      </DialogActions>
+                    </DialogBody>
+                  </DialogSurface>
+                </Dialog>
+
+                <Card>
+                  <div className={styles.sectionHeaderRow}>
+                    <Body1 className={styles.sectionTitle}>Reconcile Ordered vs Received</Body1>
+                    <Button
+                      appearance="primary"
+                      className={styles.actionButton}
+                      icon={<Add24Regular />}
+                      onClick={openAddLineDialog}
+                    >
+                      Add New Item
+                    </Button>
+                  </div>
+                  <div className={styles.lineList} style={{ marginTop: tokens.spacingVerticalM }}>
+                    {detail.lines.map((line) => {
+                      const state = lineState[line.id];
+                      const isReceived = state?.isReceived ?? false;
+                      return (
+                        <div className={styles.lineCard} key={line.id}>
+                          <div className={styles.lineHeader}>
+                          <div className={styles.lineHeaderMain}>
+                            <span className={styles.lineTitle}>
+                              {line.itemNo} - {line.itemDescription}
+                            </span>
+                          </div>
+                          <span className={styles.lineOrdered}>Ordered: {line.quantityAsOrdered}</span>
+                          </div>
+                          <div className={styles.lineControls}>
+                            <Button
+                              appearance={isReceived ? "primary" : "secondary"}
+                              className={styles.lineDecisionButton}
+                              icon={<Checkmark24Regular />}
+                              aria-label="Mark line as received"
+                              title="Received"
+                              style={
+                                isReceived
+                                  ? {
+                                      backgroundColor: "#107c10",
+                                      color: "#ffffff",
+                                      borderColor: "#107c10",
+                                    }
+                                  : {
+                                      borderWidth: "2px",
+                                      borderColor: "#107c10",
+                                      color: "#107c10",
+                                    }
+                              }
+                              onClick={() =>
+                                setLineReceived(line.id, true, line.quantityAsReceived ?? 0)
+                              }
+                            />
+                            <Button
+                              appearance={!isReceived ? "primary" : "secondary"}
+                              className={styles.lineDecisionButton}
+                              icon={<Dismiss24Regular />}
+                              aria-label="Mark line as not received"
+                              title="Not Received"
+                              style={
+                                !isReceived
+                                  ? {
+                                      backgroundColor: "#d13438",
+                                      color: "#ffffff",
+                                      borderColor: "#d13438",
+                                    }
+                                  : {
+                                      borderWidth: "2px",
+                                      borderColor: "#d13438",
+                                      color: "#d13438",
+                                    }
+                              }
+                              onClick={() =>
+                                setLineReceived(line.id, false, line.quantityAsReceived ?? 0)
+                              }
+                            />
+                            <Field label="Qty Received">
+                              <Input
+                                className={`${styles.touchInput} ${styles.qtyField}`}
+                                type="number"
+                                value={state?.quantityAsReceived ?? "0"}
+                                onChange={(_, data) => setLineQty(line.id, data.value)}
+                                disabled={!isReceived}
+                              />
+                            </Field>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+
+                {addedLines.length > 0 && (
+                  <Card>
+                    <Body1 className={styles.sectionTitle}>Added Line Items</Body1>
+                    <div className={styles.addedList} style={{ marginTop: tokens.spacingVerticalM }}>
+                      {addedLines.map((line, idx) => (
+                        <div className={styles.addedItemRow} key={`${line.itemId}-${idx}`}>
+                          <span>{line.itemLabel}</span>
+                          <span>Qty Received: {line.quantityAsReceived}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

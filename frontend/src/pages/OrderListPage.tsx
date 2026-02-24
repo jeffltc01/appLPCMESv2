@@ -118,7 +118,7 @@ export function OrderListPage() {
   return (
     <div>
       <div className={styles.header}>
-        <Title2>Orders (Drafts - New)</Title2>
+        <Title2>Orders</Title2>
         <Button
           appearance="primary"
           icon={<Add24Regular />}
