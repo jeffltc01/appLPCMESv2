@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LPCylinderMES.Api.Models;
@@ -92,6 +92,7 @@ public partial class SalesOrder
     public virtual ShipVia? PickUpVia { get; set; }
 
     public virtual ICollection<SalesOrderDetail> SalesOrderDetails { get; set; } = new List<SalesOrderDetail>();
+    public virtual ICollection<OrderAttachment> OrderAttachments { get; set; } = new List<OrderAttachment>();
 
     public virtual SalesPeople? SalesPerson { get; set; }
 

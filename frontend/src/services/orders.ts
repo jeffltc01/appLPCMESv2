@@ -16,12 +16,16 @@ import type {
   CompleteReceivingRequest,
   AddressLookup,
   OrderItemLookup,
+  ProductionOrderListItem,
+  ProductionOrderDetail,
+  OrderAttachment,
 } from "../types/order";
 import type {
   Lookup,
   PaginatedResponse,
   SalesPersonLookup,
 } from "../types/customer";
+import { ApiError } from "./api";
 
 export const ordersApi = {
   list: (params: OrderListParams = {}) => {
@@ -76,6 +80,40 @@ export const ordersApi = {
 
   completeReceiving: (id: number, data: CompleteReceivingRequest) =>
     api.post<ReceivingOrderDetail>(`/orders/${id}/receiving/complete`, data),
+
+  productionList: () => api.get<ProductionOrderListItem[]>("/orders/production"),
+
+  productionDetail: (id: number) => api.get<ProductionOrderDetail>(`/orders/${id}/production`),
+
+  attachments: (id: number) => api.get<OrderAttachment[]>(`/orders/${id}/attachments`),
+
+  uploadAttachment: async (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch(`/api/orders/${id}/attachments`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        /* empty */
+      }
+      throw new ApiError(res.status, res.statusText, body);
+    }
+
+    return (await res.json()) as OrderAttachment;
+  },
+
+  deleteAttachment: (id: number, attachmentId: number) =>
+    api.delete<void>(`/orders/${id}/attachments/${attachmentId}`),
+
+  attachmentDownloadUrl: (id: number, attachmentId: number) =>
+    `/api/orders/${id}/attachments/${attachmentId}`,
 };
 
 export const orderLinesApi = {

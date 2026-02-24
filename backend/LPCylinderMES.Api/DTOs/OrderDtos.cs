@@ -125,10 +125,30 @@ public record TransportBoardUpdateDto(
 public record ReceivingOrderListItemDto(
     int Id,
     string SalesOrderNo,
+    string? IpadOrderNo,
     string CustomerName,
+    string SiteName,
+    string ReceivingMode,
+    int? Priority,
     string? PickUpAddress,
+    string? PickUpCity,
+    string? PickUpState,
+    string? PickUpPostalCode,
+    string? PickUpCountry,
+    string ItemsOrderedSummary,
     string? TrailerNo,
     DateTime? PickupScheduledDate,
+    int LineCount,
+    decimal TotalOrderedQuantity);
+
+public record ProductionOrderListItemDto(
+    int Id,
+    string SalesOrderNo,
+    string CustomerName,
+    string SiteName,
+    int? Priority,
+    string ItemsOrderedSummary,
+    DateTime? ReceivedDate,
     int LineCount,
     decimal TotalOrderedQuantity);
 
@@ -149,6 +169,18 @@ public record ReceivingOrderDetailDto(
     string CustomerName,
     string? PickUpAddress,
     string? TrailerNo,
+    string? OrderComments,
+    DateTime? ReceivedDate,
+    List<ReceivingOrderLineDto> Lines);
+
+public record ProductionOrderDetailDto(
+    int Id,
+    string SalesOrderNo,
+    string OrderStatus,
+    string CustomerName,
+    string? PickUpAddress,
+    string? TrailerNo,
+    string? OrderComments,
     DateTime? ReceivedDate,
     List<ReceivingOrderLineDto> Lines);
 
@@ -165,3 +197,11 @@ public record CompleteReceivingDto(
     DateTime ReceivedDate,
     List<ReceivingLineUpdateDto> Lines,
     List<ReceivingAddLineDto>? AddedLines);
+
+public record OrderAttachmentDto(
+    int Id,
+    int OrderId,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    DateTime CreatedAtUtc);

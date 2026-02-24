@@ -14,6 +14,8 @@ import { OrderListPage } from "./pages/OrderListPage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { TransportationBoardPage } from "./pages/TransportationBoardPage";
 import { ReceivingPage } from "./pages/ReceivingPage";
+import { ProductionPage } from "./pages/ProductionPage";
+import { ProductionOrderPage } from "./pages/ProductionOrderPage";
 
 export default function App() {
   return (
@@ -27,7 +29,8 @@ export default function App() {
             <Route path="orders/:id" element={<OrderDetailPage />} />
             <Route path="transportation" element={<TransportationBoardPage />} />
             <Route path="receiving" element={<ReceivingPage />} />
-            <Route path="production/*" element={<PlaceholderPage title="Production" />} />
+            <Route path="production" element={<ProductionPage />} />
+            <Route path="production/:id" element={<ProductionOrderPage />} />
             <Route path="shipping/*" element={<PlaceholderPage title="Shipping" />} />
             <Route path="invoicing/*" element={<PlaceholderPage title="Invoicing" />} />
             <Route path="customers" element={<CustomerListPage />} />

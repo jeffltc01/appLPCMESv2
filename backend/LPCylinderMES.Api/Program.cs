@@ -1,4 +1,5 @@
 using LPCylinderMES.Api.Data;
+using LPCylinderMES.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Microsoft.Data.SqlClient;
@@ -36,6 +37,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<LpcAppsDbContext>(options =>
     options.UseSqlServer(connectionString));
+builder.Services.AddSingleton<IAttachmentStorage, AzureBlobAttachmentStorage>();
 
 builder.Services.AddCors(options =>
 {

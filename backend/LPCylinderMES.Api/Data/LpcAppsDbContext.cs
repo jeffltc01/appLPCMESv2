@@ -23,6 +23,8 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<CustomerItem> CustomerItems { get; set; }
 
     public virtual DbSet<Item> Items { get; set; }
+    
+    public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
 
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
 
@@ -304,6 +306,39 @@ public partial class LpcAppsDbContext : DbContext
             entity.HasOne(d => d.ItemSizeNavigation).WithMany(p => p.Items)
                 .HasForeignKey(d => d.ItemSize)
                 .HasConstraintName("FK__items__item_size__34E8D562");
+        });
+
+        modelBuilder.Entity<OrderAttachment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_attachments");
+
+            entity.ToTable("order_attachments");
+
+            entity.HasIndex(e => e.OrderId, "ix_order_attachments_order_id");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.FileName)
+                .HasMaxLength(260)
+                .IsUnicode(false)
+                .HasColumnName("file_name");
+            entity.Property(e => e.BlobPath)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("blob_path");
+            entity.Property(e => e.ContentType)
+                .HasMaxLength(200)
+                .IsUnicode(false)
+                .HasColumnName("content_type");
+            entity.Property(e => e.SizeBytes).HasColumnName("size_bytes");
+            entity.Property(e => e.CreatedAtUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("created_at_utc");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderAttachments)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_order_attachments_sales_orders");
         });
 
         modelBuilder.Entity<ItemSize>(entity =>

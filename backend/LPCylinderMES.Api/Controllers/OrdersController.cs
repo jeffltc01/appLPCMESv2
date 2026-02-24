@@ -1,6 +1,7 @@
 using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.DTOs;
 using LPCylinderMES.Api.Models;
+using LPCylinderMES.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,8 +9,15 @@ namespace LPCylinderMES.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class OrdersController(LpcAppsDbContext db) : ControllerBase
+public class OrdersController(
+    LpcAppsDbContext db,
+    IAttachmentStorage attachmentStorage,
+    IConfiguration configuration) : ControllerBase
 {
+    private const long DefaultMaxAttachmentSizeBytes = 25 * 1024 * 1024;
+    private readonly long _maxAttachmentSizeBytes = ResolveMaxAttachmentSizeBytes(configuration);
+    private readonly HashSet<string> _allowedAttachmentExtensions =
+        ResolveAllowedAttachmentExtensions(configuration);
     private static readonly string[] WorkflowSteps =
     {
         "New",
@@ -46,9 +54,7 @@ public class OrdersController(LpcAppsDbContext db) : ControllerBase
         [FromQuery] DateOnly? dateFrom = null,
         [FromQuery] DateOnly? dateTo = null)
     {
-        var query = db.SalesOrders
-            .Where(o => o.OrderStatus == "New")
-            .AsQueryable();
+        var query = db.SalesOrders.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -440,20 +446,59 @@ public class OrdersController(LpcAppsDbContext db) : ControllerBase
         var orders = await db.SalesOrders
             .Where(o => o.OrderStatus == "Pickup Scheduled")
             .Include(o => o.Customer)
+            .Include(o => o.Site)
             .Include(o => o.PickUpAddress)
             .Include(o => o.SalesOrderDetails)
-            .OrderByDescending(o => o.PickupScheduledDate ?? DateTime.MinValue)
-            .ThenByDescending(o => o.Id)
+                .ThenInclude(d => d.Item)
+            .OrderByDescending(o => o.Id)
             .ToListAsync();
 
         var items = orders
             .Select(o => new ReceivingOrderListItemDto(
                 o.Id,
                 o.SalesOrderNo,
+                o.IpadOrderId.HasValue ? o.IpadOrderId.Value.ToString() : null,
                 o.Customer.Name,
+                o.Site.Name,
+                string.IsNullOrWhiteSpace(o.TrailerNo) ? "Customer Drop Off" : "Trailer Pickup",
+                o.Priority,
                 FormatAddressLabel(o.PickUpAddress),
+                TrimToNull(o.PickUpAddress?.City),
+                TrimToNull(o.PickUpAddress?.State),
+                TrimToNull(o.PickUpAddress?.PostalCode),
+                TrimToNull(o.PickUpAddress?.Country),
+                BuildLineSummary(o.SalesOrderDetails),
                 o.TrailerNo,
                 o.PickupScheduledDate,
+                o.SalesOrderDetails.Count,
+                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
+            .ToList();
+
+        return Ok(items);
+    }
+
+    [HttpGet("production")]
+    public async Task<ActionResult<List<ProductionOrderListItemDto>>> GetProductionQueue()
+    {
+        var orders = await db.SalesOrders
+            .Where(o => o.OrderStatus == "Received")
+            .Include(o => o.Customer)
+            .Include(o => o.Site)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.Item)
+            .OrderByDescending(o => o.ReceivedDate ?? DateTime.MinValue)
+            .ThenByDescending(o => o.Id)
+            .ToListAsync();
+
+        var items = orders
+            .Select(o => new ProductionOrderListItemDto(
+                o.Id,
+                o.SalesOrderNo,
+                o.Customer.Name,
+                o.Site.Name,
+                o.Priority,
+                BuildLineSummary(o.SalesOrderDetails),
+                o.ReceivedDate,
                 o.SalesOrderDetails.Count,
                 o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
             .ToList();
@@ -478,6 +523,142 @@ public class OrdersController(LpcAppsDbContext db) : ControllerBase
             return Conflict(new { message = "Only orders in status 'Pickup Scheduled' can be received." });
 
         return Ok(ToReceivingDetailDto(order));
+    }
+
+    [HttpGet("{id:int}/production")]
+    public async Task<ActionResult<ProductionOrderDetailDto>> GetProductionDetail(int id)
+    {
+        var order = await db.SalesOrders
+            .Include(o => o.Customer)
+            .Include(o => o.PickUpAddress)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.Item)
+            .FirstOrDefaultAsync(o => o.Id == id);
+
+        if (order is null)
+            return NotFound();
+
+        if (order.OrderStatus != "Received")
+            return Conflict(new { message = "Only orders in status 'Received' can be viewed in Production." });
+
+        return Ok(ToProductionDetailDto(order));
+    }
+
+    [HttpGet("{id:int}/attachments")]
+    public async Task<ActionResult<List<OrderAttachmentDto>>> GetAttachments(int id)
+    {
+        var orderExists = await db.SalesOrders.AnyAsync(o => o.Id == id);
+        if (!orderExists)
+            return NotFound();
+
+        var attachments = await db.OrderAttachments
+            .Where(a => a.OrderId == id)
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .ThenByDescending(a => a.Id)
+            .Select(a => ToAttachmentDto(a))
+            .ToListAsync();
+
+        return Ok(attachments);
+    }
+
+    [HttpPost("{id:int}/attachments")]
+    public async Task<ActionResult<OrderAttachmentDto>> UploadAttachment(
+        int id,
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "A non-empty file is required." });
+
+        if (file.Length > _maxAttachmentSizeBytes)
+        {
+            return BadRequest(new
+            {
+                message = $"Attachment exceeds the maximum size of {_maxAttachmentSizeBytes / (1024 * 1024)} MB."
+            });
+        }
+
+        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        if (order is null)
+            return NotFound();
+
+        if (order.OrderStatus != "Received")
+            return Conflict(new { message = "Attachments can only be added for orders in status 'Received'." });
+
+        var safeFileName = Path.GetFileName(file.FileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+            return BadRequest(new { message = "Invalid file name." });
+        var extension = Path.GetExtension(safeFileName).Trim().ToLowerInvariant();
+        if (_allowedAttachmentExtensions.Count > 0 &&
+            !_allowedAttachmentExtensions.Contains(extension))
+        {
+            return BadRequest(new
+            {
+                message = $"File type '{extension}' is not allowed."
+            });
+        }
+
+        var blobPath = $"orders/{id}/{Guid.NewGuid():N}-{safeFileName}";
+        var contentType = string.IsNullOrWhiteSpace(file.ContentType)
+            ? "application/octet-stream"
+            : file.ContentType;
+
+        await using (var stream = file.OpenReadStream())
+        {
+            await attachmentStorage.UploadAsync(
+                blobPath,
+                stream,
+                contentType,
+                cancellationToken);
+        }
+
+        var attachment = new OrderAttachment
+        {
+            OrderId = id,
+            FileName = safeFileName,
+            BlobPath = blobPath,
+            ContentType = contentType,
+            SizeBytes = file.Length,
+            CreatedAtUtc = DateTime.UtcNow,
+        };
+
+        db.OrderAttachments.Add(attachment);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return CreatedAtAction(
+            nameof(DownloadAttachment),
+            new { id, attachmentId = attachment.Id },
+            ToAttachmentDto(attachment));
+    }
+
+    [HttpGet("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> DownloadAttachment(int id, int attachmentId, CancellationToken cancellationToken)
+    {
+        var attachment = await db.OrderAttachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.OrderId == id, cancellationToken);
+        if (attachment is null)
+            return NotFound();
+
+        var stream = await attachmentStorage.OpenReadAsync(attachment.BlobPath, cancellationToken);
+        if (stream is null)
+            return NotFound(new { message = "Attachment file not found in storage." });
+
+        return File(stream, attachment.ContentType, attachment.FileName);
+    }
+
+    [HttpDelete("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> DeleteAttachment(int id, int attachmentId, CancellationToken cancellationToken)
+    {
+        var attachment = await db.OrderAttachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.OrderId == id, cancellationToken);
+        if (attachment is null)
+            return NotFound();
+
+        await attachmentStorage.DeleteIfExistsAsync(attachment.BlobPath, cancellationToken);
+        db.OrderAttachments.Remove(attachment);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return NoContent();
     }
 
     [HttpPost("{id:int}/receiving/complete")]
@@ -683,6 +864,27 @@ public class OrdersController(LpcAppsDbContext db) : ControllerBase
         return string.IsNullOrWhiteSpace(cityStateZip) ? line1 : $"{line1}, {cityStateZip}";
     }
 
+    private static string BuildLineSummary(IEnumerable<SalesOrderDetail> details)
+    {
+        var lines = details
+            .OrderBy(d => d.LineNo)
+            .Take(4)
+            .Select(d =>
+            {
+                var itemNo = d.Item?.ItemNo ?? d.ItemName ?? $"Item {d.ItemId}";
+                return $"{itemNo} ({d.QuantityAsOrdered:0.##})";
+            })
+            .ToList();
+
+        if (lines.Count == 0)
+            return "No items";
+
+        var extraCount = details.Count() - lines.Count;
+        return extraCount > 0
+            ? $"{string.Join("; ", lines)}; +{extraCount} more"
+            : string.Join("; ", lines);
+    }
+
     private static string? TrimToNull(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -744,7 +946,74 @@ public class OrdersController(LpcAppsDbContext db) : ControllerBase
             order.Customer.Name,
             FormatAddressLabel(order.PickUpAddress),
             order.TrailerNo,
+            TrimToNull(order.Comments),
             order.ReceivedDate,
             lines);
+    }
+
+    private static ProductionOrderDetailDto ToProductionDetailDto(SalesOrder order)
+    {
+        var lines = order.SalesOrderDetails
+            .OrderBy(d => d.LineNo)
+            .Select(d =>
+            {
+                var qtyReceived = d.QuantityAsReceived ?? 0;
+                return new ReceivingOrderLineDto(
+                    d.Id,
+                    d.LineNo,
+                    d.ItemId,
+                    d.Item.ItemNo,
+                    d.Item.ItemDescription ?? d.Item.ItemNo,
+                    d.QuantityAsOrdered,
+                    qtyReceived,
+                    qtyReceived > 0);
+            })
+            .ToList();
+
+        return new ProductionOrderDetailDto(
+            order.Id,
+            order.SalesOrderNo,
+            order.OrderStatus,
+            order.Customer.Name,
+            FormatAddressLabel(order.PickUpAddress),
+            order.TrailerNo,
+            TrimToNull(order.Comments),
+            order.ReceivedDate,
+            lines);
+    }
+
+    private static OrderAttachmentDto ToAttachmentDto(OrderAttachment attachment)
+    {
+        return new OrderAttachmentDto(
+            attachment.Id,
+            attachment.OrderId,
+            attachment.FileName,
+            attachment.ContentType,
+            attachment.SizeBytes,
+            attachment.CreatedAtUtc);
+    }
+
+    private static long ResolveMaxAttachmentSizeBytes(IConfiguration configuration)
+    {
+        if (!int.TryParse(configuration["AttachmentValidation:MaxSizeMb"], out var configuredMb) ||
+            configuredMb <= 0)
+        {
+            return DefaultMaxAttachmentSizeBytes;
+        }
+
+        return configuredMb * 1024L * 1024L;
+    }
+
+    private static HashSet<string> ResolveAllowedAttachmentExtensions(IConfiguration configuration)
+    {
+        var values = configuration
+            .GetSection("AttachmentValidation:AllowedExtensions")
+            .GetChildren()
+            .Select(child => child.Value?.Trim().ToLowerInvariant())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.StartsWith('.') ? value : $".{value}")
+            .ToList();
+
+        return new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
     }
 }

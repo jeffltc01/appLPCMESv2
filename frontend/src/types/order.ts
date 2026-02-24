@@ -198,8 +198,17 @@ export interface TransportBoardUpdate {
 export interface ReceivingOrderListItem {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo: string | null;
   customerName: string;
+  siteName: string;
+  receivingMode: "Trailer Pickup" | "Customer Drop Off";
+  priority: number | null;
   pickUpAddress: string | null;
+  pickUpCity: string | null;
+  pickUpState: string | null;
+  pickUpPostalCode: string | null;
+  pickUpCountry: string | null;
+  itemsOrderedSummary: string;
   trailerNo: string | null;
   pickupScheduledDate: string | null;
   lineCount: number;
@@ -224,8 +233,42 @@ export interface ReceivingOrderDetail {
   customerName: string;
   pickUpAddress: string | null;
   trailerNo: string | null;
+  orderComments: string | null;
   receivedDate: string | null;
   lines: ReceivingOrderLine[];
+}
+
+export interface ProductionOrderListItem {
+  id: number;
+  salesOrderNo: string;
+  customerName: string;
+  siteName: string;
+  priority: number | null;
+  itemsOrderedSummary: string;
+  receivedDate: string | null;
+  lineCount: number;
+  totalOrderedQuantity: number;
+}
+
+export interface ProductionOrderDetail {
+  id: number;
+  salesOrderNo: string;
+  orderStatus: string;
+  customerName: string;
+  pickUpAddress: string | null;
+  trailerNo: string | null;
+  orderComments: string | null;
+  receivedDate: string | null;
+  lines: ReceivingOrderLine[];
+}
+
+export interface OrderAttachment {
+  id: number;
+  orderId: number;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAtUtc: string;
 }
 
 export interface ReceivingLineUpdate {
