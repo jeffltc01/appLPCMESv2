@@ -39,6 +39,7 @@ builder.Services.AddDbContext<LpcAppsDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddSingleton<IAttachmentStorage, AzureBlobAttachmentStorage>();
 builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
+builder.Services.AddScoped<IOrderKpiService, OrderKpiService>();
 builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 builder.Services.AddScoped<IInvoiceStagingService, InvoiceStagingService>();
 builder.Services.AddScoped<IReceivingService, ReceivingService>();

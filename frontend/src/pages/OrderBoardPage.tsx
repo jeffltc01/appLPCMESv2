@@ -22,7 +22,7 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
-import type { OrderDraftListItem, OrderWorkspaceRole } from "../types/order";
+import type { OrderDraftListItem, OrderKpiSummary, OrderWorkspaceRole } from "../types/order";
 
 const ROLE_FILTER_MAP: Record<OrderWorkspaceRole, string[]> = {
   Office: ["Draft", "PendingOrderEntryValidation", "InvoiceReady"],
@@ -77,12 +77,17 @@ export function OrderBoardPage() {
     text: string;
   } | null>(null);
   const [rows, setRows] = useState<OrderDraftListItem[]>([]);
+  const [kpiSummary, setKpiSummary] = useState<OrderKpiSummary | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await ordersApi.list({ page: 1, pageSize: 300, search: search || undefined });
+      const [result, kpi] = await Promise.all([
+        ordersApi.list({ page: 1, pageSize: 300, search: search || undefined }),
+        ordersApi.kpiSummary(),
+      ]);
       setRows(result.items);
+      setKpiSummary(kpi);
     } finally {
       setLoading(false);
     }
@@ -168,15 +173,69 @@ export function OrderBoardPage() {
           </Field>
           <Button onClick={() => void load()}>Refresh</Button>
         </div>
+        <div style={{ marginTop: 10 }}>
+          <Button appearance="secondary" onClick={() => navigate("/orderboard/kpi-diagnostics")}>
+            Open KPI Diagnostics
+          </Button>
+        </div>
       </Card>
       <Card>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
           <Body1>Inbound Complete: {kpi.inboundComplete}</Body1>
           <Body1>Production Complete: {kpi.productionComplete}</Body1>
           <Body1>Ready for Shipment: {kpi.shipmentReady}</Body1>
           <Body1>Invoice Complete: {kpi.invoiceComplete}</Body1>
           <Body1>Rework Open: {kpi.reworkOpen}</Body1>
         </div>
+        {kpiSummary ? (
+          <div style={{ display: "grid", gap: 6 }}>
+            <Body1>
+              KPI coverage ({kpiSummary.totalOrdersEvaluated} orders, generated{" "}
+              {new Date(kpiSummary.generatedUtc).toLocaleString()}):
+            </Body1>
+            {kpiSummary.leadTimeMetrics.map((metric) => (
+              <Body1 key={metric.metricKey}>
+                {metric.label}: {metric.pairCount} pairs, avg{" "}
+                {metric.avgHours != null ? `${metric.avgHours.toFixed(1)}h` : "--"}, p50{" "}
+                {metric.p50Hours != null ? `${metric.p50Hours.toFixed(1)}h` : "--"}, p90{" "}
+                {metric.p90Hours != null ? `${metric.p90Hours.toFixed(1)}h` : "--"}
+              </Body1>
+            ))}
+            <Body1>
+              Hold duration (OnHoldCustomer): closed {kpiSummary.holdDuration.closedCount}, active{" "}
+              {kpiSummary.holdDuration.activeCount}, avg closed{" "}
+              {kpiSummary.holdDuration.averageClosedHours != null
+                ? `${kpiSummary.holdDuration.averageClosedHours.toFixed(1)}h`
+                : "--"}, avg active age{" "}
+              {kpiSummary.holdDuration.averageActiveAgeHours != null
+                ? `${kpiSummary.holdDuration.averageActiveAgeHours.toFixed(1)}h`
+                : "--"}
+            </Body1>
+            <Body1>
+              Promise reliability: on-time {kpiSummary.promiseReliability.onTimeCount}/
+              {kpiSummary.promiseReliability.eligibleCount} (
+              {kpiSummary.promiseReliability.onTimeRatePercent != null
+                ? `${kpiSummary.promiseReliability.onTimeRatePercent.toFixed(1)}%`
+                : "--"}
+              ), late avg slip{" "}
+              {kpiSummary.promiseReliability.averageSlipDaysForLateOrders != null
+                ? `${kpiSummary.promiseReliability.averageSlipDaysForLateOrders.toFixed(2)} days`
+                : "--"}, slipped with notification{" "}
+              {kpiSummary.promiseReliability.slippedWithNotificationPercent != null
+                ? `${kpiSummary.promiseReliability.slippedWithNotificationPercent.toFixed(1)}%`
+                : "--"}
+            </Body1>
+            <Body1>
+              Data quality: missing timestamps {kpiSummary.dataQuality.missingTimestampCount}, missing
+              reasons {kpiSummary.dataQuality.missingReasonCodeCount}, missing ownership{" "}
+              {kpiSummary.dataQuality.missingOwnershipCount}, invalid ordering{" "}
+              {kpiSummary.dataQuality.invalidOrderingCount}
+              {kpiSummary.dataQuality.sampleOrderIds.length > 0
+                ? `, sample orders: ${kpiSummary.dataQuality.sampleOrderIds.join(", ")}`
+                : ""}
+            </Body1>
+          </div>
+        ) : null}
       </Card>
 
       {role === "Admin" ? (

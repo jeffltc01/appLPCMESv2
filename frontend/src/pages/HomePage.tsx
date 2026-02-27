@@ -26,6 +26,7 @@ const modules = [
   { label: "Invoicing", path: "/invoicing", icon: <Receipt24Regular /> },
   { label: "Customers", path: "/customers", icon: <People24Regular /> },
   { label: "Order Board", path: "/orderboard", icon: <Board24Regular /> },
+  { label: "KPI Diagnostics", path: "/orderboard/kpi-diagnostics", icon: <Board24Regular /> },
   { label: "Setup", path: "/setup", icon: <Settings24Regular /> },
 ];
 

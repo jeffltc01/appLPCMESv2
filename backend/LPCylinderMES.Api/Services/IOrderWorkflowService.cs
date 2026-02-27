@@ -9,6 +9,11 @@ public interface IOrderWorkflowService
         ApplyHoldDto dto,
         CancellationToken cancellationToken = default);
 
+    Task<OrderDraftDetailDto> ClearHoldAsync(
+        int orderId,
+        ClearHoldDto dto,
+        CancellationToken cancellationToken = default);
+
     Task<OrderDraftDetailDto> AdvanceStatusAsync(
         int orderId,
         string targetStatus,

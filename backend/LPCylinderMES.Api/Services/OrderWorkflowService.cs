@@ -11,6 +11,10 @@ public class OrderWorkflowService(
     IOrderPolicyService orderPolicyService,
     IInvoiceStagingService? invoiceStagingService = null) : IOrderWorkflowService
 {
+    private const string LifecycleStatusChangedEventType = "LifecycleStatusChanged";
+    private const string HoldAppliedEventType = "HoldApplied";
+    private const string HoldClearedEventType = "HoldCleared";
+
     private static readonly HashSet<(string From, string To)> AllowedLifecycleTransitions = new()
     {
         (OrderStatusCatalog.Draft, OrderStatusCatalog.PendingOrderEntryValidation),
@@ -118,11 +122,12 @@ public class OrderWorkflowService(
             order.CustomerReadyContactName = TrimToNull(dto.CustomerReadyContactName);
         }
 
+        var nowUtc = DateTime.UtcNow;
         order.HoldOverlay = holdOverlay;
         order.StatusReasonCode = reasonCode;
         order.StatusNote = note;
         order.StatusOwnerRole = actingRole;
-        order.StatusUpdatedUtc = DateTime.UtcNow;
+        order.StatusUpdatedUtc = nowUtc;
         if (string.Equals(holdOverlay, OrderStatusCatalog.Cancelled, StringComparison.Ordinal))
         {
             order.HasOpenRework = false;
@@ -130,12 +135,90 @@ public class OrderWorkflowService(
             order.ReworkState = "Cancelled";
             order.ReworkDisposition = "Cancelled";
             order.ReworkLastUpdatedByEmpNo = appliedByEmpNo;
-            order.ReworkClosedUtc = DateTime.UtcNow;
+            order.ReworkClosedUtc = nowUtc;
         }
+
+        AppendLifecycleEvent(
+            order,
+            HoldAppliedEventType,
+            holdOverlay: holdOverlay,
+            reasonCode: reasonCode,
+            statusOwnerRole: actingRole,
+            actorEmpNo: appliedByEmpNo,
+            occurredUtc: nowUtc);
 
         await db.SaveChangesAsync(cancellationToken);
         var detail = await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken);
         return detail ?? throw new InvalidOperationException("Failed to load order detail after hold apply.");
+    }
+
+    public async Task<OrderDraftDetailDto> ClearHoldAsync(
+        int orderId,
+        ClearHoldDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+        if (order is null)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(order.HoldOverlay))
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "No active hold overlay exists.");
+        }
+
+        var actingRole = TrimToNull(dto.ActingRole);
+        var clearedByEmpNo = TrimToNull(dto.ClearedByEmpNo);
+        var note = TrimToNull(dto.Note);
+        if (actingRole is null || clearedByEmpNo is null)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ActingRole and ClearedByEmpNo are required.");
+        }
+
+        var requiredRole = await orderPolicyService.GetDecisionValueAsync(
+            OrderPolicyKeys.HoldReleaseAuthorityRole,
+            order.SiteId,
+            order.CustomerId,
+            "Supervisor",
+            cancellationToken);
+        if (!string.Equals(actingRole, requiredRole, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(actingRole, "Admin", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(actingRole, "PlantManager", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ServiceException(
+                StatusCodes.Status403Forbidden,
+                $"Role '{actingRole}' is not authorized to clear hold. Required: {requiredRole}, Admin, or PlantManager.");
+        }
+
+        if (string.Equals(order.HoldOverlay, OrderStatusCatalog.OnHoldCustomer, StringComparison.Ordinal) &&
+            (!order.CustomerReadyRetryUtc.HasValue || !order.CustomerReadyLastContactUtc.HasValue))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "OnHoldCustomer can only be cleared after customer readiness confirmation fields are recorded.");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var clearedOverlay = order.HoldOverlay;
+        order.HoldOverlay = null;
+        order.StatusReasonCode = "HoldCleared";
+        order.StatusNote = note;
+        order.StatusOwnerRole = actingRole;
+        order.StatusUpdatedUtc = nowUtc;
+
+        AppendLifecycleEvent(
+            order,
+            HoldClearedEventType,
+            holdOverlay: clearedOverlay,
+            reasonCode: "HoldCleared",
+            statusOwnerRole: actingRole,
+            actorEmpNo: clearedByEmpNo,
+            occurredUtc: nowUtc);
+
+        await db.SaveChangesAsync(cancellationToken);
+        var detail = await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken);
+        return detail ?? throw new InvalidOperationException("Failed to load order detail after hold clear.");
     }
 
     public async Task<OrderDraftDetailDto> AdvanceStatusAsync(
@@ -1258,9 +1341,10 @@ public class OrderWorkflowService(
             }
         }
 
+        var nowUtc = DateTime.UtcNow;
         order.OrderLifecycleStatus = targetStatus;
         order.OrderStatus = OrderStatusCatalog.MapLifecycleToLegacy(targetStatus);
-        order.StatusUpdatedUtc = DateTime.UtcNow;
+        order.StatusUpdatedUtc = nowUtc;
         order.StatusOwnerRole = ResolveStatusOwnerRole(targetStatus, normalizedRole);
         if (normalizedReasonCode is not null)
         {
@@ -1271,6 +1355,16 @@ public class OrderWorkflowService(
         {
             order.StatusNote = normalizedNote;
         }
+
+        AppendLifecycleEvent(
+            order,
+            LifecycleStatusChangedEventType,
+            fromLifecycleStatus: currentStatus,
+            toLifecycleStatus: targetStatus,
+            reasonCode: normalizedReasonCode,
+            statusOwnerRole: order.StatusOwnerRole,
+            actorEmpNo: normalizedActingEmpNo,
+            occurredUtc: nowUtc);
 
         if (string.Equals(currentStatus, OrderStatusCatalog.PendingOrderEntryValidation, StringComparison.Ordinal) &&
             string.Equals(targetStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal))
@@ -1342,6 +1436,31 @@ public class OrderWorkflowService(
         }
 
         return value.Trim();
+    }
+
+    private void AppendLifecycleEvent(
+        SalesOrder order,
+        string eventType,
+        string? fromLifecycleStatus = null,
+        string? toLifecycleStatus = null,
+        string? holdOverlay = null,
+        string? reasonCode = null,
+        string? statusOwnerRole = null,
+        string? actorEmpNo = null,
+        DateTime? occurredUtc = null)
+    {
+        db.OrderLifecycleEvents.Add(new OrderLifecycleEvent
+        {
+            OrderId = order.Id,
+            EventType = eventType,
+            FromLifecycleStatus = fromLifecycleStatus,
+            ToLifecycleStatus = toLifecycleStatus,
+            HoldOverlay = holdOverlay,
+            ReasonCode = reasonCode,
+            StatusOwnerRole = statusOwnerRole,
+            ActorEmpNo = actorEmpNo,
+            OccurredUtc = occurredUtc ?? DateTime.UtcNow,
+        });
     }
 
     private static string ResolveStatusOwnerRole(string targetStatus, string? actingRole)

@@ -12,12 +12,12 @@ namespace LPCylinderMES.Api.Controllers;
 public class OrdersController(
     LpcAppsDbContext db,
     IOrderQueryService orderQueryService,
+    IOrderKpiService orderKpiService,
     IOrderWorkflowService orderWorkflowService,
     IReceivingService receivingService,
     IProductionService productionService,
     IOrderAttachmentService orderAttachmentService,
-    IWorkCenterWorkflowService workCenterWorkflowService,
-    IOrderPolicyService orderPolicyService) : ControllerBase
+    IWorkCenterWorkflowService workCenterWorkflowService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<OrderDraftListDto>>> GetAll(
@@ -230,53 +230,39 @@ public class OrdersController(
         }
     }
 
+    [HttpGet("kpi-summary")]
+    public async Task<ActionResult<OrderKpiSummaryDto>> GetKpiSummary(
+        [FromQuery] DateTime? fromUtc = null,
+        [FromQuery] DateTime? toUtc = null,
+        [FromQuery] int? siteId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await orderKpiService.GetSummaryAsync(fromUtc, toUtc, siteId, cancellationToken));
+    }
+
+    [HttpGet("kpi-diagnostics")]
+    public async Task<ActionResult<OrderKpiDiagnosticsDto>> GetKpiDiagnostics(
+        [FromQuery] DateTime? fromUtc = null,
+        [FromQuery] DateTime? toUtc = null,
+        [FromQuery] int? siteId = null,
+        [FromQuery] string? issueType = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await orderKpiService.GetDiagnosticsAsync(fromUtc, toUtc, siteId, issueType, cancellationToken));
+    }
+
     [HttpPost("{id:int}/hold/clear")]
     public async Task<ActionResult<OrderDraftDetailDto>> ClearHold(int id, ClearHoldDto dto)
     {
-        var order = await db.SalesOrders.FindAsync(id);
-        if (order is null)
+        try
         {
-            return NotFound();
+            var detail = await orderWorkflowService.ClearHoldAsync(id, dto);
+            return Ok(detail);
         }
-
-        if (string.IsNullOrWhiteSpace(order.HoldOverlay))
+        catch (ServiceException ex)
         {
-            return Conflict(new { message = "No active hold overlay exists." });
+            return this.ToActionResult(ex);
         }
-
-        var requiredRole = await orderPolicyService.GetDecisionValueAsync(
-            OrderPolicyKeys.HoldReleaseAuthorityRole,
-            order.SiteId,
-            order.CustomerId,
-            "Supervisor");
-        if (!string.Equals(dto.ActingRole, requiredRole, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(dto.ActingRole, "Admin", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(dto.ActingRole, "PlantManager", StringComparison.OrdinalIgnoreCase))
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, new
-            {
-                message = $"Role '{dto.ActingRole}' is not authorized to clear hold. Required: {requiredRole}, Admin, or PlantManager."
-            });
-        }
-
-        if (string.Equals(order.HoldOverlay, OrderStatusCatalog.OnHoldCustomer, StringComparison.Ordinal) &&
-            (!order.CustomerReadyRetryUtc.HasValue || !order.CustomerReadyLastContactUtc.HasValue))
-        {
-            return Conflict(new
-            {
-                message = "OnHoldCustomer can only be cleared after customer readiness confirmation fields are recorded."
-            });
-        }
-
-        order.HoldOverlay = null;
-        order.StatusReasonCode = "HoldCleared";
-        order.StatusNote = dto.Note;
-        order.StatusOwnerRole = dto.ActingRole;
-        order.StatusUpdatedUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-
-        var detail = await orderQueryService.GetOrderDetailAsync(id);
-        return Ok(detail);
     }
 
     [HttpPost("{id:int}/hold/apply")]

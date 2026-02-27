@@ -153,6 +153,66 @@ public record OrderLifecycleMigrationDeltaDto(
     string ProposedLifecycleStatus,
     string RuleApplied);
 
+public record OrderKpiSummaryDto(
+    DateTime GeneratedUtc,
+    int TotalOrdersEvaluated,
+    List<KpiLeadTimeMetricDto> LeadTimeMetrics,
+    HoldDurationMetricDto HoldDuration,
+    PromiseReliabilityMetricDto PromiseReliability,
+    KpiDataQualityDto DataQuality);
+
+public record KpiLeadTimeMetricDto(
+    string MetricKey,
+    string Label,
+    int PairCount,
+    double? AvgHours,
+    double? P50Hours,
+    double? P90Hours);
+
+public record HoldDurationMetricDto(
+    int ClosedCount,
+    int ActiveCount,
+    double? AverageClosedHours,
+    double? AverageActiveAgeHours);
+
+public record PromiseReliabilityMetricDto(
+    int EligibleCount,
+    int OnTimeCount,
+    double? OnTimeRatePercent,
+    double? AverageSlipDaysForLateOrders,
+    int LateOrderCount,
+    double? SlippedWithNotificationPercent,
+    List<KpiGroupedCountDto> RevisionFrequencyBySite,
+    List<KpiGroupedCountDto> RevisionFrequencyByCustomer,
+    List<KpiGroupedCountDto> RevisionFrequencyByReason);
+
+public record KpiGroupedCountDto(
+    string GroupKey,
+    int Count);
+
+public record KpiDataQualityDto(
+    int MissingTimestampCount,
+    int MissingReasonCodeCount,
+    int MissingOwnershipCount,
+    int InvalidOrderingCount,
+    List<int> SampleOrderIds);
+
+public record OrderKpiDiagnosticsDto(
+    DateTime GeneratedUtc,
+    int TotalAffectedOrders,
+    List<OrderKpiDiagnosticsItemDto> Items);
+
+public record OrderKpiDiagnosticsItemDto(
+    int OrderId,
+    string SalesOrderNo,
+    int SiteId,
+    int CustomerId,
+    string LifecycleStatus,
+    int MissingTimestampCount,
+    int MissingReasonCodeCount,
+    int MissingOwnershipCount,
+    int InvalidOrderingCount);
+
 public record OrderDraftCreateDto(
     int CustomerId,
     int SiteId,

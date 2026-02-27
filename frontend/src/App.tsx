@@ -21,6 +21,7 @@ import { OperatorWorkCenterConsolePage } from "./pages/OperatorWorkCenterConsole
 import { OrderWorkspacePage } from "./pages/OrderWorkspacePage";
 import { OrderBoardPage } from "./pages/OrderBoardPage";
 import { OrderPolicyPage } from "./pages/OrderPolicyPage";
+import { KpiDiagnosticsPage } from "./pages/KpiDiagnosticsPage";
 
 export default function App() {
   return (
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="items/new" element={<NewItemPage />} />
             <Route path="items/:id" element={<ItemDetailPage />} />
             <Route path="orderboard" element={<OrderBoardPage />} />
+            <Route path="orderboard/kpi-diagnostics" element={<KpiDiagnosticsPage />} />
             <Route path="operator-console" element={<OperatorWorkCenterConsolePage />} />
             <Route path="contacts/*" element={<PlaceholderPage title="Contacts" />} />
             <Route path="setup/policies" element={<OrderPolicyPage />} />

@@ -73,6 +73,12 @@ const navItems: NavItem[] = [
     icon: <Board24Regular />,
     path: "/orderboard",
   },
+  {
+    key: "kpiDiagnostics",
+    label: "KPI Diagnostics",
+    icon: <Board24Regular />,
+    path: "/orderboard/kpi-diagnostics",
+  },
 ];
 
 const bottomItems: NavItem[] = [

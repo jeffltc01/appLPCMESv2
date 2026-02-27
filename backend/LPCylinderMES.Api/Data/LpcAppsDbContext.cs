@@ -33,6 +33,7 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
     public virtual DbSet<OrderAttachmentAudit> OrderAttachmentAudits { get; set; }
     public virtual DbSet<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; }
+    public virtual DbSet<OrderLifecycleEvent> OrderLifecycleEvents { get; set; }
     public virtual DbSet<OrderLifecycleMigrationAudit> OrderLifecycleMigrationAudits { get; set; }
     public virtual DbSet<OrderPromiseChangeEvent> OrderPromiseChangeEvents { get; set; }
 
@@ -544,6 +545,56 @@ public partial class LpcAppsDbContext : DbContext
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_order_lifecycle_migration_audits_sales_orders");
+        });
+
+        modelBuilder.Entity<OrderLifecycleEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_lifecycle_events");
+
+            entity.ToTable("order_lifecycle_events");
+
+            entity.HasIndex(e => e.OrderId, "ix_order_lifecycle_events_order_id");
+            entity.HasIndex(e => e.OccurredUtc, "ix_order_lifecycle_events_occurred_utc");
+            entity.HasIndex(e => new { e.OrderId, e.EventType, e.HoldOverlay }, "ix_order_lifecycle_events_order_type_hold");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.EventType)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("event_type");
+            entity.Property(e => e.FromLifecycleStatus)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("from_lifecycle_status");
+            entity.Property(e => e.ToLifecycleStatus)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("to_lifecycle_status");
+            entity.Property(e => e.HoldOverlay)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("hold_overlay");
+            entity.Property(e => e.ReasonCode)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("reason_code");
+            entity.Property(e => e.StatusOwnerRole)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("status_owner_role");
+            entity.Property(e => e.ActorEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("actor_emp_no");
+            entity.Property(e => e.OccurredUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("occurred_utc");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderLifecycleEvents)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_order_lifecycle_events_sales_orders");
         });
 
         modelBuilder.Entity<OrderPromiseChangeEvent>(entity =>

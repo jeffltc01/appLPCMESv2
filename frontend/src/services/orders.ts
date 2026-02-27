@@ -28,6 +28,8 @@ import type {
   RecordPromiseNotificationRequest,
   OrderPromiseChangeEvent,
   OrderLifecycleMigrationResult,
+  OrderKpiSummary,
+  OrderKpiDiagnostics,
   WorkCenterQueueItem,
   OrderRouteExecution,
   OperatorScanInRequest,
@@ -316,6 +318,30 @@ export const ordersApi = {
       }`,
       {}
     ),
+
+  kpiSummary: (params?: { fromUtc?: string; toUtc?: string; siteId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.fromUtc) qs.set("fromUtc", params.fromUtc);
+    if (params?.toUtc) qs.set("toUtc", params.toUtc);
+    if (params?.siteId) qs.set("siteId", String(params.siteId));
+    const query = qs.toString();
+    return api.get<OrderKpiSummary>(`/orders/kpi-summary${query ? `?${query}` : ""}`);
+  },
+
+  kpiDiagnostics: (params?: {
+    fromUtc?: string;
+    toUtc?: string;
+    siteId?: number;
+    issueType?: "all" | "missingTimestamp" | "missingReasonCode" | "missingOwnership" | "invalidOrdering";
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.fromUtc) qs.set("fromUtc", params.fromUtc);
+    if (params?.toUtc) qs.set("toUtc", params.toUtc);
+    if (params?.siteId) qs.set("siteId", String(params.siteId));
+    if (params?.issueType && params.issueType !== "all") qs.set("issueType", params.issueType);
+    const query = qs.toString();
+    return api.get<OrderKpiDiagnostics>(`/orders/kpi-diagnostics${query ? `?${query}` : ""}`);
+  },
 
   transportBoard: (params: TransportBoardParams = {}) => {
     const qs = new URLSearchParams();

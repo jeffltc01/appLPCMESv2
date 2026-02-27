@@ -773,6 +773,74 @@ export interface OrderLifecycleMigrationDelta {
   ruleApplied: string;
 }
 
+export interface KpiLeadTimeMetric {
+  metricKey: string;
+  label: string;
+  pairCount: number;
+  avgHours?: number | null;
+  p50Hours?: number | null;
+  p90Hours?: number | null;
+}
+
+export interface HoldDurationMetric {
+  closedCount: number;
+  activeCount: number;
+  averageClosedHours?: number | null;
+  averageActiveAgeHours?: number | null;
+}
+
+export interface KpiGroupedCount {
+  groupKey: string;
+  count: number;
+}
+
+export interface PromiseReliabilityMetric {
+  eligibleCount: number;
+  onTimeCount: number;
+  onTimeRatePercent?: number | null;
+  averageSlipDaysForLateOrders?: number | null;
+  lateOrderCount: number;
+  slippedWithNotificationPercent?: number | null;
+  revisionFrequencyBySite: KpiGroupedCount[];
+  revisionFrequencyByCustomer: KpiGroupedCount[];
+  revisionFrequencyByReason: KpiGroupedCount[];
+}
+
+export interface KpiDataQuality {
+  missingTimestampCount: number;
+  missingReasonCodeCount: number;
+  missingOwnershipCount: number;
+  invalidOrderingCount: number;
+  sampleOrderIds: number[];
+}
+
+export interface OrderKpiSummary {
+  generatedUtc: string;
+  totalOrdersEvaluated: number;
+  leadTimeMetrics: KpiLeadTimeMetric[];
+  holdDuration: HoldDurationMetric;
+  promiseReliability: PromiseReliabilityMetric;
+  dataQuality: KpiDataQuality;
+}
+
+export interface OrderKpiDiagnosticsItem {
+  orderId: number;
+  salesOrderNo: string;
+  siteId: number;
+  customerId: number;
+  lifecycleStatus: string;
+  missingTimestampCount: number;
+  missingReasonCodeCount: number;
+  missingOwnershipCount: number;
+  invalidOrderingCount: number;
+}
+
+export interface OrderKpiDiagnostics {
+  generatedUtc: string;
+  totalAffectedOrders: number;
+  items: OrderKpiDiagnosticsItem[];
+}
+
 export interface WorkCenterQueueItem {
   stepInstanceId: number;
   orderId: number;
