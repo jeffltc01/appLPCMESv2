@@ -16,6 +16,7 @@ public partial class RouteTemplateStep
     public bool RequiresScrapEntry { get; set; }
     public bool RequiresSerialCapture { get; set; }
     public bool RequiresChecklistCompletion { get; set; }
+    public int? ChecklistTemplateId { get; set; }
     public string ChecklistFailurePolicy { get; set; } = "BlockCompletion";
     public bool RequireScrapReasonWhenBad { get; set; } = true;
     public bool RequiresTrailerCapture { get; set; }
@@ -24,6 +25,8 @@ public partial class RouteTemplateStep
     public bool GenerateBolOnComplete { get; set; }
     public bool RequiresAttachment { get; set; }
     public bool RequiresSupervisorApproval { get; set; }
+    public bool AutoQueueNextStep { get; set; } = true;
+    public int? SlaMinutes { get; set; }
 
     public virtual RouteTemplate RouteTemplate { get; set; } = null!;
     public virtual WorkCenter WorkCenter { get; set; } = null!;

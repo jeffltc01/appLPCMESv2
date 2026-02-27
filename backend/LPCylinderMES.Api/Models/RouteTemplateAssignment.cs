@@ -11,7 +11,12 @@ public partial class RouteTemplateAssignment
     public int? SiteId { get; set; }
     public int? ItemId { get; set; }
     public string? ItemType { get; set; }
+    public int? OrderPriorityMin { get; set; }
+    public int? OrderPriorityMax { get; set; }
+    public int? PickUpViaId { get; set; }
+    public int? ShipToViaId { get; set; }
     public int RouteTemplateId { get; set; }
+    public bool? SupervisorGateOverride { get; set; }
     public DateTime? EffectiveFromUtc { get; set; }
     public DateTime? EffectiveToUtc { get; set; }
     public DateTime CreatedUtc { get; set; }

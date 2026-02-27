@@ -35,6 +35,7 @@ public record RouteTemplateStepDto(
     bool RequiresScrapEntry,
     bool RequiresSerialCapture,
     bool RequiresChecklistCompletion,
+    int? ChecklistTemplateId,
     string ChecklistFailurePolicy,
     bool RequireScrapReasonWhenBad,
     bool RequiresTrailerCapture,
@@ -42,7 +43,9 @@ public record RouteTemplateStepDto(
     bool GeneratePackingSlipOnComplete,
     bool GenerateBolOnComplete,
     bool RequiresAttachment,
-    bool RequiresSupervisorApproval);
+    bool RequiresSupervisorApproval,
+    bool AutoQueueNextStep,
+    int? SlaMinutes);
 
 public record RouteTemplateStepUpsertDto(
     int StepSequence,
@@ -57,6 +60,7 @@ public record RouteTemplateStepUpsertDto(
     bool RequiresScrapEntry,
     bool RequiresSerialCapture,
     bool RequiresChecklistCompletion,
+    int? ChecklistTemplateId,
     string ChecklistFailurePolicy,
     bool RequireScrapReasonWhenBad,
     bool RequiresTrailerCapture,
@@ -64,7 +68,9 @@ public record RouteTemplateStepUpsertDto(
     bool GeneratePackingSlipOnComplete,
     bool GenerateBolOnComplete,
     bool RequiresAttachment,
-    bool RequiresSupervisorApproval);
+    bool RequiresSupervisorApproval,
+    bool AutoQueueNextStep,
+    int? SlaMinutes);
 
 public record RouteTemplateSummaryDto(
     int Id,
@@ -106,7 +112,12 @@ public record RouteTemplateAssignmentDto(
     int? SiteId,
     int? ItemId,
     string? ItemType,
+    int? OrderPriorityMin,
+    int? OrderPriorityMax,
+    int? PickUpViaId,
+    int? ShipToViaId,
     int RouteTemplateId,
+    bool? SupervisorGateOverride,
     DateTime? EffectiveFromUtc,
     DateTime? EffectiveToUtc,
     DateTime CreatedUtc,
@@ -121,7 +132,12 @@ public record RouteTemplateAssignmentUpsertDto(
     int? SiteId,
     int? ItemId,
     string? ItemType,
+    int? OrderPriorityMin,
+    int? OrderPriorityMax,
+    int? PickUpViaId,
+    int? ShipToViaId,
     int RouteTemplateId,
+    bool? SupervisorGateOverride,
     DateTime? EffectiveFromUtc,
     DateTime? EffectiveToUtc);
 

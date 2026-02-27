@@ -109,6 +109,34 @@ public partial class SalesOrder
 
     public string? CustomerReadyContactName { get; set; }
 
+    public int? ActiveLineRouteCount { get; set; }
+
+    public int? CompletedLineRouteCount { get; set; }
+
+    public string? ProductionState { get; set; }
+
+    public DateTime? ProductionCompletedUtc { get; set; }
+
+    public DateTime? PendingSupervisorReviewUtc { get; set; }
+
+    public string? SupervisorReviewedBy { get; set; }
+
+    public DateTime? SupervisorReviewedUtc { get; set; }
+
+    public string? PackingSlipNo { get; set; }
+
+    public DateTime? PackingSlipGeneratedUtc { get; set; }
+
+    public string? PackingSlipDocumentUri { get; set; }
+
+    public string? BolNo { get; set; }
+
+    public DateTime? BolGeneratedUtc { get; set; }
+
+    public string? BolDocumentUri { get; set; }
+
+    public bool? HasBlockingQualityHold { get; set; }
+
     public bool? HasOpenRework { get; set; }
 
     public bool? ReworkBlockingInvoice { get; set; }

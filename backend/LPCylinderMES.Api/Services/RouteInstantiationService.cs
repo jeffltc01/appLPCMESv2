@@ -71,7 +71,15 @@ internal static class RouteInstantiationService
                 continue;
             }
 
-            var match = ResolveAssignmentWithTier(candidateAssignments, order.CustomerId, order.SiteId, line.ItemId, line.Item?.ItemType);
+            var match = ResolveAssignmentWithTier(
+                candidateAssignments,
+                order.CustomerId,
+                order.SiteId,
+                line.ItemId,
+                line.Item?.ItemType,
+                order.Priority,
+                order.PickUpViaId,
+                order.ShipToViaId);
             if (match.Assignment is null)
             {
                 throw new ServiceException(
@@ -95,11 +103,12 @@ internal static class RouteInstantiationService
                 SalesOrderId = order.Id,
                 SalesOrderDetailId = line.Id,
                 RouteTemplateId = assignment.RouteTemplateId,
+                RouteTemplateVersionNo = assignment.RouteTemplate.VersionNo,
                 RouteTemplateAssignmentId = assignment.Id,
                 State = "Active",
                 StartedUtc = now,
                 RouteReviewState = "Pending",
-                SupervisorApprovalRequired = templateSteps.Any(s => s.RequiresSupervisorApproval),
+                SupervisorApprovalRequired = assignment.SupervisorGateOverride ?? templateSteps.Any(s => s.RequiresSupervisorApproval),
             };
 
             db.OrderLineRouteInstances.Add(route);
@@ -117,11 +126,20 @@ internal static class RouteInstantiationService
                     IsRequired = step.IsRequired,
                     DataCaptureMode = step.DataCaptureMode,
                     TimeCaptureMode = step.TimeCaptureMode,
+                    RequiresScan = step.RequiresScan,
                     RequiresUsageEntry = step.RequiresUsageEntry,
                     RequiresScrapEntry = step.RequiresScrapEntry,
                     RequiresSerialCapture = step.RequiresSerialCapture,
                     RequiresChecklistCompletion = step.RequiresChecklistCompletion,
+                    ChecklistTemplateId = step.ChecklistTemplateId,
+                    ChecklistFailurePolicy = step.ChecklistFailurePolicy,
+                    RequireScrapReasonWhenBad = step.RequireScrapReasonWhenBad,
                     RequiresTrailerCapture = step.RequiresTrailerCapture,
+                    RequiresSerialLoadVerification = step.RequiresSerialLoadVerification,
+                    GeneratePackingSlipOnComplete = step.GeneratePackingSlipOnComplete,
+                    GenerateBolOnComplete = step.GenerateBolOnComplete,
+                    RequiresAttachment = step.RequiresAttachment,
+                    RequiresSupervisorApproval = step.RequiresSupervisorApproval,
                     TimeCaptureSource = "SystemScan",
                 });
             }
@@ -133,10 +151,17 @@ internal static class RouteInstantiationService
         int customerId,
         int siteId,
         int itemId,
-        string? itemType)
+        string? itemType,
+        int? orderPriority,
+        int? pickUpViaId,
+        int? shipToViaId)
     {
         var matches = candidates
-            .Select(a => new { Assignment = a, Tier = MatchTier(a, customerId, siteId, itemId, itemType) })
+            .Select(a => new
+            {
+                Assignment = a,
+                Tier = MatchTier(a, customerId, siteId, itemId, itemType, orderPriority, pickUpViaId, shipToViaId),
+            })
             .Where(x => x.Tier.HasValue)
             .ToList();
 
@@ -161,8 +186,31 @@ internal static class RouteInstantiationService
         int customerId,
         int siteId,
         int itemId,
-        string? itemType)
+        string? itemType,
+        int? orderPriority,
+        int? pickUpViaId,
+        int? shipToViaId)
     {
+        if (assignment.OrderPriorityMin.HasValue && (!orderPriority.HasValue || orderPriority.Value < assignment.OrderPriorityMin.Value))
+        {
+            return null;
+        }
+
+        if (assignment.OrderPriorityMax.HasValue && (!orderPriority.HasValue || orderPriority.Value > assignment.OrderPriorityMax.Value))
+        {
+            return null;
+        }
+
+        if (assignment.PickUpViaId.HasValue && assignment.PickUpViaId != pickUpViaId)
+        {
+            return null;
+        }
+
+        if (assignment.ShipToViaId.HasValue && assignment.ShipToViaId != shipToViaId)
+        {
+            return null;
+        }
+
         var matchesCustomer = assignment.CustomerId == customerId;
         var matchesSite = assignment.SiteId == siteId;
         var matchesItem = assignment.ItemId == itemId;

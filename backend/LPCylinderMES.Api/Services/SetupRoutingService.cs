@@ -199,7 +199,12 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
                 a.SiteId,
                 a.ItemId,
                 a.ItemType,
+                a.OrderPriorityMin,
+                a.OrderPriorityMax,
+                a.PickUpViaId,
+                a.ShipToViaId,
                 a.RouteTemplateId,
+                a.SupervisorGateOverride,
                 a.EffectiveFromUtc,
                 a.EffectiveToUtc,
                 a.CreatedUtc,
@@ -234,7 +239,12 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             SiteId = dto.SiteId,
             ItemId = dto.ItemId,
             ItemType = NormalizeNullable(dto.ItemType),
+            OrderPriorityMin = dto.OrderPriorityMin,
+            OrderPriorityMax = dto.OrderPriorityMax,
+            PickUpViaId = dto.PickUpViaId,
+            ShipToViaId = dto.ShipToViaId,
             RouteTemplateId = dto.RouteTemplateId,
+            SupervisorGateOverride = dto.SupervisorGateOverride,
             EffectiveFromUtc = dto.EffectiveFromUtc,
             EffectiveToUtc = dto.EffectiveToUtc,
             CreatedUtc = now,
@@ -263,7 +273,12 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
         assignment.SiteId = dto.SiteId;
         assignment.ItemId = dto.ItemId;
         assignment.ItemType = NormalizeNullable(dto.ItemType);
+        assignment.OrderPriorityMin = dto.OrderPriorityMin;
+        assignment.OrderPriorityMax = dto.OrderPriorityMax;
+        assignment.PickUpViaId = dto.PickUpViaId;
+        assignment.ShipToViaId = dto.ShipToViaId;
         assignment.RouteTemplateId = dto.RouteTemplateId;
+        assignment.SupervisorGateOverride = dto.SupervisorGateOverride;
         assignment.EffectiveFromUtc = dto.EffectiveFromUtc;
         assignment.EffectiveToUtc = dto.EffectiveToUtc;
         assignment.UpdatedUtc = DateTime.UtcNow;
@@ -312,7 +327,10 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             dto.CustomerId,
             dto.SiteId,
             dto.ItemId,
-            itemType);
+            itemType,
+            null,
+            null,
+            null);
 
         if (match.Assignment is null)
         {
@@ -409,6 +427,8 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             throw new ServiceException(StatusCodes.Status400BadRequest, "RevisionNo must be greater than zero.");
         if (dto.EffectiveFromUtc.HasValue && dto.EffectiveToUtc.HasValue && dto.EffectiveFromUtc > dto.EffectiveToUtc)
             throw new ServiceException(StatusCodes.Status400BadRequest, "EffectiveFromUtc cannot be later than EffectiveToUtc.");
+        if (dto.OrderPriorityMin.HasValue && dto.OrderPriorityMax.HasValue && dto.OrderPriorityMin > dto.OrderPriorityMax)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "OrderPriorityMin cannot be greater than OrderPriorityMax.");
 
         var templateExists = await db.RouteTemplates.AnyAsync(t => t.Id == dto.RouteTemplateId, cancellationToken);
         if (!templateExists)
@@ -420,6 +440,10 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid SiteId '{dto.SiteId.Value}'.");
         if (dto.ItemId.HasValue && !await db.Items.AnyAsync(i => i.Id == dto.ItemId.Value, cancellationToken))
             throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid ItemId '{dto.ItemId.Value}'.");
+        if (dto.PickUpViaId.HasValue && !await db.ShipVias.AnyAsync(v => v.Id == dto.PickUpViaId.Value, cancellationToken))
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid PickUpViaId '{dto.PickUpViaId.Value}'.");
+        if (dto.ShipToViaId.HasValue && !await db.ShipVias.AnyAsync(v => v.Id == dto.ShipToViaId.Value, cancellationToken))
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid ShipToViaId '{dto.ShipToViaId.Value}'.");
 
         var normalizedItemType = NormalizeNullable(dto.ItemType);
         if (!string.IsNullOrWhiteSpace(normalizedItemType))
@@ -447,6 +471,10 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
                 a.SiteId == dto.SiteId &&
                 a.ItemId == dto.ItemId &&
                 a.ItemType == normalizedItemType &&
+                a.OrderPriorityMin == dto.OrderPriorityMin &&
+                a.OrderPriorityMax == dto.OrderPriorityMax &&
+                a.PickUpViaId == dto.PickUpViaId &&
+                a.ShipToViaId == dto.ShipToViaId &&
                 (!existingId.HasValue || a.Id != existingId.Value))
             .ToListAsync(cancellationToken);
 
@@ -495,6 +523,7 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             RequiresScrapEntry = step.RequiresScrapEntry,
             RequiresSerialCapture = step.RequiresSerialCapture,
             RequiresChecklistCompletion = step.RequiresChecklistCompletion,
+            ChecklistTemplateId = step.ChecklistTemplateId,
             ChecklistFailurePolicy = step.ChecklistFailurePolicy,
             RequireScrapReasonWhenBad = step.RequireScrapReasonWhenBad,
             RequiresTrailerCapture = step.RequiresTrailerCapture,
@@ -503,6 +532,8 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             GenerateBolOnComplete = step.GenerateBolOnComplete,
             RequiresAttachment = step.RequiresAttachment,
             RequiresSupervisorApproval = step.RequiresSupervisorApproval,
+            AutoQueueNextStep = step.AutoQueueNextStep,
+            SlaMinutes = step.SlaMinutes,
         };
 
     private async Task<RouteTemplate> LoadRouteTemplateAsync(int id, CancellationToken cancellationToken)
@@ -534,6 +565,7 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             step.RequiresScrapEntry,
             step.RequiresSerialCapture,
             step.RequiresChecklistCompletion,
+            step.ChecklistTemplateId,
             step.ChecklistFailurePolicy,
             step.RequireScrapReasonWhenBad,
             step.RequiresTrailerCapture,
@@ -541,7 +573,9 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             step.GeneratePackingSlipOnComplete,
             step.GenerateBolOnComplete,
             step.RequiresAttachment,
-            step.RequiresSupervisorApproval);
+            step.RequiresSupervisorApproval,
+            step.AutoQueueNextStep,
+            step.SlaMinutes);
 
     private static RouteTemplateDetailDto ToRouteTemplateDetailDto(RouteTemplate template) =>
         new(
@@ -566,7 +600,12 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             assignment.SiteId,
             assignment.ItemId,
             assignment.ItemType,
+            assignment.OrderPriorityMin,
+            assignment.OrderPriorityMax,
+            assignment.PickUpViaId,
+            assignment.ShipToViaId,
             assignment.RouteTemplateId,
+            assignment.SupervisorGateOverride,
             assignment.EffectiveFromUtc,
             assignment.EffectiveToUtc,
             assignment.CreatedUtc,

@@ -851,7 +851,21 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.FreightAmount)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("freight_amount");
+            entity.Property(e => e.ActiveLineRouteCount).HasColumnName("active_line_route_count");
+            entity.Property(e => e.BolDocumentUri)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("bol_document_uri");
+            entity.Property(e => e.BolGeneratedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("bol_generated_utc");
+            entity.Property(e => e.BolNo)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("bol_no");
+            entity.Property(e => e.CompletedLineRouteCount).HasColumnName("completed_line_route_count");
             entity.Property(e => e.HasOpenRework).HasColumnName("has_open_rework");
+            entity.Property(e => e.HasBlockingQualityHold).HasColumnName("has_blocking_quality_hold");
             entity.Property(e => e.InvoiceDate)
                 .HasColumnType("datetime")
                 .HasColumnName("invoice_date");
@@ -907,6 +921,20 @@ public partial class LpcAppsDbContext : DbContext
                 .IsUnicode(false)
                 .HasColumnName("outbound_mode");
             entity.Property(e => e.PaymentTermId).HasColumnName("payment_term_id");
+            entity.Property(e => e.PackingSlipDocumentUri)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("packing_slip_document_uri");
+            entity.Property(e => e.PackingSlipGeneratedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("packing_slip_generated_utc");
+            entity.Property(e => e.PackingSlipNo)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("packing_slip_no");
+            entity.Property(e => e.PendingSupervisorReviewUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("pending_supervisor_review_utc");
             entity.Property(e => e.Phone)
                 .HasMaxLength(200)
                 .IsUnicode(false)
@@ -920,6 +948,13 @@ public partial class LpcAppsDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("pickup_scheduled_date");
             entity.Property(e => e.Priority).HasColumnName("priority");
+            entity.Property(e => e.ProductionCompletedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("production_completed_utc");
+            entity.Property(e => e.ProductionState)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("production_state");
             entity.Property(e => e.PromiseDateLastChangedByEmpNo)
                 .HasMaxLength(30)
                 .IsUnicode(false)
@@ -1014,6 +1049,13 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.StatusUpdatedUtc)
                 .HasColumnType("datetime")
                 .HasColumnName("status_updated_utc");
+            entity.Property(e => e.SupervisorReviewedBy)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("supervisor_reviewed_by");
+            entity.Property(e => e.SupervisorReviewedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("supervisor_reviewed_utc");
             entity.Property(e => e.TrailerNo)
                 .IsUnicode(false)
                 .HasColumnName("trailer_no");
@@ -1078,6 +1120,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.HasIndex(e => e.Id, "ix_sales_order_details_id");
 
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ActiveLineRouteInstanceId).HasColumnName("active_line_route_instance_id");
             entity.Property(e => e.ColorId).HasColumnName("color_id");
             entity.Property(e => e.Extension)
                 .HasColumnType("numeric(18, 6)")
@@ -1089,6 +1132,10 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.ItemName)
                 .IsUnicode(false)
                 .HasColumnName("item_name");
+            entity.Property(e => e.LastCompletedStepSequence).HasColumnName("last_completed_step_sequence");
+            entity.Property(e => e.LastCompletedStepUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("last_completed_step_utc");
             entity.Property(e => e.LidColorId).HasColumnName("lid_color_id");
             entity.Property(e => e.LineNo)
                 .HasColumnType("numeric(18, 0)")
@@ -1100,6 +1147,8 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.Notes)
                 .IsUnicode(false)
                 .HasColumnName("notes");
+            entity.Property(e => e.OpenReworkCount).HasColumnName("open_rework_count");
+            entity.Property(e => e.PrimaryWorkCenterId).HasColumnName("primary_work_center_id");
             entity.Property(e => e.QuantityAsOrdered)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("quantity_as_ordered");
@@ -1368,6 +1417,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.RequiresScrapEntry).HasColumnName("requires_scrap_entry");
             entity.Property(e => e.RequiresSerialCapture).HasColumnName("requires_serial_capture");
             entity.Property(e => e.RequiresChecklistCompletion).HasColumnName("requires_checklist_completion");
+            entity.Property(e => e.ChecklistTemplateId).HasColumnName("checklist_template_id");
             entity.Property(e => e.ChecklistFailurePolicy).HasMaxLength(40).IsUnicode(false).HasColumnName("checklist_failure_policy");
             entity.Property(e => e.RequireScrapReasonWhenBad).HasColumnName("require_scrap_reason_when_bad");
             entity.Property(e => e.RequiresTrailerCapture).HasColumnName("requires_trailer_capture");
@@ -1376,6 +1426,8 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.GenerateBolOnComplete).HasColumnName("generate_bol_on_complete");
             entity.Property(e => e.RequiresAttachment).HasColumnName("requires_attachment");
             entity.Property(e => e.RequiresSupervisorApproval).HasColumnName("requires_supervisor_approval");
+            entity.Property(e => e.AutoQueueNextStep).HasColumnName("auto_queue_next_step");
+            entity.Property(e => e.SlaMinutes).HasColumnName("sla_minutes");
 
             entity.HasOne(d => d.RouteTemplate).WithMany(p => p.Steps).HasForeignKey(d => d.RouteTemplateId).OnDelete(DeleteBehavior.ClientSetNull);
             entity.HasOne(d => d.WorkCenter).WithMany(p => p.RouteTemplateSteps).HasForeignKey(d => d.WorkCenterId).OnDelete(DeleteBehavior.ClientSetNull);
@@ -1393,7 +1445,12 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.SiteId).HasColumnName("site_id");
             entity.Property(e => e.ItemId).HasColumnName("item_id");
             entity.Property(e => e.ItemType).HasMaxLength(80).IsUnicode(false).HasColumnName("item_type");
+            entity.Property(e => e.OrderPriorityMin).HasColumnName("order_priority_min");
+            entity.Property(e => e.OrderPriorityMax).HasColumnName("order_priority_max");
+            entity.Property(e => e.PickUpViaId).HasColumnName("pick_up_via_id");
+            entity.Property(e => e.ShipToViaId).HasColumnName("ship_to_via_id");
             entity.Property(e => e.RouteTemplateId).HasColumnName("route_template_id");
+            entity.Property(e => e.SupervisorGateOverride).HasColumnName("supervisor_gate_override");
             entity.Property(e => e.EffectiveFromUtc).HasColumnType("datetime").HasColumnName("effective_from_utc");
             entity.Property(e => e.EffectiveToUtc).HasColumnType("datetime").HasColumnName("effective_to_utc");
             entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
@@ -1402,6 +1459,8 @@ public partial class LpcAppsDbContext : DbContext
             entity.HasOne(d => d.Customer).WithMany().HasForeignKey(d => d.CustomerId);
             entity.HasOne(d => d.Site).WithMany().HasForeignKey(d => d.SiteId);
             entity.HasOne(d => d.Item).WithMany().HasForeignKey(d => d.ItemId);
+            entity.HasOne<ShipVia>().WithMany().HasForeignKey(d => d.PickUpViaId);
+            entity.HasOne<ShipVia>().WithMany().HasForeignKey(d => d.ShipToViaId);
             entity.HasOne(d => d.RouteTemplate).WithMany(p => p.Assignments).HasForeignKey(d => d.RouteTemplateId).OnDelete(DeleteBehavior.ClientSetNull);
         });
 
@@ -1412,6 +1471,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.SalesOrderId).HasColumnName("sales_order_id");
             entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
             entity.Property(e => e.RouteTemplateId).HasColumnName("route_template_id");
+            entity.Property(e => e.RouteTemplateVersionNo).HasColumnName("route_template_version_no");
             entity.Property(e => e.RouteTemplateAssignmentId).HasColumnName("route_template_assignment_id");
             entity.Property(e => e.State).HasMaxLength(30).IsUnicode(false).HasColumnName("state");
             entity.Property(e => e.CurrentStepSequence).HasColumnName("current_step_sequence");
@@ -1445,11 +1505,20 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.IsRequired).HasColumnName("is_required");
             entity.Property(e => e.DataCaptureMode).HasMaxLength(30).IsUnicode(false).HasColumnName("data_capture_mode");
             entity.Property(e => e.TimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("time_capture_mode");
+            entity.Property(e => e.RequiresScan).HasColumnName("requires_scan");
             entity.Property(e => e.RequiresUsageEntry).HasColumnName("requires_usage_entry");
             entity.Property(e => e.RequiresScrapEntry).HasColumnName("requires_scrap_entry");
             entity.Property(e => e.RequiresSerialCapture).HasColumnName("requires_serial_capture");
             entity.Property(e => e.RequiresChecklistCompletion).HasColumnName("requires_checklist_completion");
+            entity.Property(e => e.ChecklistTemplateId).HasColumnName("checklist_template_id");
+            entity.Property(e => e.ChecklistFailurePolicy).HasMaxLength(40).IsUnicode(false).HasColumnName("checklist_failure_policy");
+            entity.Property(e => e.RequireScrapReasonWhenBad).HasColumnName("require_scrap_reason_when_bad");
             entity.Property(e => e.RequiresTrailerCapture).HasColumnName("requires_trailer_capture");
+            entity.Property(e => e.RequiresSerialLoadVerification).HasColumnName("requires_serial_load_verification");
+            entity.Property(e => e.GeneratePackingSlipOnComplete).HasColumnName("generate_packing_slip_on_complete");
+            entity.Property(e => e.GenerateBolOnComplete).HasColumnName("generate_bol_on_complete");
+            entity.Property(e => e.RequiresAttachment).HasColumnName("requires_attachment");
+            entity.Property(e => e.RequiresSupervisorApproval).HasColumnName("requires_supervisor_approval");
             entity.Property(e => e.ScanInUtc).HasColumnType("datetime").HasColumnName("scan_in_utc");
             entity.Property(e => e.ScanOutUtc).HasColumnType("datetime").HasColumnName("scan_out_utc");
             entity.Property(e => e.DurationMinutes).HasColumnType("decimal(10,2)").HasColumnName("duration_minutes");
@@ -1460,6 +1529,9 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.CompletedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("completed_by_emp_no");
             entity.Property(e => e.CompletedUtc).HasColumnType("datetime").HasColumnName("completed_utc");
             entity.Property(e => e.BlockedReason).HasMaxLength(300).IsUnicode(false).HasColumnName("blocked_reason");
+            entity.Property(e => e.StepAdjustedBy).HasMaxLength(30).IsUnicode(false).HasColumnName("step_adjusted_by");
+            entity.Property(e => e.StepAdjustedUtc).HasColumnType("datetime").HasColumnName("step_adjusted_utc");
+            entity.Property(e => e.StepAdjustmentReason).HasMaxLength(300).IsUnicode(false).HasColumnName("step_adjustment_reason");
 
             entity.HasOne(d => d.OrderLineRouteInstance).WithMany(p => p.Steps).HasForeignKey(d => d.OrderLineRouteInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
             entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);

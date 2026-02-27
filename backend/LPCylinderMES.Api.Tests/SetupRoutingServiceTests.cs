@@ -32,8 +32,8 @@ public class SetupRoutingServiceTests
             true,
             1,
             [
-                new RouteTemplateStepUpsertDto(1, "STEP-1", "Step 1", 100, true, "ElectronicRequired", "Automated", true, false, false, false, false, "BlockCompletion", true, false, false, false, false, false, false),
-                new RouteTemplateStepUpsertDto(1, "STEP-2", "Step 2", 100, true, "ElectronicRequired", "Automated", true, false, false, false, false, "BlockCompletion", true, false, false, false, false, false, false),
+                new RouteTemplateStepUpsertDto(1, "STEP-1", "Step 1", 100, true, "ElectronicRequired", "Automated", true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
+                new RouteTemplateStepUpsertDto(1, "STEP-2", "Step 2", 100, true, "ElectronicRequired", "Automated", true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
             ]);
 
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.CreateRouteTemplateAsync(dto));
@@ -74,7 +74,12 @@ public class SetupRoutingServiceTests
             1,
             10,
             null,
+            null,
+            null,
+            null,
+            null,
             200,
+            null,
             new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc),
             new DateTime(2026, 2, 10, 0, 0, 0, DateTimeKind.Utc));
 

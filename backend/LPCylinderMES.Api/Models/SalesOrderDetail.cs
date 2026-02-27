@@ -47,6 +47,16 @@ public partial class SalesOrderDetail
 
     public int? LidColorId { get; set; }
 
+    public long? ActiveLineRouteInstanceId { get; set; }
+
+    public int? PrimaryWorkCenterId { get; set; }
+
+    public int? LastCompletedStepSequence { get; set; }
+
+    public DateTime? LastCompletedStepUtc { get; set; }
+
+    public int? OpenReworkCount { get; set; }
+
     public virtual Color? Color { get; set; }
 
     public virtual Item Item { get; set; } = null!;

@@ -6,6 +6,7 @@ public partial class OrderLineRouteInstance
     public int SalesOrderId { get; set; }
     public int SalesOrderDetailId { get; set; }
     public int RouteTemplateId { get; set; }
+    public int RouteTemplateVersionNo { get; set; }
     public int? RouteTemplateAssignmentId { get; set; }
     public string State { get; set; } = "Active";
     public int? CurrentStepSequence { get; set; }
