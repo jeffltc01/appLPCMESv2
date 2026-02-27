@@ -31,13 +31,15 @@ public class OrderAttachmentService(
                 a.FileName,
                 a.ContentType,
                 a.SizeBytes,
-                a.CreatedAtUtc))
+                a.CreatedAtUtc,
+                a.Category))
             .ToListAsync(cancellationToken);
     }
 
     public async Task<OrderAttachmentDto> UploadAttachmentAsync(
         int orderId,
         IFormFile? file,
+        string? category,
         CancellationToken cancellationToken = default)
     {
         if (file is null || file.Length == 0)
@@ -54,11 +56,14 @@ public class OrderAttachmentService(
         if (order is null)
             throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
 
-        if (order.OrderStatus != OrderStatusCatalog.Received)
+        var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            : order.OrderLifecycleStatus!;
+        if (string.Equals(lifecycleStatus, OrderStatusCatalog.Invoiced, StringComparison.Ordinal))
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                $"Attachments can only be added for orders in status '{OrderStatusCatalog.Received}'.");
+                "Attachments cannot be added once an order is invoiced.");
         }
 
         var safeFileName = Path.GetFileName(file.FileName);
@@ -86,6 +91,7 @@ public class OrderAttachmentService(
             BlobPath = blobPath,
             ContentType = contentType,
             SizeBytes = file.Length,
+            Category = string.IsNullOrWhiteSpace(category) ? "Other" : category.Trim(),
             CreatedAtUtc = DateTime.UtcNow,
         };
 
@@ -135,7 +141,8 @@ public class OrderAttachmentService(
             attachment.FileName,
             attachment.ContentType,
             attachment.SizeBytes,
-            attachment.CreatedAtUtc);
+            attachment.CreatedAtUtc,
+            attachment.Category);
     }
 
     private static long ResolveMaxAttachmentSizeBytes(IConfiguration configuration)

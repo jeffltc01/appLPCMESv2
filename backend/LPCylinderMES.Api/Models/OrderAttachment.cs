@@ -8,6 +8,7 @@ public partial class OrderAttachment
     public string BlobPath { get; set; } = null!;
     public string ContentType { get; set; } = null!;
     public long SizeBytes { get; set; }
+    public string Category { get; set; } = "Other";
     public DateTime CreatedAtUtc { get; set; }
 
     public virtual SalesOrder Order { get; set; } = null!;

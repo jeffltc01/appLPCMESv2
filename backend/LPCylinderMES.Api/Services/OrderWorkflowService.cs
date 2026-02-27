@@ -7,7 +7,8 @@ namespace LPCylinderMES.Api.Services;
 
 public class OrderWorkflowService(
     LpcAppsDbContext db,
-    IOrderQueryService orderQueryService) : IOrderWorkflowService
+    IOrderQueryService orderQueryService,
+    IOrderPolicyService orderPolicyService) : IOrderWorkflowService
 {
     private static readonly HashSet<(string From, string To)> AllowedLifecycleTransitions = new()
     {
@@ -31,6 +32,7 @@ public class OrderWorkflowService(
         (OrderStatusCatalog.InvoiceReady, OrderStatusCatalog.Invoiced),
         // Rework guardrail default from spec.
         (OrderStatusCatalog.InvoiceReady, OrderStatusCatalog.InProduction),
+        (OrderStatusCatalog.InvoiceReady, OrderStatusCatalog.ProductionCompletePendingApproval),
     };
 
     public async Task<OrderDraftDetailDto> AdvanceStatusAsync(
@@ -88,6 +90,48 @@ public class OrderWorkflowService(
         }
 
         var hasAttachments = order.OrderAttachments.Count > 0;
+        var attachmentPolicy = await orderPolicyService.GetDecisionValueAsync(
+            OrderPolicyKeys.AttachmentEmailPolicy,
+            order.SiteId,
+            order.CustomerId,
+            "AlwaysOptional",
+            cancellationToken);
+        var requiredEmail = string.Equals(attachmentPolicy, "MandatoryForAll", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(attachmentPolicy, "MandatoryForConfiguredCustomers", StringComparison.OrdinalIgnoreCase))
+        {
+            var requiredCustomerCsv = await orderPolicyService.GetDecisionValueAsync(
+                OrderPolicyKeys.AttachmentEmailRequiredCustomerIdsCsv,
+                order.SiteId,
+                order.CustomerId,
+                string.Empty,
+                cancellationToken);
+            requiredEmail = ParseCsvInts(requiredCustomerCsv).Contains(order.CustomerId);
+        }
+
+        var requiredAttachmentCategoriesCsv = await orderPolicyService.GetDecisionValueAsync(
+            OrderPolicyKeys.RequiredAttachmentCategoriesCsv,
+            order.SiteId,
+            order.CustomerId,
+            string.Empty,
+            cancellationToken);
+        var requiredAttachmentCategories = ParseCsv(requiredAttachmentCategoriesCsv);
+        if (requiredAttachmentCategories.Count > 0)
+        {
+            var attachmentCategories = order.OrderAttachments
+                .Select(a => a.Category)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missingCategories = requiredAttachmentCategories
+                .Where(category => !attachmentCategories.Contains(category))
+                .ToList();
+            if (missingCategories.Count > 0)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    $"Missing required attachment categories: {string.Join(", ", missingCategories)}.");
+            }
+        }
+
         if (hasAttachments)
         {
             if (dto.SendAttachmentEmail)
@@ -122,6 +166,13 @@ public class OrderWorkflowService(
             }
             else
             {
+                if (requiredEmail)
+                {
+                    throw new ServiceException(
+                        StatusCodes.Status409Conflict,
+                        "Attachment email is mandatory by policy for this order.");
+                }
+
                 if (string.IsNullOrWhiteSpace(dto.AttachmentSkipReason))
                 {
                     throw new ServiceException(
@@ -137,6 +188,13 @@ public class OrderWorkflowService(
         }
         else
         {
+            if (requiredEmail)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Attachment email is mandatory by policy, but no attachments are available.");
+            }
+
             order.AttachmentEmailPrompted = false;
             order.AttachmentEmailSent = false;
         }
@@ -150,6 +208,9 @@ public class OrderWorkflowService(
         order.InvoiceSubmissionCorrelationId = string.IsNullOrWhiteSpace(dto.CorrelationId)
             ? Guid.NewGuid().ToString("N")
             : dto.CorrelationId.Trim();
+        order.InvoiceStagingResult = "Success";
+        order.InvoiceStagingError = null;
+        order.ErpReconcileStatus = "Pending";
 
         return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken);
     }
@@ -233,7 +294,7 @@ public class OrderWorkflowService(
         }
     }
 
-    private Task AdvanceLifecycleStatusAsync(
+    private async Task AdvanceLifecycleStatusAsync(
         SalesOrder order,
         string requestedTargetStatus,
         CancellationToken cancellationToken)
@@ -274,6 +335,42 @@ public class OrderWorkflowService(
                 "Cannot move to InboundInTransit while OnHoldCustomer is active.");
         }
 
+        if (string.Equals(currentStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.InboundInTransit, StringComparison.Ordinal) &&
+            string.Equals(order.InboundMode, "CustomerDropoff", StringComparison.OrdinalIgnoreCase))
+        {
+            var allowDropoffTransit = await orderPolicyService.GetDecisionFlagAsync(
+                OrderPolicyKeys.AllowCustomerDropoffTransitWithAppointment,
+                order.SiteId,
+                order.CustomerId,
+                false,
+                cancellationToken);
+            if (!allowDropoffTransit || !order.ScheduledReceiptDate.HasValue)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Customer dropoff transition to InboundInTransit requires policy enablement and check-in appointment evidence.");
+            }
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.ProductionComplete, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.DispatchedOrPickupReleased, StringComparison.Ordinal) &&
+            string.Equals(order.OutboundMode, "CustomerPickup", StringComparison.OrdinalIgnoreCase))
+        {
+            var requireOutboundPlanned = await orderPolicyService.GetDecisionFlagAsync(
+                OrderPolicyKeys.RequireOutboundPlannedForCustomerPickup,
+                order.SiteId,
+                order.CustomerId,
+                false,
+                cancellationToken);
+            if (requireOutboundPlanned)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Customer pickup requires OutboundLogisticsPlanned before release by active site policy.");
+            }
+        }
+
         var blocksInvoice =
             string.Equals(order.HoldOverlay, OrderStatusCatalog.ReworkOpen, StringComparison.Ordinal) ||
             (order.HasOpenRework ?? false) ||
@@ -287,6 +384,24 @@ public class OrderWorkflowService(
                 "Cannot transition to invoice statuses while rework is open.");
         }
 
+        if (string.Equals(currentStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal) &&
+            (string.Equals(targetStatus, OrderStatusCatalog.InProduction, StringComparison.Ordinal) ||
+             string.Equals(targetStatus, OrderStatusCatalog.ProductionCompletePendingApproval, StringComparison.Ordinal)))
+        {
+            var reworkRevertTarget = await orderPolicyService.GetDecisionValueAsync(
+                OrderPolicyKeys.ReworkRevertTargetStatus,
+                order.SiteId,
+                order.CustomerId,
+                OrderStatusCatalog.InProduction,
+                cancellationToken);
+            if (!string.Equals(targetStatus, reworkRevertTarget, StringComparison.Ordinal))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    $"Rework reversion target is configured as '{reworkRevertTarget}'.");
+            }
+        }
+
         var requiresCommitment = string.Equals(targetStatus, OrderStatusCatalog.OutboundLogisticsPlanned, StringComparison.Ordinal) ||
                                  string.Equals(targetStatus, OrderStatusCatalog.DispatchedOrPickupReleased, StringComparison.Ordinal);
         if (requiresCommitment && !order.CurrentCommittedDateUtc.HasValue)
@@ -294,6 +409,26 @@ public class OrderWorkflowService(
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
                 "CurrentCommittedDateUtc must be set before outbound release planning.");
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.DispatchedOrPickupReleased, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal))
+        {
+            var missingEvidenceBehavior = await orderPolicyService.GetDecisionValueAsync(
+                OrderPolicyKeys.MissingDeliveryEvidenceBehavior,
+                order.SiteId,
+                order.CustomerId,
+                "ReportingOnly",
+                cancellationToken);
+            if (string.Equals(missingEvidenceBehavior, "AutoExceptionDocumentation", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(order.DeliveryEvidenceStatus, "Received", StringComparison.OrdinalIgnoreCase))
+            {
+                order.HoldOverlay = OrderStatusCatalog.ExceptionDocumentation;
+                order.StatusReasonCode = "MissingDeliveryEvidence";
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Missing delivery evidence auto-raises ExceptionDocumentation by policy.");
+            }
         }
 
         if (string.Equals(targetStatus, OrderStatusCatalog.Invoiced, StringComparison.Ordinal))
@@ -316,10 +451,11 @@ public class OrderWorkflowService(
         ApplyTransitionTimestamp(order, order.OrderStatus);
         if (string.Equals(targetStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal))
         {
-            return RouteInstantiationService.EnsureRoutesForOrderAsync(db, order, null, cancellationToken);
+            await RouteInstantiationService.EnsureRoutesForOrderAsync(db, order, null, cancellationToken);
+            return;
         }
 
-        return Task.CompletedTask;
+        return;
     }
 
     private static void ApplyTransitionTimestamp(SalesOrder order, string targetStatus)
@@ -375,6 +511,23 @@ public class OrderWorkflowService(
         }
 
         return value.Trim();
+    }
+
+    private static HashSet<string> ParseCsv(string csv)
+    {
+        return csv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static HashSet<int> ParseCsvInts(string csv)
+    {
+        return csv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => int.TryParse(value, out var parsed) ? parsed : -1)
+            .Where(value => value > 0)
+            .ToHashSet();
     }
 }
 

@@ -4,6 +4,7 @@ using LPCylinderMES.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LPCylinderMES.Api.Migrations
 {
     [DbContext(typeof(LpcAppsDbContext))]
-    partial class LpcAppsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260227144032_AddDecisionPolicyGovernanceAndInvoiceEvidence")]
+    partial class AddDecisionPolicyGovernanceAndInvoiceEvidence
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -180,12 +183,13 @@ namespace LPCylinderMES.Api.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ApprovedByEmpNo")
+                        .IsRequired()
                         .HasMaxLength(30)
                         .IsUnicode(false)
                         .HasColumnType("varchar(30)")
                         .HasColumnName("approved_by_emp_no");
 
-                    b.Property<DateTime?>("ApprovedUtc")
+                    b.Property<DateTime>("ApprovedUtc")
                         .HasColumnType("datetime")
                         .HasColumnName("approved_utc");
 
@@ -195,10 +199,6 @@ namespace LPCylinderMES.Api.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(40)")
                         .HasColumnName("function_role");
-
-                    b.Property<bool>("IsApproved")
-                        .HasColumnType("bit")
-                        .HasColumnName("is_approved");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(500)

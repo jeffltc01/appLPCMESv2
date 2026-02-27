@@ -462,10 +462,10 @@ export function OrderWorkspacePage() {
               );
             })}
             <Field label="Add attachment">
-              <Input
+              <input
                 type="file"
                 onChange={(event) => {
-                  const file = event.target.files?.item(0);
+                  const file = (event.target as HTMLInputElement).files?.item(0);
                   if (file) {
                     void uploadAttachment(file);
                   }

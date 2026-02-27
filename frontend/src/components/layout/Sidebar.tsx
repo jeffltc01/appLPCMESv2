@@ -81,6 +81,7 @@ const bottomItems: NavItem[] = [
     label: "Setup",
     icon: <Settings24Regular />,
     path: "/setup",
+    navigateTo: "/setup/policies",
   },
 ];
 

@@ -16,7 +16,8 @@ public class OrdersController(
     IReceivingService receivingService,
     IProductionService productionService,
     IOrderAttachmentService orderAttachmentService,
-    IWorkCenterWorkflowService workCenterWorkflowService) : ControllerBase
+    IWorkCenterWorkflowService workCenterWorkflowService,
+    IOrderPolicyService orderPolicyService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<OrderDraftListDto>>> GetAll(
@@ -171,6 +172,73 @@ public class OrdersController(
         }
     }
 
+    [HttpPost("{id:int}/hold/clear")]
+    public async Task<ActionResult<OrderDraftDetailDto>> ClearHold(int id, ClearHoldDto dto)
+    {
+        var order = await db.SalesOrders.FindAsync(id);
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(order.HoldOverlay))
+        {
+            return Conflict(new { message = "No active hold overlay exists." });
+        }
+
+        var requiredRole = await orderPolicyService.GetDecisionValueAsync(
+            OrderPolicyKeys.HoldReleaseAuthorityRole,
+            order.SiteId,
+            order.CustomerId,
+            "Supervisor");
+        if (!string.Equals(dto.ActingRole, requiredRole, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(dto.ActingRole, "Admin", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(dto.ActingRole, "PlantManager", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = $"Role '{dto.ActingRole}' is not authorized to clear hold. Required: {requiredRole}, Admin, or PlantManager."
+            });
+        }
+
+        order.HoldOverlay = null;
+        order.StatusReasonCode = "HoldCleared";
+        order.StatusNote = dto.Note;
+        order.StatusOwnerRole = dto.ActingRole;
+        order.StatusUpdatedUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        var detail = await orderQueryService.GetOrderDetailAsync(id);
+        return Ok(detail);
+    }
+
+    [HttpPost("{id:int}/erp-reconcile/failure")]
+    public async Task<ActionResult<OrderDraftDetailDto>> MarkErpReconcileFailure(int id, ErpReconcileFailureDto dto)
+    {
+        var order = await db.SalesOrders.FindAsync(id);
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        order.ErpReconcileStatus = "Failed";
+        order.ErpReconcileNote = dto.ErrorMessage.Trim();
+        order.InvoiceStagingResult = "Failed";
+        order.InvoiceStagingError = dto.ErrorMessage.Trim();
+        order.HoldOverlay = OrderStatusCatalog.ExceptionErpReconcile;
+        order.StatusReasonCode = "ErpInvoiceCreationFailed";
+        order.StatusOwnerRole = "Accounting";
+        order.StatusUpdatedUtc = DateTime.UtcNow;
+        if (!string.IsNullOrWhiteSpace(dto.CorrelationId))
+        {
+            order.InvoiceSubmissionCorrelationId = dto.CorrelationId.Trim();
+        }
+
+        await db.SaveChangesAsync();
+        var detail = await orderQueryService.GetOrderDetailAsync(id);
+        return Ok(detail);
+    }
+
     [HttpPost("{id:int}/invoice/submit")]
     public async Task<ActionResult<OrderDraftDetailDto>> SubmitInvoice(int id, SubmitInvoiceDto dto)
     {
@@ -297,11 +365,12 @@ public class OrdersController(
     public async Task<ActionResult<OrderAttachmentDto>> UploadAttachment(
         int id,
         [FromForm] IFormFile? file,
+        [FromForm] string? category,
         CancellationToken cancellationToken)
     {
         try
         {
-            var attachment = await orderAttachmentService.UploadAttachmentAsync(id, file, cancellationToken);
+            var attachment = await orderAttachmentService.UploadAttachmentAsync(id, file, category, cancellationToken);
             return CreatedAtAction(
                 nameof(DownloadAttachment),
                 new { id, attachmentId = attachment.Id },

@@ -32,6 +32,12 @@ public partial class LpcAppsDbContext : DbContext
 
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
 
+    public virtual DbSet<BusinessDecisionPolicy> BusinessDecisionPolicies { get; set; }
+
+    public virtual DbSet<BusinessDecisionSignoff> BusinessDecisionSignoffs { get; set; }
+
+    public virtual DbSet<PromiseReasonPolicy> PromiseReasonPolicies { get; set; }
+
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
 
     public virtual DbSet<Manufacturer> Manufacturers { get; set; }
@@ -352,6 +358,10 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(200)
                 .IsUnicode(false)
                 .HasColumnName("content_type");
+            entity.Property(e => e.Category)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("category");
             entity.Property(e => e.SizeBytes).HasColumnName("size_bytes");
             entity.Property(e => e.CreatedAtUtc)
                 .HasColumnType("datetime")
@@ -501,9 +511,28 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.DispatchDate)
                 .HasColumnType("datetime")
                 .HasColumnName("dispatch_date");
+            entity.Property(e => e.DeliveryEvidenceReceivedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("delivery_evidence_received_utc");
+            entity.Property(e => e.DeliveryEvidenceStatus)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("delivery_evidence_status");
             entity.Property(e => e.EmailSentDate)
                 .HasColumnType("datetime")
                 .HasColumnName("email_sent_date");
+            entity.Property(e => e.ErpInvoiceReference)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("erp_invoice_reference");
+            entity.Property(e => e.ErpReconcileNote)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("erp_reconcile_note");
+            entity.Property(e => e.ErpReconcileStatus)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("erp_reconcile_status");
             entity.Property(e => e.EstDeliveryDate)
                 .HasColumnType("datetime")
                 .HasColumnName("est_delivery_date");
@@ -555,6 +584,14 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(120)
                 .IsUnicode(false)
                 .HasColumnName("invoice_submission_correlation_id");
+            entity.Property(e => e.InvoiceStagingError)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("invoice_staging_error");
+            entity.Property(e => e.InvoiceStagingResult)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("invoice_staging_result");
             entity.Property(e => e.InvoiceSubmissionRequestedByEmpNo)
                 .HasMaxLength(30)
                 .IsUnicode(false)
@@ -1197,6 +1234,50 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.CompletedUtc).HasColumnType("datetime").HasColumnName("completed_utc");
 
             entity.HasOne(d => d.OrderLineRouteStepInstance).WithMany().HasForeignKey(d => d.OrderLineRouteStepInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<BusinessDecisionPolicy>(entity =>
+        {
+            entity.ToTable("business_decision_policies");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.PolicyVersion).HasColumnName("policy_version");
+            entity.Property(e => e.DecisionKey).HasMaxLength(120).IsUnicode(false).HasColumnName("decision_key");
+            entity.Property(e => e.ScopeType).HasMaxLength(20).IsUnicode(false).HasColumnName("scope_type");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
+            entity.Property(e => e.PolicyValue).HasMaxLength(1000).IsUnicode(false).HasColumnName("policy_value");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+            entity.Property(e => e.UpdatedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("updated_by_emp_no");
+            entity.Property(e => e.Notes).HasMaxLength(500).IsUnicode(false).HasColumnName("notes");
+            entity.HasIndex(e => new { e.PolicyVersion, e.DecisionKey, e.ScopeType, e.SiteId, e.CustomerId }).IsUnique();
+        });
+
+        modelBuilder.Entity<BusinessDecisionSignoff>(entity =>
+        {
+            entity.ToTable("business_decision_signoffs");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.PolicyVersion).HasColumnName("policy_version");
+            entity.Property(e => e.FunctionRole).HasMaxLength(40).IsUnicode(false).HasColumnName("function_role");
+            entity.Property(e => e.IsApproved).HasColumnName("is_approved");
+            entity.Property(e => e.ApprovedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("approved_by_emp_no");
+            entity.Property(e => e.ApprovedUtc).HasColumnType("datetime").HasColumnName("approved_utc");
+            entity.Property(e => e.Notes).HasMaxLength(500).IsUnicode(false).HasColumnName("notes");
+            entity.HasIndex(e => new { e.PolicyVersion, e.FunctionRole }).IsUnique();
+        });
+
+        modelBuilder.Entity<PromiseReasonPolicy>(entity =>
+        {
+            entity.ToTable("promise_reason_policies");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ReasonCode).HasMaxLength(80).IsUnicode(false).HasColumnName("reason_code");
+            entity.Property(e => e.Description).HasMaxLength(240).IsUnicode(false).HasColumnName("description");
+            entity.Property(e => e.OwnerRole).HasMaxLength(40).IsUnicode(false).HasColumnName("owner_role");
+            entity.Property(e => e.AllowedNotificationPolicies).HasMaxLength(200).IsUnicode(false).HasColumnName("allowed_notification_policies");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+            entity.Property(e => e.UpdatedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("updated_by_emp_no");
+            entity.HasIndex(e => e.ReasonCode).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);

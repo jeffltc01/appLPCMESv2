@@ -96,6 +96,10 @@ public record OrderDraftUpdateDto(
 
 public record OrderAdvanceStatusDto(string TargetStatus);
 
+public record ClearHoldDto(string ActingRole, string ClearedByEmpNo, string? Note);
+
+public record ErpReconcileFailureDto(string ErrorMessage, string? CorrelationId, string? FailedByEmpNo);
+
 public record SubmitInvoiceDto(
     bool FinalReviewConfirmed,
     bool SendAttachmentEmail,
@@ -266,7 +270,8 @@ public record OrderAttachmentDto(
     string FileName,
     string ContentType,
     long SizeBytes,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    string Category);
 
 public record OperatorScanInDto(string EmpNo, string? DeviceId);
 

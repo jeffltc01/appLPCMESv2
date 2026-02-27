@@ -31,6 +31,7 @@ public static class OrderStatusCatalog
     public const string OnHoldLogistics = "OnHoldLogistics";
     public const string ExceptionQuantityMismatch = "ExceptionQuantityMismatch";
     public const string ExceptionDocumentation = "ExceptionDocumentation";
+    public const string ExceptionErpReconcile = "ExceptionErpReconcile";
     public const string Cancelled = "Cancelled";
     public const string ReworkOpen = "ReworkOpen";
 
@@ -103,6 +104,7 @@ public static class OrderStatusCatalog
         OnHoldLogistics,
         ExceptionQuantityMismatch,
         ExceptionDocumentation,
+        ExceptionErpReconcile,
         Cancelled,
         ReworkOpen,
     };

@@ -303,9 +303,10 @@ export const ordersApi = {
 
   attachments: (id: number) => api.get<OrderAttachment[]>(`/orders/${id}/attachments`),
 
-  uploadAttachment: async (id: number, file: File) => {
+  uploadAttachment: async (id: number, file: File, category = "Other") => {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("category", category);
 
     const res = await fetch(`/api/orders/${id}/attachments`, {
       method: "POST",

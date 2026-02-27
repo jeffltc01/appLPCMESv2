@@ -40,7 +40,7 @@ public class OrderWorkflowServiceTests
         {
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
         };
-        var service = new OrderWorkflowService(db, queries);
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
 
         await service.SubmitInvoiceAsync(20, new SubmitInvoiceDto(
             true,
@@ -84,7 +84,7 @@ public class OrderWorkflowServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.SubmitInvoiceAsync(21, new SubmitInvoiceDto(
             true,
             false,
@@ -118,7 +118,7 @@ public class OrderWorkflowServiceTests
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyForPickup)),
         };
 
-        var service = new OrderWorkflowService(db, queries);
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
         await service.AdvanceStatusAsync(10, OrderStatusCatalog.InboundLogisticsPlanned);
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 10);
@@ -204,7 +204,7 @@ public class OrderWorkflowServiceTests
                 TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.Received)),
         };
 
-        var service = new OrderWorkflowService(db, queries);
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
         await service.AdvanceStatusAsync(1100, OrderStatusCatalog.ReadyForProduction);
 
         var routes = await db.OrderLineRouteInstances.Where(r => r.SalesOrderId == 1100).ToListAsync();
@@ -229,7 +229,7 @@ public class OrderWorkflowServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.AdvanceStatusAsync(11, OrderStatusCatalog.InboundInTransit));
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
@@ -251,7 +251,7 @@ public class OrderWorkflowServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.AdvanceStatusAsync(12, OrderStatusCatalog.Invoiced));
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
@@ -280,7 +280,7 @@ public class OrderWorkflowServiceTests
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
         };
 
-        var service = new OrderWorkflowService(db, queries);
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
         await service.AdvanceStatusAsync(13, OrderStatusCatalog.Invoiced);
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 13);
@@ -307,7 +307,7 @@ public class OrderWorkflowServiceTests
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyForPickup)),
         };
 
-        var service = new OrderWorkflowService(db, queries);
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
         var result = await service.AdvanceStatusAsync(1, OrderStatusCatalog.ReadyForPickup);
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 1);
@@ -331,7 +331,7 @@ public class OrderWorkflowServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.AdvanceStatusAsync(2, OrderStatusCatalog.Received));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
@@ -358,7 +358,7 @@ public class OrderWorkflowServiceTests
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.Received)),
         };
 
-        var service = new OrderWorkflowService(db, queries);
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
         await service.AdvanceStatusAsync(3, OrderStatusCatalog.Received);
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 3);
@@ -401,7 +401,7 @@ public class OrderWorkflowServiceTests
             });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var result = await service.BackfillLifecycleStatusesAsync();
 
         Assert.Equal(3, result.TotalOrdersScanned);
@@ -430,7 +430,7 @@ public class OrderWorkflowServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var result = await service.BackfillLifecycleStatusesAsync(dryRun: true);
 
         Assert.True(result.DryRun);

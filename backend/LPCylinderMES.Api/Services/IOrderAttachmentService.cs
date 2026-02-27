@@ -9,6 +9,7 @@ public interface IOrderAttachmentService
     Task<OrderAttachmentDto> UploadAttachmentAsync(
         int orderId,
         IFormFile? file,
+        string? category,
         CancellationToken cancellationToken = default);
 
     Task<(Stream Stream, string ContentType, string FileName)> DownloadAttachmentAsync(

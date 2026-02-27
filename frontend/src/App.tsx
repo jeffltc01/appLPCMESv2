@@ -20,6 +20,7 @@ import { InvoicingPage } from "./pages/InvoicingPage";
 import { OperatorWorkCenterConsolePage } from "./pages/OperatorWorkCenterConsolePage";
 import { OrderWorkspacePage } from "./pages/OrderWorkspacePage";
 import { OrderBoardPage } from "./pages/OrderBoardPage";
+import { OrderPolicyPage } from "./pages/OrderPolicyPage";
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="orderboard" element={<OrderBoardPage />} />
             <Route path="operator-console" element={<OperatorWorkCenterConsolePage />} />
             <Route path="contacts/*" element={<PlaceholderPage title="Contacts" />} />
+            <Route path="setup/policies" element={<OrderPolicyPage />} />
             <Route path="setup/*" element={<PlaceholderPage title="Setup" />} />
           </Route>
         </Routes>

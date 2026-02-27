@@ -145,6 +145,20 @@ public partial class SalesOrder
 
     public string? InvoiceSubmissionCorrelationId { get; set; }
 
+    public string? InvoiceStagingResult { get; set; }
+
+    public string? InvoiceStagingError { get; set; }
+
+    public string? ErpInvoiceReference { get; set; }
+
+    public string? DeliveryEvidenceStatus { get; set; }
+
+    public DateTime? DeliveryEvidenceReceivedUtc { get; set; }
+
+    public string? ErpReconcileStatus { get; set; }
+
+    public string? ErpReconcileNote { get; set; }
+
     public virtual Address? BillToAddress { get; set; }
 
     public virtual Customer Customer { get; set; } = null!;

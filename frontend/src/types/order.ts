@@ -35,6 +35,7 @@ export type HoldOverlayType =
   | "OnHoldLogistics"
   | "ExceptionQuantityMismatch"
   | "ExceptionDocumentation"
+  | "ExceptionErpReconcile"
   | "Cancelled"
   | "ReworkOpen";
 
@@ -555,6 +556,7 @@ export interface OrderAttachment {
   contentType: string;
   sizeBytes: number;
   createdAtUtc: string;
+  category: string;
 }
 
 export interface ReceivingLineUpdate {
