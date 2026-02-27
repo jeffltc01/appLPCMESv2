@@ -161,6 +161,7 @@ export function OrderWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [role, setRole] = useState<OrderWorkspaceRole>("Office");
+  const [actingEmpNo, setActingEmpNo] = useState("EMP001");
   const [overrideEnabled, setOverrideEnabled] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [overrideNote, setOverrideNote] = useState("");
@@ -175,7 +176,7 @@ export function OrderWorkspacePage() {
   const [reworkLineId, setReworkLineId] = useState("");
   const [reworkStepId, setReworkStepId] = useState("");
   const [reworkReasonCode, setReworkReasonCode] = useState("");
-  const [reworkEmpNo, setReworkEmpNo] = useState("UI");
+  const [reworkEmpNo, setReworkEmpNo] = useState("EMP001");
   const [reworkNotes, setReworkNotes] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<OrderWorkspaceAction | null>(null);
@@ -238,6 +239,10 @@ export function OrderWorkspacePage() {
   const executeAction = async (action: OrderWorkspaceAction) => {
     if (!order) return;
     setMessage(null);
+    if (!actingEmpNo.trim()) {
+      setMessage({ type: "error", text: "Actor EmpNo is required." });
+      return;
+    }
     const actionState = getWorkspaceActionState(
       role,
       action,
@@ -291,6 +296,7 @@ export function OrderWorkspacePage() {
         actingRole: role,
         reasonCode,
         note,
+        actingEmpNo: actingEmpNo.trim(),
       });
       setOrder(updated);
       setMessage({
@@ -336,7 +342,7 @@ export function OrderWorkspacePage() {
       const payload = {
         holdOverlay: holdOverlayType,
         actingRole: role,
-        appliedByEmpNo: "UI",
+        appliedByEmpNo: actingEmpNo.trim(),
         reasonCode: holdReasonCode.trim(),
         note: holdNote.trim() || null,
         customerReadyRetryUtc: parseIsoInput(customerReadyRetryUtc),
@@ -362,7 +368,7 @@ export function OrderWorkspacePage() {
     try {
       const updated = await ordersApi.clearHold(order.id, {
         actingRole: role,
-        clearedByEmpNo: "UI",
+        clearedByEmpNo: actingEmpNo.trim(),
         note: "Cleared from workspace",
       });
       setOrder(updated);
@@ -443,7 +449,7 @@ export function OrderWorkspacePage() {
         requestedDateUtc: requested,
         newCommittedDateUtc: committed,
         actingRole: role,
-        changedByEmpNo: "UI",
+        changedByEmpNo: actingEmpNo.trim(),
         promiseChangeReasonCode: promiseReasonCode.trim() || null,
         promiseChangeReasonNote: promiseReasonNote.trim() || null,
         customerNotificationStatus: promiseNotificationStatus || null,
@@ -474,7 +480,7 @@ export function OrderWorkspacePage() {
       const updated = await ordersApi.classifyPromiseMiss(order.id, {
         missReasonCode: missReasonCode.trim(),
         actingRole: role,
-        changedByEmpNo: "UI",
+        changedByEmpNo: actingEmpNo.trim(),
         note: missReasonNote.trim() || null,
         customerNotificationStatus: promiseNotificationStatus || null,
         customerNotificationChannel: promiseNotificationChannel.trim() || null,
@@ -508,7 +514,7 @@ export function OrderWorkspacePage() {
       const updated = await ordersApi.recordPromiseNotification(order.id, {
         promiseChangeReasonCode: recordNotificationReasonCode.trim(),
         actingRole: role,
-        changedByEmpNo: "UI",
+        changedByEmpNo: actingEmpNo.trim(),
         customerNotificationStatus: promiseNotificationStatus,
         customerNotificationChannel: promiseNotificationChannel.trim() || null,
         note: recordNotificationNote.trim() || null,
@@ -533,7 +539,7 @@ export function OrderWorkspacePage() {
   const uploadAttachment = async (file: File) => {
     if (!order) return;
     try {
-      await ordersApi.uploadAttachment(order.id, file, "Other", role, "UI");
+      await ordersApi.uploadAttachment(order.id, file, "Other", role, actingEmpNo.trim());
       setMessage({ type: "success", text: "Attachment uploaded." });
       setAttachments(await ordersApi.attachments(order.id));
     } catch {
@@ -544,7 +550,7 @@ export function OrderWorkspacePage() {
   const updateAttachmentCategory = async (attachmentId: number, category: string) => {
     if (!order) return;
     try {
-      await ordersApi.updateAttachmentCategory(order.id, attachmentId, category, role, "UI");
+      await ordersApi.updateAttachmentCategory(order.id, attachmentId, category, role, actingEmpNo.trim());
       setAttachments(await ordersApi.attachments(order.id));
       setMessage({ type: "success", text: "Attachment category updated." });
     } catch {
@@ -555,7 +561,7 @@ export function OrderWorkspacePage() {
   const deleteAttachment = async (attachmentId: number) => {
     if (!order) return;
     try {
-      await ordersApi.deleteAttachment(order.id, attachmentId, role, "UI", "UserRequestedRemoval");
+      await ordersApi.deleteAttachment(order.id, attachmentId, role, actingEmpNo.trim(), "UserRequestedRemoval");
       setAttachments(await ordersApi.attachments(order.id));
       setMessage({ type: "success", text: "Attachment removed." });
     } catch {
@@ -581,6 +587,13 @@ export function OrderWorkspacePage() {
           <Title2>Order Workspace</Title2>
         </div>
         <div className={styles.topBarRight}>
+          <Field label="Actor EmpNo" className={styles.topField}>
+            <Input
+              value={actingEmpNo}
+              onChange={(_, data) => setActingEmpNo(data.value)}
+              placeholder="EMP001"
+            />
+          </Field>
           <Field label="Role View" className={styles.topField}>
             <Dropdown
               value={role}
@@ -861,7 +874,7 @@ export function OrderWorkspacePage() {
                     appearance="secondary"
                     onClick={() =>
                       window.open(
-                        ordersApi.attachmentDownloadUrl(order.id, attachment.id, role, "UI"),
+                        ordersApi.attachmentDownloadUrl(order.id, attachment.id, role, actingEmpNo.trim()),
                         "_blank",
                         "noopener,noreferrer"
                       )

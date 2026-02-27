@@ -7,7 +7,8 @@ namespace LPCylinderMES.Api.Services;
 
 public class WorkCenterWorkflowService(
     LpcAppsDbContext db,
-    IOrderPolicyService orderPolicyService) : IWorkCenterWorkflowService
+    IOrderPolicyService orderPolicyService,
+    IOrderWorkflowService? orderWorkflowService = null) : IWorkCenterWorkflowService
 {
     private static readonly Dictionary<string, string[]> ReworkStateTransitions = new(StringComparer.Ordinal)
     {
@@ -19,6 +20,7 @@ public class WorkCenterWorkflowService(
         ["Cancelled"] = [],
         ["Scrapped"] = [],
     };
+    private readonly IOrderWorkflowService? _orderWorkflowService = orderWorkflowService;
 
     public async Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default)
     {
@@ -37,16 +39,21 @@ public class WorkCenterWorkflowService(
         step.BlockedReason = null;
 
         var order = step.OrderLineRouteInstance.SalesOrder;
-        if (string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal))
-        {
-            order.OrderLifecycleStatus = OrderStatusCatalog.InProduction;
-            order.StatusOwnerRole = "Production";
-            order.StatusReasonCode = "ProductionStarted";
-            order.StatusUpdatedUtc = DateTime.UtcNow;
-        }
+        var shouldAdvanceProduction = string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal);
 
         await AddActivityAsync(step, dto.EmpNo, "ScanIn", dto.DeviceId, null, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        if (shouldAdvanceProduction && _orderWorkflowService is not null)
+        {
+            await _orderWorkflowService.AdvanceStatusAsync(
+                order.Id,
+                OrderStatusCatalog.InProduction,
+                actingRole: "Production",
+                reasonCode: "ProductionStarted",
+                note: "Route step scan-in started production.",
+                actingEmpNo: dto.EmpNo,
+                cancellationToken: cancellationToken);
+        }
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
     }
 
@@ -163,7 +170,7 @@ public class WorkCenterWorkflowService(
         step.CompletedUtc = DateTime.UtcNow;
 
         await AddActivityAsync(step, dto.EmpNo, "Complete", null, dto.Notes, cancellationToken);
-        await UpdateRouteAndOrderCompletionAsync(step.OrderLineRouteInstanceId, cancellationToken);
+        await UpdateRouteAndOrderCompletionAsync(step.OrderLineRouteInstanceId, dto.EmpNo, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
     }
@@ -253,27 +260,55 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> ApproveOrderAsync(int orderId, SupervisorDecisionDto dto, CancellationToken cancellationToken = default)
     {
-        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
-            ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
-        order.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
-        order.StatusOwnerRole = "Supervisor";
-        order.StatusNote = dto.Notes;
-        order.StatusReasonCode = "SupervisorApproved";
-        order.StatusUpdatedUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        if (_orderWorkflowService is not null)
+        {
+            await _orderWorkflowService.AdvanceStatusAsync(
+                orderId,
+                OrderStatusCatalog.ProductionComplete,
+                actingRole: "Supervisor",
+                reasonCode: "SupervisorApproved",
+                note: dto.Notes,
+                actingEmpNo: dto.EmpNo,
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+                ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+            order.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
+            order.StatusOwnerRole = "Supervisor";
+            order.StatusNote = dto.Notes;
+            order.StatusReasonCode = "SupervisorApproved";
+            order.StatusUpdatedUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+        }
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
     public async Task<OrderRouteExecutionDto> RejectOrderAsync(int orderId, SupervisorDecisionDto dto, CancellationToken cancellationToken = default)
     {
-        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
-            ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
-        order.OrderLifecycleStatus = OrderStatusCatalog.InProduction;
-        order.StatusOwnerRole = "Supervisor";
-        order.StatusNote = dto.Notes;
-        order.StatusReasonCode = "SupervisorRejected";
-        order.StatusUpdatedUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        if (_orderWorkflowService is not null)
+        {
+            await _orderWorkflowService.AdvanceStatusAsync(
+                orderId,
+                OrderStatusCatalog.InProduction,
+                actingRole: "Supervisor",
+                reasonCode: "SupervisorRejected",
+                note: dto.Notes,
+                actingEmpNo: dto.EmpNo,
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+                ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+            order.OrderLifecycleStatus = OrderStatusCatalog.InProduction;
+            order.StatusOwnerRole = "Supervisor";
+            order.StatusNote = dto.Notes;
+            order.StatusReasonCode = "SupervisorRejected";
+            order.StatusUpdatedUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(cancellationToken);
+        }
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
@@ -483,7 +518,7 @@ public class WorkCenterWorkflowService(
         }
     }
 
-    private async Task UpdateRouteAndOrderCompletionAsync(long routeInstanceId, CancellationToken cancellationToken)
+    private async Task UpdateRouteAndOrderCompletionAsync(long routeInstanceId, string actorEmpNo, CancellationToken cancellationToken)
     {
         var route = await db.OrderLineRouteInstances
             .Include(r => r.SalesOrder)
@@ -499,13 +534,27 @@ public class WorkCenterWorkflowService(
 
         var hasIncompleteRequiredRoutes = await db.OrderLineRouteInstances
             .AnyAsync(r => r.SalesOrderId == route.SalesOrderId && r.State != "Completed", cancellationToken);
-        if (!hasIncompleteRequiredRoutes)
+        if (!hasIncompleteRequiredRoutes && _orderWorkflowService is not null)
         {
-            route.SalesOrder.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
-            route.SalesOrder.OrderStatus = OrderStatusCatalog.ReadyToShip;
-            route.SalesOrder.StatusOwnerRole = "Production";
-            route.SalesOrder.StatusReasonCode = "ProductionCompleted";
-            route.SalesOrder.StatusUpdatedUtc = DateTime.UtcNow;
+            var hasPendingApprovals = await db.OrderLineRouteInstances
+                .AnyAsync(
+                    r => r.SalesOrderId == route.SalesOrderId &&
+                         r.SupervisorApprovalRequired &&
+                         !r.SupervisorApprovedUtc.HasValue,
+                    cancellationToken);
+            var targetStatus = hasPendingApprovals
+                ? OrderStatusCatalog.ProductionCompletePendingApproval
+                : OrderStatusCatalog.ProductionComplete;
+            await _orderWorkflowService.AdvanceStatusAsync(
+                route.SalesOrderId,
+                targetStatus,
+                actingRole: hasPendingApprovals ? "Supervisor" : "Production",
+                reasonCode: hasPendingApprovals ? "SupervisorGateEntered" : "ProductionCompleted",
+                note: hasPendingApprovals
+                    ? "Awaiting required supervisor or quality approvals."
+                    : "All required route instances completed.",
+                actingEmpNo: actorEmpNo,
+                cancellationToken: cancellationToken);
         }
     }
 

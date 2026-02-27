@@ -84,16 +84,15 @@ const ROLE_ACTIONS: Record<OrderWorkspaceRole, Set<OrderWorkspaceAction>> = {
     "planOutbound",
     "markDispatchedOrReleased",
     "applyHold",
-    "uploadAttachment",
   ]),
-  Receiving: new Set(["markReceived", "markReadyForProduction", "uploadAttachment"]),
+  Receiving: new Set(["markReceived", "markReadyForProduction", "uploadAttachment", "applyHold"]),
   Production: new Set([
     "startProduction",
     "markProductionComplete",
     "applyHold",
     "uploadAttachment",
   ]),
-  Supervisor: new Set(["markProductionComplete", "applyHold", "uploadAttachment"]),
+  Supervisor: new Set(["markProductionComplete", "markInvoiced", "applyHold", "uploadAttachment"]),
   Quality: new Set(["markProductionComplete", "applyHold", "uploadAttachment"]),
   Admin: new Set([
     "advanceInboundPlan",

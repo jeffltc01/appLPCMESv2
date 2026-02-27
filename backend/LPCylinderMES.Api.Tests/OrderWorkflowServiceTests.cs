@@ -550,6 +550,61 @@ public class OrderWorkflowServiceTests
     }
 
     [Fact]
+    public async Task AdvanceStatusAsync_TransportationCannotMoveToInvoiced()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_TransportationCannotMoveToInvoiced));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 120,
+            SalesOrderNo = "SO-LIFE-120",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+            InvoiceReviewCompletedUtc = DateTime.UtcNow,
+            AttachmentEmailSent = true,
+            InvoiceSubmissionCorrelationId = "corr-120",
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdvanceStatusAsync(
+                120,
+                OrderStatusCatalog.Invoiced,
+                actingRole: "Transportation",
+                actingEmpNo: "EMP120"));
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdvanceStatusAsync_BackwardTransitionRequiresReasonAndNote()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_BackwardTransitionRequiresReasonAndNote));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 121,
+            SalesOrderNo = "SO-LIFE-121",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToShip,
+            OrderLifecycleStatus = OrderStatusCatalog.ProductionCompletePendingApproval,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdvanceStatusAsync(
+                121,
+                OrderStatusCatalog.InProduction,
+                actingRole: "Supervisor",
+                actingEmpNo: "EMP121"));
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task AdvanceStatusAsync_InvoicedRequiresReviewAttachmentStepAndCorrelationId()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_InvoicedRequiresReviewAttachmentStepAndCorrelationId));

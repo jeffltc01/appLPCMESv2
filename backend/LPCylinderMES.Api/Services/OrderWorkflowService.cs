@@ -9,7 +9,8 @@ public class OrderWorkflowService(
     LpcAppsDbContext db,
     IOrderQueryService orderQueryService,
     IOrderPolicyService orderPolicyService,
-    IInvoiceStagingService? invoiceStagingService = null) : IOrderWorkflowService
+    IInvoiceStagingService? invoiceStagingService = null,
+    IRolePermissionService? rolePermissionService = null) : IOrderWorkflowService
 {
     private const string LifecycleStatusChangedEventType = "LifecycleStatusChanged";
     private const string HoldAppliedEventType = "HoldApplied";
@@ -30,6 +31,7 @@ public class OrderWorkflowService(
         (OrderStatusCatalog.InProduction, OrderStatusCatalog.ProductionCompletePendingApproval),
         (OrderStatusCatalog.InProduction, OrderStatusCatalog.ProductionComplete),
         (OrderStatusCatalog.ProductionCompletePendingApproval, OrderStatusCatalog.ProductionComplete),
+        (OrderStatusCatalog.ProductionCompletePendingApproval, OrderStatusCatalog.InProduction),
         (OrderStatusCatalog.ProductionComplete, OrderStatusCatalog.OutboundLogisticsPlanned),
         (OrderStatusCatalog.ProductionComplete, OrderStatusCatalog.DispatchedOrPickupReleased),
         (OrderStatusCatalog.OutboundLogisticsPlanned, OrderStatusCatalog.DispatchedOrPickupReleased),
@@ -48,6 +50,7 @@ public class OrderWorkflowService(
     };
 
     private sealed record LifecycleProposal(string ProposedLifecycleStatus, string RuleApplied);
+    private readonly IRolePermissionService _rolePermissionService = rolePermissionService ?? new RolePermissionService();
 
     public async Task<OrderDraftDetailDto> ApplyHoldAsync(
         int orderId,
@@ -76,6 +79,7 @@ public class OrderWorkflowService(
                 StatusCodes.Status400BadRequest,
                 "ActingRole, AppliedByEmpNo, and ReasonCode are required.");
         }
+        _rolePermissionService.EnsureApplyHoldAllowed(actingRole, holdOverlay);
 
         var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
             ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc)
@@ -175,6 +179,7 @@ public class OrderWorkflowService(
         {
             throw new ServiceException(StatusCodes.Status400BadRequest, "ActingRole and ClearedByEmpNo are required.");
         }
+        _rolePermissionService.EnsureClearHoldAllowed(actingRole, order.HoldOverlay, order.StatusOwnerRole);
 
         var requiredRole = await orderPolicyService.GetDecisionValueAsync(
             OrderPolicyKeys.HoldReleaseAuthorityRole,
@@ -1063,6 +1068,7 @@ public class OrderWorkflowService(
         var normalizedReasonCode = TrimToNull(reasonCode);
         var normalizedNote = TrimToNull(note);
         var normalizedActingEmpNo = TrimToNull(actingEmpNo);
+        var effectiveRole = normalizedRole ?? ResolveStatusOwnerRole(targetStatus, null);
 
         if (!AllowedLifecycleTransitions.Contains((currentStatus, targetStatus)))
         {
@@ -1122,6 +1128,19 @@ public class OrderWorkflowService(
         var currentIdx = Array.IndexOf(OrderStatusCatalog.LifecycleWorkflowSteps, currentStatus);
         var targetIdx = Array.IndexOf(OrderStatusCatalog.LifecycleWorkflowSteps, targetStatus);
         var isForward = targetIdx > currentIdx;
+        var isBackward = targetIdx < currentIdx;
+        if ((isDirectImmediateDropoffReceive || isBackward) &&
+            (string.IsNullOrWhiteSpace(normalizedReasonCode) || string.IsNullOrWhiteSpace(normalizedNote)))
+        {
+            throw new ServiceException(
+                StatusCodes.Status400BadRequest,
+                "Manual/emergency transitions require reason code and status note.");
+        }
+        _rolePermissionService.EnsureStatusTransitionAllowed(
+            effectiveRole,
+            currentStatus,
+            targetStatus,
+            isManualOrEmergency: isBackward);
         var hasBlockingHold = !string.IsNullOrWhiteSpace(order.HoldOverlay) &&
                               !string.Equals(order.HoldOverlay, OrderStatusCatalog.Cancelled, StringComparison.Ordinal);
 

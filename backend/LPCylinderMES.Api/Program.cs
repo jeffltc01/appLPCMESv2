@@ -49,6 +49,7 @@ builder.Services.AddScoped<IOrderLineService, OrderLineService>();
 builder.Services.AddScoped<IWorkCenterWorkflowService, WorkCenterWorkflowService>();
 builder.Services.AddScoped<ISetupRoutingService, SetupRoutingService>();
 builder.Services.AddScoped<IOrderPolicyService, OrderPolicyService>();
+builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 
 builder.Services.AddCors(options =>
 {

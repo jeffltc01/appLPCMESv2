@@ -9,7 +9,8 @@ public class OrderAttachmentService(
     LpcAppsDbContext db,
     IAttachmentStorage attachmentStorage,
     IConfiguration configuration,
-    IOrderPolicyService orderPolicyService) : IOrderAttachmentService
+    IOrderPolicyService orderPolicyService,
+    IRolePermissionService? rolePermissionService = null) : IOrderAttachmentService
 {
     private const long DefaultMaxAttachmentSizeBytes = 25 * 1024 * 1024;
     private const int DefaultMaxAttachmentCountPerOrder = 50;
@@ -38,6 +39,7 @@ public class OrderAttachmentService(
         ResolveBlockedAttachmentExtensions(configuration);
     private readonly HashSet<string> _allowedAttachmentCategories =
         ResolveAllowedAttachmentCategories(configuration);
+    private readonly IRolePermissionService _rolePermissionService = rolePermissionService ?? new RolePermissionService();
 
     public async Task<List<OrderAttachmentDto>> GetAttachmentsAsync(int orderId, CancellationToken cancellationToken = default)
     {
@@ -74,6 +76,7 @@ public class OrderAttachmentService(
         CancellationToken cancellationToken = default)
     {
         var normalizedRole = RequireRole(actingRole, allowReadOnly: false);
+        _rolePermissionService.EnsureAttachmentUploadAllowed(normalizedRole);
         var normalizedEmpNo = RequireEmpNo(actingEmpNo);
 
         if (file is null || file.Length == 0)
@@ -167,6 +170,7 @@ public class OrderAttachmentService(
         CancellationToken cancellationToken = default)
     {
         var normalizedRole = RequireRole(actingRole, allowReadOnly: true);
+        _rolePermissionService.EnsureAttachmentDownloadAllowed(normalizedRole);
         var normalizedEmpNo = RequireEmpNo(actingEmpNo);
         var attachment = await db.OrderAttachments
             .FirstOrDefaultAsync(a => a.Id == attachmentId && a.OrderId == orderId, cancellationToken);
@@ -199,6 +203,7 @@ public class OrderAttachmentService(
         CancellationToken cancellationToken = default)
     {
         var normalizedRole = RequireRole(dto.ActingRole, allowReadOnly: false);
+        _rolePermissionService.EnsureAttachmentCategoryUpdateAllowed(normalizedRole);
         var normalizedEmpNo = RequireEmpNo(dto.ActingEmpNo);
         var normalizedCategory = NormalizeAndValidateCategory(dto.Category);
 
@@ -236,7 +241,15 @@ public class OrderAttachmentService(
         CancellationToken cancellationToken = default)
     {
         var normalizedRole = RequireRole(dto.ActingRole, allowReadOnly: false);
+        _rolePermissionService.EnsureAttachmentDeleteAllowed(normalizedRole);
         var normalizedEmpNo = RequireEmpNo(dto.ActingEmpNo);
+        var normalizedReasonCode = TrimToNull(dto.ReasonCode);
+        if (normalizedReasonCode is null)
+        {
+            throw new ServiceException(
+                StatusCodes.Status400BadRequest,
+                "ReasonCode is required when deleting attachments.");
+        }
         var attachment = await db.OrderAttachments
             .FirstOrDefaultAsync(a => a.Id == attachmentId && a.OrderId == orderId, cancellationToken);
         if (attachment is null)
@@ -250,7 +263,7 @@ public class OrderAttachmentService(
             ActingRole = normalizedRole,
             ActorEmpNo = normalizedEmpNo,
             OccurredUtc = DateTime.UtcNow,
-            Details = $"attachmentId={attachment.Id};fileName={attachment.FileName};reasonCode={TrimToNull(dto.ReasonCode) ?? "None"}",
+            Details = $"attachmentId={attachment.Id};fileName={attachment.FileName};reasonCode={normalizedReasonCode}",
         });
         await attachmentStorage.DeleteIfExistsAsync(attachment.BlobPath, cancellationToken);
         db.OrderAttachments.Remove(attachment);

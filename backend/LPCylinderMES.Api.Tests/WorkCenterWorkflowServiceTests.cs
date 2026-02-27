@@ -72,6 +72,36 @@ public class WorkCenterWorkflowServiceTests
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task ScanInAsync_UsesWorkflowServiceToWriteLifecycleAuditEvent()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ScanInAsync_UsesWorkflowServiceToWriteLifecycleAuditEvent));
+        SeedRouteWithTwoSteps(db, orderId: 720, lineId: 7201, routeId: 7300, firstStepState: "Completed", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 720);
+        order.OrderLifecycleStatus = OrderStatusCatalog.ReadyForProduction;
+        order.OrderStatus = OrderStatusCatalog.Received;
+        await db.SaveChangesAsync();
+
+        var queryService = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(
+                TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.Received)),
+        };
+        var workflowService = new OrderWorkflowService(db, queryService, new FakeOrderPolicyService());
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), workflowService);
+
+        await service.ScanInAsync(720, 7201, 7302, new OperatorScanInDto("EMP720", null));
+
+        var refreshedOrder = await db.SalesOrders.FirstAsync(o => o.Id == 720);
+        Assert.Equal(OrderStatusCatalog.InProduction, refreshedOrder.OrderLifecycleStatus);
+        var lifecycleEvent = await db.OrderLifecycleEvents
+            .OrderByDescending(e => e.Id)
+            .FirstAsync(e => e.OrderId == 720 && e.ToLifecycleStatus == OrderStatusCatalog.InProduction);
+        Assert.Equal("EMP720", lifecycleEvent.ActorEmpNo);
+        Assert.Equal("ProductionStarted", lifecycleEvent.ReasonCode);
+    }
+
     private static void SeedRouteWithTwoSteps(
         LpcAppsDbContext db,
         int orderId,

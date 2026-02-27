@@ -38,4 +38,17 @@ describe("getWorkspaceActionState", () => {
     expect(state.enabled).toBe(false);
     expect(state.reason).toContain("not valid");
   });
+
+  it("blocks transportation attachment upload action", () => {
+    const state = getWorkspaceActionState(
+      "Transportation",
+      "uploadAttachment",
+      "InboundLogisticsPlanned",
+      false,
+      false
+    );
+
+    expect(state.enabled).toBe(false);
+    expect(state.reason).toContain("Role");
+  });
 });

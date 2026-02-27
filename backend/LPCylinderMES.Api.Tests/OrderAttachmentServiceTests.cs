@@ -87,6 +87,77 @@ public class OrderAttachmentServiceTests
     }
 
     [Fact]
+    public async Task UploadAttachmentAsync_TransportationRole_IsForbidden()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UploadAttachmentAsync_TransportationRole_IsForbidden));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 920,
+            SalesOrderNo = "SO-920",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+        IFormFile file = new FormFile(stream, 0, stream.Length, "file", "packing-slip.pdf")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "application/pdf",
+        };
+
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.UploadAttachmentAsync(920, file, "PackingSlip", "Transportation", "EMP920"));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteAttachmentAsync_RequiresReasonCode()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(DeleteAttachmentAsync_RequiresReasonCode));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 921,
+            SalesOrderNo = "SO-921",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            CustomerId = 1,
+            SiteId = 1,
+            OrderAttachments =
+            {
+                new OrderAttachment
+                {
+                    Id = 9921,
+                    FileName = "serials.pdf",
+                    BlobPath = "orders/921/serials.pdf",
+                    ContentType = "application/pdf",
+                    SizeBytes = 32,
+                    Category = "SerialReport",
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UploadedUtc = DateTime.UtcNow,
+                    UploadedByEmpNo = "EMP921",
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.DeleteAttachmentAsync(
+                921,
+                9921,
+                new DeleteOrderAttachmentDto("Office", "EMP921", null)));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task UpdateAttachmentCategoryAsync_UpdatesCategory_And_WritesAudit()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateAttachmentCategoryAsync_UpdatesCategory_And_WritesAudit));
