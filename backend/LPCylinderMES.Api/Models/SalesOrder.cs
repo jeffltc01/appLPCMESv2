@@ -15,6 +15,24 @@ public partial class SalesOrder
 
     public string OrderStatus { get; set; } = null!;
 
+    public string? OrderLifecycleStatus { get; set; }
+
+    public string? OrderOrigin { get; set; }
+
+    public string? InboundMode { get; set; }
+
+    public string? OutboundMode { get; set; }
+
+    public DateTime? StatusUpdatedUtc { get; set; }
+
+    public string? StatusOwnerRole { get; set; }
+
+    public string? StatusReasonCode { get; set; }
+
+    public string? StatusNote { get; set; }
+
+    public string? HoldOverlay { get; set; }
+
     public string? TrailerNo { get; set; }
 
     public string? Comments { get; set; }
@@ -80,6 +98,52 @@ public partial class SalesOrder
     public DateTime? ClosedDate { get; set; }
 
     public DateTime? EstDeliveryDate { get; set; }
+
+    public DateTime? CustomerReadyRetryUtc { get; set; }
+
+    public DateTime? CustomerReadyLastContactUtc { get; set; }
+
+    public string? CustomerReadyContactName { get; set; }
+
+    public bool? HasOpenRework { get; set; }
+
+    public bool? ReworkBlockingInvoice { get; set; }
+
+    public DateTime? RequestedDateUtc { get; set; }
+
+    public DateTime? PromisedDateUtc { get; set; }
+
+    public DateTime? CurrentCommittedDateUtc { get; set; }
+
+    public DateTime? PromiseDateLastChangedUtc { get; set; }
+
+    public string? PromiseDateLastChangedByEmpNo { get; set; }
+
+    public int? PromiseRevisionCount { get; set; }
+
+    public string? PromiseMissReasonCode { get; set; }
+
+    public string? InvoiceReviewCompletedByEmpNo { get; set; }
+
+    public DateTime? InvoiceReviewCompletedUtc { get; set; }
+
+    public bool? AttachmentEmailPrompted { get; set; }
+
+    public bool? AttachmentEmailSent { get; set; }
+
+    public DateTime? AttachmentEmailSentUtc { get; set; }
+
+    public string? AttachmentEmailRecipientSummary { get; set; }
+
+    public string? AttachmentEmailSkipReason { get; set; }
+
+    public string? InvoiceSubmissionRequestedByEmpNo { get; set; }
+
+    public DateTime? InvoiceSubmissionRequestedUtc { get; set; }
+
+    public string? InvoiceSubmissionChannel { get; set; }
+
+    public string? InvoiceSubmissionCorrelationId { get; set; }
 
     public virtual Address? BillToAddress { get; set; }
 

@@ -86,6 +86,15 @@ public record OrderDraftUpdateDto(
 
 public record OrderAdvanceStatusDto(string TargetStatus);
 
+public record SubmitInvoiceDto(
+    bool FinalReviewConfirmed,
+    bool SendAttachmentEmail,
+    List<int>? SelectedAttachmentIds,
+    string? AttachmentRecipientSummary,
+    string? AttachmentSkipReason,
+    string? CorrelationId,
+    string? SubmittedByEmpNo);
+
 public record TransportBoardItemDto(
     int Id,
     string SalesOrderNo,
@@ -248,3 +257,73 @@ public record OrderAttachmentDto(
     string ContentType,
     long SizeBytes,
     DateTime CreatedAtUtc);
+
+public record OperatorScanInDto(string EmpNo, string? DeviceId);
+
+public record OperatorScanOutDto(string EmpNo, string? DeviceId);
+
+public record CompleteWorkCenterStepDto(string EmpNo, string? Notes);
+
+public record StepMaterialUsageCreateDto(int PartItemId, decimal QuantityUsed, string? Uom, string RecordedByEmpNo);
+
+public record StepScrapEntryCreateDto(decimal QuantityScrapped, int ScrapReasonId, string? Notes, string RecordedByEmpNo);
+
+public record StepSerialCaptureCreateDto(
+    string SerialNo,
+    string Manufacturer,
+    DateOnly? ManufactureDate,
+    DateOnly? TestDate,
+    int? LidColorId,
+    int? LidSizeId,
+    string ConditionStatus,
+    int? ScrapReasonId,
+    string RecordedByEmpNo);
+
+public record StepChecklistResultCreateDto(
+    int ChecklistTemplateItemId,
+    string ItemLabel,
+    bool IsRequiredItem,
+    string ResultStatus,
+    string? ResultNotes,
+    string CompletedByEmpNo);
+
+public record SupervisorRouteReviewDto(bool IsAdjusted, string? Notes, string ReviewerEmpNo);
+
+public record SupervisorDecisionDto(string EmpNo, string? Notes);
+
+public record ReworkRequestDto(string RequestedByEmpNo, string ReasonCode, string? Notes);
+
+public record ReworkStateChangeDto(string EmpNo, string? Notes);
+
+public record WorkCenterQueueItemDto(
+    long StepInstanceId,
+    int OrderId,
+    int LineId,
+    string SalesOrderNo,
+    string StepCode,
+    string StepName,
+    int StepSequence,
+    string StepState,
+    DateTime? ScanInUtc);
+
+public record RouteStepExecutionDto(
+    long StepInstanceId,
+    int StepSequence,
+    string StepCode,
+    string StepName,
+    string State,
+    DateTime? ScanInUtc,
+    DateTime? ScanOutUtc,
+    DateTime? CompletedUtc);
+
+public record LineRouteExecutionDto(
+    long RouteInstanceId,
+    int LineId,
+    string State,
+    List<RouteStepExecutionDto> Steps);
+
+public record OrderRouteExecutionDto(
+    int OrderId,
+    string? LifecycleStatus,
+    bool HasOpenRework,
+    List<LineRouteExecutionDto> Routes);

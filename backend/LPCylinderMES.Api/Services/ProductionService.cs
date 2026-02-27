@@ -29,11 +29,11 @@ public class ProductionService(
         if (order is null)
             throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
 
-        if (order.OrderStatus != "Received")
+        if (!CanEditInProduction(order))
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                "Only orders in status 'Received' can be edited in Production.");
+                $"Order cannot be processed in production from current state. LegacyStatus='{order.OrderStatus}', LifecycleStatus='{order.OrderLifecycleStatus ?? "(null)"}'.");
         }
 
         if (dto.Lines is null || dto.Lines.Count == 0)
@@ -195,6 +195,10 @@ public class ProductionService(
             detail.QuantityAsScrapped = line.QuantityAsScrapped;
         }
 
+        order.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
+        order.OrderStatus = OrderStatusCatalog.ReadyToShip;
+        order.StatusUpdatedUtc = DateTime.UtcNow;
+
         await db.SaveChangesAsync(cancellationToken);
 
         var detailDto = await orderQueryService.GetProductionDetailAsync(orderId, cancellationToken);
@@ -202,6 +206,22 @@ public class ProductionService(
     }
 
     private static bool IsWholeNumber(decimal value) => decimal.Truncate(value) == value;
+
+    private static bool CanEditInProduction(SalesOrder order)
+    {
+        if (string.Equals(order.OrderStatus, OrderStatusCatalog.Received, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(order.OrderLifecycleStatus))
+        {
+            return false;
+        }
+
+        return string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal) ||
+               string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.InProduction, StringComparison.Ordinal);
+    }
 
     private static string? TrimToNull(string? value)
     {

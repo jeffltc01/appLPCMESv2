@@ -9,6 +9,59 @@ namespace LPCylinderMES.Api.Tests;
 public class ReceivingServiceTests
 {
     [Fact]
+    public async Task CompleteReceivingAsync_LifecycleInboundState_TransitionsToReadyForProduction()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteReceivingAsync_LifecycleInboundState_TransitionsToReadyForProduction));
+        db.Items.Add(new Item { Id = 91, ItemNo = "TNK-91", ItemType = "Tank", RequiresSerialNumbers = 0 });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 90,
+            SalesOrderNo = "SO-90",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.PickupScheduled,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundInTransit,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 901,
+                    LineNo = 1,
+                    ItemId = 91,
+                    QuantityAsOrdered = 2,
+                    QuantityAsReceived = 0,
+                    SalesOrderId = 90,
+                    SiteId = 1,
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetReceivingDetailHandler = (id, _) => Task.FromResult<ReceivingOrderDetailDto?>(
+                new ReceivingOrderDetailDto(
+                    id,
+                    "SO-90",
+                    OrderStatusCatalog.Received,
+                    "Customer",
+                    "Pickup",
+                    "TR-1",
+                    null,
+                    DateTime.UtcNow,
+                    [])),
+        };
+
+        var service = new ReceivingService(db, queries);
+        var dto = new CompleteReceivingDto(DateTime.UtcNow, [new ReceivingLineUpdateDto(901, true, 2)], null);
+        await service.CompleteReceivingAsync(90, dto);
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 90);
+        Assert.Equal(OrderStatusCatalog.ReadyForProduction, order.OrderLifecycleStatus);
+    }
+
+    [Fact]
     public async Task CompleteReceivingAsync_InvalidStatus_ThrowsConflict()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteReceivingAsync_InvalidStatus_ThrowsConflict));
@@ -18,7 +71,7 @@ public class ReceivingServiceTests
             Id = 40,
             SalesOrderNo = "SO-40",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "New",
+            OrderStatus = OrderStatusCatalog.New,
             CustomerId = 1,
             SiteId = 1,
             SalesOrderDetails =
@@ -59,7 +112,7 @@ public class ReceivingServiceTests
             Id = 50,
             SalesOrderNo = "SO-50",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "Pickup Scheduled",
+            OrderStatus = OrderStatusCatalog.PickupScheduled,
             CustomerId = 1,
             SiteId = 1,
             SalesOrderDetails =
@@ -84,7 +137,7 @@ public class ReceivingServiceTests
                 new ReceivingOrderDetailDto(
                     id,
                     "SO-50",
-                    "Received",
+                    OrderStatusCatalog.Received,
                     "Customer",
                     "Pickup",
                     "TR-1",
@@ -103,9 +156,9 @@ public class ReceivingServiceTests
         var result = await service.CompleteReceivingAsync(50, dto);
         var order = await db.SalesOrders.Include(o => o.SalesOrderDetails).FirstAsync(o => o.Id == 50);
 
-        Assert.Equal("Received", order.OrderStatus);
+        Assert.Equal(OrderStatusCatalog.Received, order.OrderStatus);
         Assert.Equal(receivedAt, order.ReceivedDate);
-        Assert.Equal("Received", result.OrderStatus);
+        Assert.Equal(OrderStatusCatalog.Received, result.OrderStatus);
 
         var originalLine = order.SalesOrderDetails.Single(l => l.Id == 501);
         Assert.Equal(0, originalLine.QuantityAsReceived);

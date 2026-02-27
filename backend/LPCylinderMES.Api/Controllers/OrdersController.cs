@@ -15,7 +15,8 @@ public class OrdersController(
     IOrderWorkflowService orderWorkflowService,
     IReceivingService receivingService,
     IProductionService productionService,
-    IOrderAttachmentService orderAttachmentService) : ControllerBase
+    IOrderAttachmentService orderAttachmentService,
+    IWorkCenterWorkflowService workCenterWorkflowService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<OrderDraftListDto>>> GetAll(
@@ -86,7 +87,7 @@ public class OrdersController(
             CustomerId = dto.CustomerId,
             SiteId = dto.SiteId,
             OrderDate = dto.OrderDate ?? DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "New",
+            OrderStatus = OrderStatusCatalog.New,
             CustomerPoNo = dto.CustomerPoNo,
             Contact = string.IsNullOrWhiteSpace(dto.Contact) ? defaultContactName : dto.Contact,
             Phone = string.IsNullOrWhiteSpace(dto.Phone) ? defaultOfficePhone : dto.Phone,
@@ -117,8 +118,8 @@ public class OrdersController(
         if (order is null)
             return NotFound();
 
-        if (order.OrderStatus != "New")
-            return Conflict(new { message = "Only orders in status 'New' can be edited in this sprint." });
+        if (order.OrderStatus != OrderStatusCatalog.New)
+            return Conflict(new { message = $"Only orders in status '{OrderStatusCatalog.New}' can be edited in this sprint." });
 
         var customerExists = await db.Customers.AnyAsync(c => c.Id == dto.CustomerId);
         if (!customerExists)
@@ -145,7 +146,7 @@ public class OrdersController(
         order.PaymentTermId = dto.PaymentTermId;
         order.ReturnScrap = dto.ReturnScrap;
         order.ReturnBrass = dto.ReturnBrass;
-        order.OrderStatus = "New";
+        order.OrderStatus = OrderStatusCatalog.New;
 
         await db.SaveChangesAsync();
 
@@ -159,6 +160,20 @@ public class OrdersController(
         try
         {
             var detail = await orderWorkflowService.AdvanceStatusAsync(id, dto.TargetStatus);
+            return Ok(detail);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{id:int}/invoice/submit")]
+    public async Task<ActionResult<OrderDraftDetailDto>> SubmitInvoice(int id, SubmitInvoiceDto dto)
+    {
+        try
+        {
+            var detail = await orderWorkflowService.SubmitInvoiceAsync(id, dto);
             return Ok(detail);
         }
         catch (ServiceException ex)
@@ -235,8 +250,8 @@ public class OrdersController(
         if (detail is null)
             return NotFound();
 
-        if (detail.OrderStatus != "Pickup Scheduled")
-            return Conflict(new { message = "Only orders in status 'Pickup Scheduled' can be received." });
+        if (detail.OrderStatus != OrderStatusCatalog.PickupScheduled)
+            return Conflict(new { message = $"Only orders in status '{OrderStatusCatalog.PickupScheduled}' can be received." });
 
         return Ok(detail);
     }
@@ -248,8 +263,8 @@ public class OrdersController(
         if (detail is null)
             return NotFound();
 
-        if (detail.OrderStatus != "Received")
-            return Conflict(new { message = "Only orders in status 'Received' can be viewed in Production." });
+        if (detail.OrderStatus != OrderStatusCatalog.Received)
+            return Conflict(new { message = $"Only orders in status '{OrderStatusCatalog.Received}' can be viewed in Production." });
 
         return Ok(detail);
     }
@@ -336,6 +351,273 @@ public class OrdersController(
         {
             var detail = await productionService.CompleteProductionAsync(id, dto);
             return Ok(detail);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/scan-in")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> ScanIn(int orderId, int lineId, long stepId, OperatorScanInDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ScanInAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/scan-out")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> ScanOut(int orderId, int lineId, long stepId, OperatorScanOutDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ScanOutAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/usage")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> AddUsage(int orderId, int lineId, long stepId, StepMaterialUsageCreateDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.AddUsageAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/scrap")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> AddScrap(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.AddScrapAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/serials")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> AddSerial(int orderId, int lineId, long stepId, StepSerialCaptureCreateDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.AddSerialAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/checklist")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> AddChecklist(int orderId, int lineId, long stepId, StepChecklistResultCreateDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.AddChecklistAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/complete")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> CompleteWorkCenterStep(int orderId, int lineId, long stepId, CompleteWorkCenterStepDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.CompleteStepAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("workcenter/{workCenterId:int}/queue")]
+    public async Task<ActionResult<List<WorkCenterQueueItemDto>>> GetWorkCenterQueue(int workCenterId)
+    {
+        return Ok(await workCenterWorkflowService.GetQueueAsync(workCenterId));
+    }
+
+    [HttpGet("{orderId:int}/route-execution")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> GetOrderRouteExecution(int orderId)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.GetOrderRouteExecutionAsync(orderId));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("{orderId:int}/lines/{lineId:int}/route-execution")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> GetLineRouteExecution(int orderId, int lineId)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.GetOrderRouteExecutionAsync(orderId, lineId));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("pending-supervisor-review")]
+    public async Task<ActionResult<List<ProductionOrderListItemDto>>> GetPendingSupervisorReview()
+    {
+        var rows = await orderQueryService.GetProductionQueueAsync();
+        return Ok(rows);
+    }
+
+    [HttpPost("{orderId:int}/supervisor/approve")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> SupervisorApprove(int orderId, SupervisorDecisionDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ApproveOrderAsync(orderId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/supervisor/reject")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> SupervisorReject(int orderId, SupervisorDecisionDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.RejectOrderAsync(orderId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("pending-route-review")]
+    public async Task<ActionResult<List<ProductionOrderListItemDto>>> GetPendingRouteReview()
+    {
+        var rows = await orderQueryService.GetProductionQueueAsync();
+        return Ok(rows);
+    }
+
+    [HttpPost("{orderId:int}/route/validate")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> ValidateRoute(int orderId, SupervisorRouteReviewDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ValidateRouteAsync(orderId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/route/adjust")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> AdjustRoute(int orderId, SupervisorRouteReviewDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.AdjustRouteAsync(orderId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/route/reopen")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> ReopenRoute(int orderId, SupervisorRouteReviewDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ReopenRouteAsync(orderId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/request")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> RequestRework(int orderId, int lineId, long stepId, ReworkRequestDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.RequestReworkAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/approve")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> ApproveRework(int orderId, int lineId, long stepId, ReworkStateChangeDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ApproveReworkAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/start")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> StartRework(int orderId, int lineId, long stepId, ReworkStateChangeDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.StartReworkAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/submit-verification")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> SubmitReworkVerification(int orderId, int lineId, long stepId, ReworkStateChangeDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.SubmitReworkVerificationAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/close")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> CloseRework(int orderId, int lineId, long stepId, ReworkStateChangeDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.CloseReworkAsync(orderId, lineId, stepId, dto));
         }
         catch (ServiceException ex)
         {

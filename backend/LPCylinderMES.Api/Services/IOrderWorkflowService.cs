@@ -8,5 +8,10 @@ public interface IOrderWorkflowService
         int orderId,
         string targetStatus,
         CancellationToken cancellationToken = default);
+
+    Task<OrderDraftDetailDto> SubmitInvoiceAsync(
+        int orderId,
+        SubmitInvoiceDto dto,
+        CancellationToken cancellationToken = default);
 }
 

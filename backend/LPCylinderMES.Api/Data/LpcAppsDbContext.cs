@@ -24,6 +24,12 @@ public partial class LpcAppsDbContext : DbContext
 
     public virtual DbSet<Item> Items { get; set; }
     
+    public virtual DbSet<OrderLineRouteInstance> OrderLineRouteInstances { get; set; }
+
+    public virtual DbSet<OrderLineRouteStepInstance> OrderLineRouteStepInstances { get; set; }
+
+    public virtual DbSet<OperatorActivityLog> OperatorActivityLogs { get; set; }
+
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
 
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
@@ -48,9 +54,25 @@ public partial class LpcAppsDbContext : DbContext
 
     public virtual DbSet<ScrapReason> ScrapReasons { get; set; }
 
+    public virtual DbSet<RouteTemplate> RouteTemplates { get; set; }
+
+    public virtual DbSet<RouteTemplateAssignment> RouteTemplateAssignments { get; set; }
+
+    public virtual DbSet<RouteTemplateStep> RouteTemplateSteps { get; set; }
+
     public virtual DbSet<ShipVia> ShipVias { get; set; }
 
     public virtual DbSet<Site> Sites { get; set; }
+
+    public virtual DbSet<StepChecklistResult> StepChecklistResults { get; set; }
+
+    public virtual DbSet<StepMaterialUsage> StepMaterialUsages { get; set; }
+
+    public virtual DbSet<StepScrapEntry> StepScrapEntries { get; set; }
+
+    public virtual DbSet<StepSerialCapture> StepSerialCaptures { get; set; }
+
+    public virtual DbSet<WorkCenter> WorkCenters { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -485,17 +507,82 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.EstDeliveryDate)
                 .HasColumnType("datetime")
                 .HasColumnName("est_delivery_date");
+            entity.Property(e => e.AttachmentEmailPrompted).HasColumnName("attachment_email_prompted");
+            entity.Property(e => e.AttachmentEmailRecipientSummary)
+                .HasMaxLength(300)
+                .IsUnicode(false)
+                .HasColumnName("attachment_email_recipient_summary");
+            entity.Property(e => e.AttachmentEmailSent).HasColumnName("attachment_email_sent");
+            entity.Property(e => e.AttachmentEmailSentUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("attachment_email_sent_utc");
+            entity.Property(e => e.AttachmentEmailSkipReason)
+                .HasMaxLength(200)
+                .IsUnicode(false)
+                .HasColumnName("attachment_email_skip_reason");
+            entity.Property(e => e.CurrentCommittedDateUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("current_committed_date_utc");
+            entity.Property(e => e.CustomerReadyContactName)
+                .HasMaxLength(150)
+                .IsUnicode(false)
+                .HasColumnName("customer_ready_contact_name");
+            entity.Property(e => e.CustomerReadyLastContactUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("customer_ready_last_contact_utc");
+            entity.Property(e => e.CustomerReadyRetryUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("customer_ready_retry_utc");
             entity.Property(e => e.FreightAmount)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("freight_amount");
+            entity.Property(e => e.HasOpenRework).HasColumnName("has_open_rework");
             entity.Property(e => e.InvoiceDate)
                 .HasColumnType("datetime")
                 .HasColumnName("invoice_date");
+            entity.Property(e => e.InvoiceReviewCompletedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("invoice_review_completed_by_emp_no");
+            entity.Property(e => e.InvoiceReviewCompletedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("invoice_review_completed_utc");
+            entity.Property(e => e.InvoiceSubmissionChannel)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("invoice_submission_channel");
+            entity.Property(e => e.InvoiceSubmissionCorrelationId)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasColumnName("invoice_submission_correlation_id");
+            entity.Property(e => e.InvoiceSubmissionRequestedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("invoice_submission_requested_by_emp_no");
+            entity.Property(e => e.InvoiceSubmissionRequestedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("invoice_submission_requested_utc");
             entity.Property(e => e.IpadOrderId).HasColumnName("ipad_order_id");
+            entity.Property(e => e.InboundMode)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("inbound_mode");
             entity.Property(e => e.OrderDate).HasColumnName("order_date");
+            entity.Property(e => e.OrderLifecycleStatus)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("order_lifecycle_status");
+            entity.Property(e => e.OrderOrigin)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("order_origin");
             entity.Property(e => e.OrderStatus)
                 .IsUnicode(false)
                 .HasColumnName("order_status");
+            entity.Property(e => e.OutboundMode)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("outbound_mode");
             entity.Property(e => e.PaymentTermId).HasColumnName("payment_term_id");
             entity.Property(e => e.Phone)
                 .HasMaxLength(200)
@@ -510,12 +597,31 @@ public partial class LpcAppsDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("pickup_scheduled_date");
             entity.Property(e => e.Priority).HasColumnName("priority");
+            entity.Property(e => e.PromiseDateLastChangedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("promise_date_last_changed_by_emp_no");
+            entity.Property(e => e.PromiseDateLastChangedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("promise_date_last_changed_utc");
+            entity.Property(e => e.PromiseMissReasonCode)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("promise_miss_reason_code");
+            entity.Property(e => e.PromiseRevisionCount).HasColumnName("promise_revision_count");
+            entity.Property(e => e.PromisedDateUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("promised_date_utc");
             entity.Property(e => e.ReadyToShipDate)
                 .HasColumnType("datetime")
                 .HasColumnName("ready_to_ship_date");
             entity.Property(e => e.ReceivedDate)
                 .HasColumnType("datetime")
                 .HasColumnName("received_date");
+            entity.Property(e => e.RequestedDateUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("requested_date_utc");
+            entity.Property(e => e.ReworkBlockingInvoice).HasColumnName("rework_blocking_invoice");
             entity.Property(e => e.ReturnBrass).HasColumnName("return_brass");
             entity.Property(e => e.ReturnScrap).HasColumnName("return_scrap");
             entity.Property(e => e.SalesOrderNo)
@@ -532,9 +638,28 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.ShipToAddressId).HasColumnName("ship_to_address_id");
             entity.Property(e => e.ShipToViaId).HasColumnName("ship_to_via_id");
             entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.StatusNote)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("status_note");
+            entity.Property(e => e.StatusOwnerRole)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("status_owner_role");
+            entity.Property(e => e.StatusReasonCode)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("status_reason_code");
+            entity.Property(e => e.StatusUpdatedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("status_updated_utc");
             entity.Property(e => e.TrailerNo)
                 .IsUnicode(false)
                 .HasColumnName("trailer_no");
+            entity.Property(e => e.HoldOverlay)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("hold_overlay");
             entity.Property(e => e.TransportationNotes)
                 .HasMaxLength(2000)
                 .IsUnicode(false)
@@ -831,6 +956,247 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(50)
                 .IsUnicode(false)
                 .HasColumnName("site_code");
+        });
+
+        modelBuilder.Entity<WorkCenter>(entity =>
+        {
+            entity.ToTable("work_centers");
+            entity.HasIndex(e => e.WorkCenterCode).IsUnique();
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.WorkCenterCode).HasMaxLength(30).IsUnicode(false).HasColumnName("work_center_code");
+            entity.Property(e => e.WorkCenterName).HasMaxLength(120).IsUnicode(false).HasColumnName("work_center_name");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.Description).HasMaxLength(500).IsUnicode(false).HasColumnName("description");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.DefaultTimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("default_time_capture_mode");
+            entity.Property(e => e.RequiresScanByDefault).HasColumnName("requires_scan_by_default");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+
+            entity.HasOne(d => d.Site).WithMany().HasForeignKey(d => d.SiteId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<RouteTemplate>(entity =>
+        {
+            entity.ToTable("route_templates");
+            entity.HasIndex(e => e.RouteTemplateCode).IsUnique();
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.RouteTemplateCode).HasMaxLength(40).IsUnicode(false).HasColumnName("route_template_code");
+            entity.Property(e => e.RouteTemplateName).HasMaxLength(120).IsUnicode(false).HasColumnName("route_template_name");
+            entity.Property(e => e.Description).HasMaxLength(500).IsUnicode(false).HasColumnName("description");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.VersionNo).HasColumnName("version_no");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+        });
+
+        modelBuilder.Entity<RouteTemplateStep>(entity =>
+        {
+            entity.ToTable("route_template_steps");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.RouteTemplateId).HasColumnName("route_template_id");
+            entity.Property(e => e.StepSequence).HasColumnName("step_sequence");
+            entity.Property(e => e.StepCode).HasMaxLength(40).IsUnicode(false).HasColumnName("step_code");
+            entity.Property(e => e.StepName).HasMaxLength(120).IsUnicode(false).HasColumnName("step_name");
+            entity.Property(e => e.WorkCenterId).HasColumnName("work_center_id");
+            entity.Property(e => e.IsRequired).HasColumnName("is_required");
+            entity.Property(e => e.DataCaptureMode).HasMaxLength(30).IsUnicode(false).HasColumnName("data_capture_mode");
+            entity.Property(e => e.TimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("time_capture_mode");
+            entity.Property(e => e.RequiresScan).HasColumnName("requires_scan");
+            entity.Property(e => e.RequiresUsageEntry).HasColumnName("requires_usage_entry");
+            entity.Property(e => e.RequiresScrapEntry).HasColumnName("requires_scrap_entry");
+            entity.Property(e => e.RequiresSerialCapture).HasColumnName("requires_serial_capture");
+            entity.Property(e => e.RequiresChecklistCompletion).HasColumnName("requires_checklist_completion");
+            entity.Property(e => e.ChecklistFailurePolicy).HasMaxLength(40).IsUnicode(false).HasColumnName("checklist_failure_policy");
+            entity.Property(e => e.RequireScrapReasonWhenBad).HasColumnName("require_scrap_reason_when_bad");
+            entity.Property(e => e.RequiresTrailerCapture).HasColumnName("requires_trailer_capture");
+            entity.Property(e => e.RequiresSerialLoadVerification).HasColumnName("requires_serial_load_verification");
+            entity.Property(e => e.GeneratePackingSlipOnComplete).HasColumnName("generate_packing_slip_on_complete");
+            entity.Property(e => e.GenerateBolOnComplete).HasColumnName("generate_bol_on_complete");
+            entity.Property(e => e.RequiresAttachment).HasColumnName("requires_attachment");
+            entity.Property(e => e.RequiresSupervisorApproval).HasColumnName("requires_supervisor_approval");
+
+            entity.HasOne(d => d.RouteTemplate).WithMany(p => p.Steps).HasForeignKey(d => d.RouteTemplateId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.WorkCenter).WithMany(p => p.RouteTemplateSteps).HasForeignKey(d => d.WorkCenterId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<RouteTemplateAssignment>(entity =>
+        {
+            entity.ToTable("route_template_assignments");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.AssignmentName).HasMaxLength(120).IsUnicode(false).HasColumnName("assignment_name");
+            entity.Property(e => e.Priority).HasColumnName("priority");
+            entity.Property(e => e.RevisionNo).HasColumnName("revision_no");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.CustomerId).HasColumnName("customer_id");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.ItemId).HasColumnName("item_id");
+            entity.Property(e => e.ItemType).HasMaxLength(80).IsUnicode(false).HasColumnName("item_type");
+            entity.Property(e => e.RouteTemplateId).HasColumnName("route_template_id");
+            entity.Property(e => e.EffectiveFromUtc).HasColumnType("datetime").HasColumnName("effective_from_utc");
+            entity.Property(e => e.EffectiveToUtc).HasColumnType("datetime").HasColumnName("effective_to_utc");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+
+            entity.HasOne(d => d.Customer).WithMany().HasForeignKey(d => d.CustomerId);
+            entity.HasOne(d => d.Site).WithMany().HasForeignKey(d => d.SiteId);
+            entity.HasOne(d => d.Item).WithMany().HasForeignKey(d => d.ItemId);
+            entity.HasOne(d => d.RouteTemplate).WithMany(p => p.Assignments).HasForeignKey(d => d.RouteTemplateId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<OrderLineRouteInstance>(entity =>
+        {
+            entity.ToTable("order_line_route_instances");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.SalesOrderId).HasColumnName("sales_order_id");
+            entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
+            entity.Property(e => e.RouteTemplateId).HasColumnName("route_template_id");
+            entity.Property(e => e.RouteTemplateAssignmentId).HasColumnName("route_template_assignment_id");
+            entity.Property(e => e.State).HasMaxLength(30).IsUnicode(false).HasColumnName("state");
+            entity.Property(e => e.CurrentStepSequence).HasColumnName("current_step_sequence");
+            entity.Property(e => e.StartedUtc).HasColumnType("datetime").HasColumnName("started_utc");
+            entity.Property(e => e.CompletedUtc).HasColumnType("datetime").HasColumnName("completed_utc");
+            entity.Property(e => e.RouteReviewState).HasMaxLength(30).IsUnicode(false).HasColumnName("route_review_state");
+            entity.Property(e => e.RouteReviewedBy).HasMaxLength(30).IsUnicode(false).HasColumnName("route_reviewed_by");
+            entity.Property(e => e.RouteReviewedUtc).HasColumnType("datetime").HasColumnName("route_reviewed_utc");
+            entity.Property(e => e.RouteReviewNotes).HasMaxLength(500).IsUnicode(false).HasColumnName("route_review_notes");
+            entity.Property(e => e.SupervisorApprovalRequired).HasColumnName("supervisor_approval_required");
+            entity.Property(e => e.SupervisorApprovedBy).HasMaxLength(30).IsUnicode(false).HasColumnName("supervisor_approved_by");
+            entity.Property(e => e.SupervisorApprovedUtc).HasColumnType("datetime").HasColumnName("supervisor_approved_utc");
+
+            entity.HasOne(d => d.SalesOrder).WithMany().HasForeignKey(d => d.SalesOrderId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.RouteTemplate).WithMany().HasForeignKey(d => d.RouteTemplateId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.RouteTemplateAssignment).WithMany().HasForeignKey(d => d.RouteTemplateAssignmentId);
+        });
+
+        modelBuilder.Entity<OrderLineRouteStepInstance>(entity =>
+        {
+            entity.ToTable("order_line_route_step_instances");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderLineRouteInstanceId).HasColumnName("order_line_route_instance_id");
+            entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
+            entity.Property(e => e.StepSequence).HasColumnName("step_sequence");
+            entity.Property(e => e.StepCode).HasMaxLength(40).IsUnicode(false).HasColumnName("step_code");
+            entity.Property(e => e.StepName).HasMaxLength(120).IsUnicode(false).HasColumnName("step_name");
+            entity.Property(e => e.WorkCenterId).HasColumnName("work_center_id");
+            entity.Property(e => e.State).HasMaxLength(30).IsUnicode(false).HasColumnName("state");
+            entity.Property(e => e.IsRequired).HasColumnName("is_required");
+            entity.Property(e => e.DataCaptureMode).HasMaxLength(30).IsUnicode(false).HasColumnName("data_capture_mode");
+            entity.Property(e => e.TimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("time_capture_mode");
+            entity.Property(e => e.RequiresUsageEntry).HasColumnName("requires_usage_entry");
+            entity.Property(e => e.RequiresScrapEntry).HasColumnName("requires_scrap_entry");
+            entity.Property(e => e.RequiresSerialCapture).HasColumnName("requires_serial_capture");
+            entity.Property(e => e.RequiresChecklistCompletion).HasColumnName("requires_checklist_completion");
+            entity.Property(e => e.RequiresTrailerCapture).HasColumnName("requires_trailer_capture");
+            entity.Property(e => e.ScanInUtc).HasColumnType("datetime").HasColumnName("scan_in_utc");
+            entity.Property(e => e.ScanOutUtc).HasColumnType("datetime").HasColumnName("scan_out_utc");
+            entity.Property(e => e.DurationMinutes).HasColumnType("decimal(10,2)").HasColumnName("duration_minutes");
+            entity.Property(e => e.ManualDurationMinutes).HasColumnType("decimal(10,2)").HasColumnName("manual_duration_minutes");
+            entity.Property(e => e.ManualDurationReason).HasMaxLength(300).IsUnicode(false).HasColumnName("manual_duration_reason");
+            entity.Property(e => e.TimeCaptureSource).HasMaxLength(30).IsUnicode(false).HasColumnName("time_capture_source");
+            entity.Property(e => e.StartedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("started_by_emp_no");
+            entity.Property(e => e.CompletedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("completed_by_emp_no");
+            entity.Property(e => e.CompletedUtc).HasColumnType("datetime").HasColumnName("completed_utc");
+            entity.Property(e => e.BlockedReason).HasMaxLength(300).IsUnicode(false).HasColumnName("blocked_reason");
+
+            entity.HasOne(d => d.OrderLineRouteInstance).WithMany(p => p.Steps).HasForeignKey(d => d.OrderLineRouteInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.WorkCenter).WithMany(p => p.OrderLineRouteStepInstances).HasForeignKey(d => d.WorkCenterId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<OperatorActivityLog>(entity =>
+        {
+            entity.ToTable("operator_activity_logs");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.SalesOrderId).HasColumnName("sales_order_id");
+            entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
+            entity.Property(e => e.OrderLineRouteStepInstanceId).HasColumnName("order_line_route_step_instance_id");
+            entity.Property(e => e.WorkCenterId).HasColumnName("work_center_id");
+            entity.Property(e => e.OperatorEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("operator_emp_no");
+            entity.Property(e => e.ActionType).HasMaxLength(30).IsUnicode(false).HasColumnName("action_type");
+            entity.Property(e => e.ActionUtc).HasColumnType("datetime").HasColumnName("action_utc");
+            entity.Property(e => e.DeviceId).HasMaxLength(100).IsUnicode(false).HasColumnName("device_id");
+            entity.Property(e => e.Notes).HasMaxLength(500).IsUnicode(false).HasColumnName("notes");
+
+            entity.HasOne(d => d.SalesOrder).WithMany().HasForeignKey(d => d.SalesOrderId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.OrderLineRouteStepInstance).WithMany(p => p.ActivityLogs).HasForeignKey(d => d.OrderLineRouteStepInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.WorkCenter).WithMany(p => p.OperatorActivityLogs).HasForeignKey(d => d.WorkCenterId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<StepMaterialUsage>(entity =>
+        {
+            entity.ToTable("step_material_usages");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderLineRouteStepInstanceId).HasColumnName("order_line_route_step_instance_id");
+            entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
+            entity.Property(e => e.PartItemId).HasColumnName("part_item_id");
+            entity.Property(e => e.QuantityUsed).HasColumnType("decimal(18,4)").HasColumnName("quantity_used");
+            entity.Property(e => e.Uom).HasMaxLength(20).IsUnicode(false).HasColumnName("uom");
+            entity.Property(e => e.RecordedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("recorded_by_emp_no");
+            entity.Property(e => e.RecordedUtc).HasColumnType("datetime").HasColumnName("recorded_utc");
+
+            entity.HasOne(d => d.OrderLineRouteStepInstance).WithMany().HasForeignKey(d => d.OrderLineRouteStepInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.PartItem).WithMany().HasForeignKey(d => d.PartItemId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<StepScrapEntry>(entity =>
+        {
+            entity.ToTable("step_scrap_entries");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderLineRouteStepInstanceId).HasColumnName("order_line_route_step_instance_id");
+            entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
+            entity.Property(e => e.QuantityScrapped).HasColumnType("decimal(18,4)").HasColumnName("quantity_scrapped");
+            entity.Property(e => e.ScrapReasonId).HasColumnName("scrap_reason_id");
+            entity.Property(e => e.Notes).HasMaxLength(500).IsUnicode(false).HasColumnName("notes");
+            entity.Property(e => e.RecordedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("recorded_by_emp_no");
+            entity.Property(e => e.RecordedUtc).HasColumnType("datetime").HasColumnName("recorded_utc");
+
+            entity.HasOne(d => d.OrderLineRouteStepInstance).WithMany().HasForeignKey(d => d.OrderLineRouteStepInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.ScrapReason).WithMany().HasForeignKey(d => d.ScrapReasonId).OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<StepSerialCapture>(entity =>
+        {
+            entity.ToTable("step_serial_captures");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderLineRouteStepInstanceId).HasColumnName("order_line_route_step_instance_id");
+            entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
+            entity.Property(e => e.SerialNo).HasMaxLength(80).IsUnicode(false).HasColumnName("serial_no");
+            entity.Property(e => e.Manufacturer).HasMaxLength(120).IsUnicode(false).HasColumnName("manufacturer");
+            entity.Property(e => e.ManufactureDate).HasColumnName("manufacture_date");
+            entity.Property(e => e.TestDate).HasColumnName("test_date");
+            entity.Property(e => e.LidColorId).HasColumnName("lid_color_id");
+            entity.Property(e => e.LidSizeId).HasColumnName("lid_size_id");
+            entity.Property(e => e.ConditionStatus).HasMaxLength(20).IsUnicode(false).HasColumnName("condition_status");
+            entity.Property(e => e.ScrapReasonId).HasColumnName("scrap_reason_id");
+            entity.Property(e => e.RecordedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("recorded_by_emp_no");
+            entity.Property(e => e.RecordedUtc).HasColumnType("datetime").HasColumnName("recorded_utc");
+
+            entity.HasOne(d => d.OrderLineRouteStepInstance).WithMany().HasForeignKey(d => d.OrderLineRouteStepInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.SalesOrderDetail).WithMany().HasForeignKey(d => d.SalesOrderDetailId).OnDelete(DeleteBehavior.ClientSetNull);
+            entity.HasOne(d => d.LidColor).WithMany().HasForeignKey(d => d.LidColorId);
+            entity.HasOne(d => d.LidSize).WithMany().HasForeignKey(d => d.LidSizeId);
+            entity.HasOne(d => d.ScrapReason).WithMany().HasForeignKey(d => d.ScrapReasonId);
+        });
+
+        modelBuilder.Entity<StepChecklistResult>(entity =>
+        {
+            entity.ToTable("step_checklist_results");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderLineRouteStepInstanceId).HasColumnName("order_line_route_step_instance_id");
+            entity.Property(e => e.ChecklistTemplateItemId).HasColumnName("checklist_template_item_id");
+            entity.Property(e => e.ItemLabel).HasMaxLength(200).IsUnicode(false).HasColumnName("item_label");
+            entity.Property(e => e.IsRequiredItem).HasColumnName("is_required_item");
+            entity.Property(e => e.ResultStatus).HasMaxLength(20).IsUnicode(false).HasColumnName("result_status");
+            entity.Property(e => e.ResultNotes).HasMaxLength(500).IsUnicode(false).HasColumnName("result_notes");
+            entity.Property(e => e.CompletedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("completed_by_emp_no");
+            entity.Property(e => e.CompletedUtc).HasColumnType("datetime").HasColumnName("completed_utc");
+
+            entity.HasOne(d => d.OrderLineRouteStepInstance).WithMany().HasForeignKey(d => d.OrderLineRouteStepInstanceId).OnDelete(DeleteBehavior.ClientSetNull);
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -9,6 +9,46 @@ namespace LPCylinderMES.Api.Tests;
 public class ProductionServiceTests
 {
     [Fact]
+    public async Task CompleteProductionAsync_LifecycleReadyForProduction_SetsProductionComplete()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteProductionAsync_LifecycleReadyForProduction_SetsProductionComplete));
+        db.Items.Add(new Item { Id = 81, ItemNo = "TNK-81", ItemType = "Tank", RequiresSerialNumbers = 0 });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 80,
+            SalesOrderNo = "SO-80",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.Received,
+            OrderLifecycleStatus = OrderStatusCatalog.ReadyForProduction,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 801,
+                    LineNo = 1,
+                    ItemId = 81,
+                    QuantityAsOrdered = 2,
+                    QuantityAsReceived = 2,
+                    QuantityAsShipped = 0,
+                    QuantityAsScrapped = 0,
+                    SalesOrderId = 80,
+                    SiteId = 1,
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProductionService(db, new FakeProductionOrderQueryService());
+        await service.CompleteProductionAsync(80, new CompleteProductionDto([new ProductionLineUpdateDto(801, 2, 0, null)]));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 80);
+        Assert.Equal(OrderStatusCatalog.ProductionComplete, order.OrderLifecycleStatus);
+        Assert.Equal(OrderStatusCatalog.ReadyToShip, order.OrderStatus);
+    }
+
+    [Fact]
     public async Task CompleteProductionAsync_NonSerialLine_UpdatesBalancedQuantities()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteProductionAsync_NonSerialLine_UpdatesBalancedQuantities));
@@ -18,7 +58,7 @@ public class ProductionServiceTests
             Id = 60,
             SalesOrderNo = "SO-60",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "Received",
+            OrderStatus = OrderStatusCatalog.Received,
             CustomerId = 1,
             SiteId = 1,
             SalesOrderDetails =
@@ -70,7 +110,7 @@ public class ProductionServiceTests
             Id = 70,
             SalesOrderNo = "SO-70",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "Received",
+            OrderStatus = OrderStatusCatalog.Received,
             CustomerId = 1,
             SiteId = 1,
             SalesOrderDetails =
@@ -150,7 +190,7 @@ internal sealed class FakeProductionOrderQueryService : IOrderQueryService
         var detail = new ProductionOrderDetailDto(
             id,
             $"SO-{id}",
-            "Received",
+            OrderStatusCatalog.Received,
             "Customer",
             null,
             null,

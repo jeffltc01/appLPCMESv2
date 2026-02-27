@@ -22,11 +22,11 @@ public class ReceivingService(
         if (order is null)
             throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
 
-        if (order.OrderStatus != "Pickup Scheduled")
+        if (!CanCompleteReceiving(order))
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                "Only orders in status 'Pickup Scheduled' can be received.");
+                $"Order cannot be received from current state. LegacyStatus='{order.OrderStatus}', LifecycleStatus='{order.OrderLifecycleStatus ?? "(null)"}'.");
         }
 
         if (dto.Lines is null || dto.Lines.Count == 0)
@@ -88,12 +88,31 @@ public class ReceivingService(
         }
 
         order.ReceivedDate = dto.ReceivedDate;
-        order.OrderStatus = "Received";
+        order.OrderStatus = OrderStatusCatalog.Received;
+        order.OrderLifecycleStatus = OrderStatusCatalog.ReadyForProduction;
+        order.StatusUpdatedUtc = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
 
         var detailDto = await orderQueryService.GetReceivingDetailAsync(orderId, cancellationToken);
         return detailDto ?? throw new InvalidOperationException("Failed to load receiving detail after completion.");
+    }
+
+    private static bool CanCompleteReceiving(SalesOrder order)
+    {
+        if (string.Equals(order.OrderStatus, OrderStatusCatalog.PickupScheduled, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(order.OrderLifecycleStatus))
+        {
+            return false;
+        }
+
+        return string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.InboundInTransit, StringComparison.Ordinal) ||
+               string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal) ||
+               string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.ReceivedPendingReconciliation, StringComparison.Ordinal);
     }
 }
 
