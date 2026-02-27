@@ -514,6 +514,71 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
+    public async Task GetOrderRouteExecutionAndQueueAsync_ReturnsStepRequirementFlagsAndLineContext()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GetOrderRouteExecutionAndQueueAsync_ReturnsStepRequirementFlagsAndLineContext));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 900,
+            lineId: 9001,
+            routeId: 9100,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            requiresUsageForSecond: true,
+            requiresScrapForSecond: true,
+            requiresChecklistForSecond: true,
+            requiresTrailerForSecond: true,
+            requiresSerialForSecond: true,
+            requiresSerialLoadVerificationForSecond: true,
+            requiresPackingSlipForSecond: true,
+            requiresBolForSecond: true,
+            blockedReasonForSecond: "Awaiting checklist verification");
+        await db.SaveChangesAsync();
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 900);
+        order.Priority = 2;
+        order.PromisedDateUtc = DateTime.UtcNow.Date.AddDays(5);
+        order.Comments = "Order note";
+
+        var line = await db.SalesOrderDetails.FirstAsync(l => l.Id == 9001);
+        line.QuantityAsReceived = 6;
+        line.QuantityAsShipped = 3;
+        line.QuantityAsScrapped = 1;
+        line.Notes = "Line note";
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var queue = await service.GetQueueAsync(10);
+        var route = await service.GetOrderRouteExecutionAsync(900, 9001);
+
+        var queueItem = Assert.Single(queue);
+        Assert.Equal("Customer A", queueItem.CustomerName);
+        Assert.Equal("ITEM-1", queueItem.ItemNo);
+        Assert.Equal("Line note", queueItem.LineNotes);
+        Assert.Equal("Order note", queueItem.OrderComments);
+        Assert.Equal(2, queueItem.Priority);
+        Assert.NotNull(queueItem.PromisedDateUtc);
+
+        var routeLine = Assert.Single(route.Routes);
+        Assert.Equal(1, routeLine.QuantityScrapped);
+        Assert.Equal(3, routeLine.QuantityCompleted);
+        Assert.Equal(6, routeLine.QuantityReceived);
+        Assert.Equal(1, routeLine.QuantityOrdered);
+
+        var step = routeLine.Steps.Single(s => s.StepSequence == 2);
+        Assert.True(step.RequiresUsageEntry);
+        Assert.True(step.RequiresScrapEntry);
+        Assert.True(step.RequiresChecklistCompletion);
+        Assert.True(step.RequiresTrailerCapture);
+        Assert.True(step.RequiresSerialCapture);
+        Assert.True(step.RequiresSerialLoadVerification);
+        Assert.True(step.GeneratePackingSlipOnComplete);
+        Assert.True(step.GenerateBolOnComplete);
+        Assert.Equal("Awaiting checklist verification", step.BlockedReason);
+        Assert.Equal("ElectronicRequired", step.DataCaptureMode);
+    }
+
+    [Fact]
     public async Task ScanInAsync_UsesWorkflowServiceToWriteLifecycleAuditEvent()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(ScanInAsync_UsesWorkflowServiceToWriteLifecycleAuditEvent));
@@ -731,6 +796,7 @@ public class WorkCenterWorkflowServiceTests
         string firstStepState,
         string secondStepState,
         bool requiresUsageForSecond = false,
+        bool requiresScrapForSecond = false,
         bool requiresChecklistForSecond = false,
         string checklistFailurePolicyForSecond = "BlockCompletion",
         bool requiresAttachmentForSecond = false,
@@ -741,6 +807,7 @@ public class WorkCenterWorkflowServiceTests
         bool requiresBolForSecond = false,
         string secondStepTimeCaptureMode = "Automated",
         string dataCaptureModeForSecond = "ElectronicRequired",
+        string? blockedReasonForSecond = null,
         IEnumerable<string>? withLineSerials = null)
     {
         db.Sites.Add(new Site { Id = 1, Name = "Main", SiteCode = "MAIN" });
@@ -835,6 +902,7 @@ public class WorkCenterWorkflowServiceTests
                 State = secondStepState,
                 IsRequired = true,
                 RequiresUsageEntry = requiresUsageForSecond,
+                RequiresScrapEntry = requiresScrapForSecond,
                 RequiresChecklistCompletion = requiresChecklistForSecond,
                 ChecklistFailurePolicy = checklistFailurePolicyForSecond,
                 RequiresAttachment = requiresAttachmentForSecond,
@@ -845,6 +913,7 @@ public class WorkCenterWorkflowServiceTests
                 GenerateBolOnComplete = requiresBolForSecond,
                 TimeCaptureMode = secondStepTimeCaptureMode,
                 DataCaptureMode = dataCaptureModeForSecond,
+                BlockedReason = blockedReasonForSecond,
             });
     }
 }

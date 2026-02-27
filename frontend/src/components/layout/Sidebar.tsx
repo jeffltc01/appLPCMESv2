@@ -49,6 +49,12 @@ const navItems: NavItem[] = [
     path: "/production",
   },
   {
+    key: "operatorConsole",
+    label: "Operator Console",
+    icon: <Wrench24Regular />,
+    path: "/operator-console",
+  },
+  {
     key: "shipping",
     label: "Shipping",
     icon: <BoxCheckmark24Regular />,

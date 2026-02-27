@@ -385,6 +385,10 @@ public class WorkCenterWorkflowService(
             .AsNoTracking()
             .Include(s => s.OrderLineRouteInstance)
                 .ThenInclude(r => r.SalesOrder)
+                    .ThenInclude(o => o.Customer)
+            .Include(s => s.OrderLineRouteInstance)
+                .ThenInclude(r => r.SalesOrderDetail)
+                    .ThenInclude(d => d.Item)
             .Where(s => s.WorkCenterId == workCenterId && (s.State == "Pending" || s.State == "InProgress"))
             .OrderBy(s => s.State)
             .ThenBy(s => s.StepSequence)
@@ -397,7 +401,14 @@ public class WorkCenterWorkflowService(
                 s.StepName,
                 s.StepSequence,
                 s.State,
-                s.ScanInUtc))
+                s.ScanInUtc,
+                s.OrderLineRouteInstance.SalesOrder.Customer.Name,
+                s.OrderLineRouteInstance.SalesOrderDetail.Item.ItemNo,
+                s.OrderLineRouteInstance.SalesOrderDetail.ItemName ?? s.OrderLineRouteInstance.SalesOrderDetail.Item.ItemDescription,
+                s.OrderLineRouteInstance.SalesOrder.PromisedDateUtc,
+                s.OrderLineRouteInstance.SalesOrder.Priority,
+                s.OrderLineRouteInstance.SalesOrderDetail.Notes,
+                s.OrderLineRouteInstance.SalesOrder.Comments))
             .ToListAsync(cancellationToken);
     }
 
@@ -423,6 +434,10 @@ public class WorkCenterWorkflowService(
                 r.Id,
                 r.SalesOrderDetailId,
                 r.State,
+                r.SalesOrderDetail.QuantityAsOrdered,
+                r.SalesOrderDetail.QuantityAsReceived,
+                r.SalesOrderDetail.QuantityAsShipped,
+                r.SalesOrderDetail.QuantityAsScrapped,
                 r.Steps
                     .OrderBy(s => s.StepSequence)
                     .Select(s => new RouteStepExecutionDto(
@@ -430,7 +445,12 @@ public class WorkCenterWorkflowService(
                         s.StepSequence,
                         s.StepCode,
                         s.StepName,
+                        s.WorkCenterId,
+                        s.WorkCenter.WorkCenterName,
                         s.State,
+                        s.IsRequired,
+                        s.RequiresScan,
+                        s.DataCaptureMode,
                         s.TimeCaptureMode,
                         s.ScanInUtc,
                         s.ScanOutUtc,
@@ -438,7 +458,21 @@ public class WorkCenterWorkflowService(
                         s.DurationMinutes,
                         s.ManualDurationMinutes,
                         s.ManualDurationReason,
-                        s.TimeCaptureSource))
+                        s.TimeCaptureSource,
+                        s.RequiresUsageEntry,
+                        s.RequiresScrapEntry,
+                        s.RequiresSerialCapture,
+                        s.RequiresChecklistCompletion,
+                        s.ChecklistTemplateId,
+                        s.ChecklistFailurePolicy,
+                        s.RequireScrapReasonWhenBad,
+                        s.RequiresTrailerCapture,
+                        s.RequiresSerialLoadVerification,
+                        s.GeneratePackingSlipOnComplete,
+                        s.GenerateBolOnComplete,
+                        s.RequiresAttachment,
+                        s.RequiresSupervisorApproval,
+                        s.BlockedReason))
                     .ToList()))
             .ToListAsync(cancellationToken);
 

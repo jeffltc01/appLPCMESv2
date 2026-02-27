@@ -851,6 +851,13 @@ export interface WorkCenterQueueItem {
   stepSequence: number;
   stepState: string;
   scanInUtc: string | null;
+  customerName?: string | null;
+  itemNo?: string | null;
+  itemDescription?: string | null;
+  promisedDateUtc?: string | null;
+  priority?: number | null;
+  lineNotes?: string | null;
+  orderComments?: string | null;
 }
 
 export interface RouteStepExecution {
@@ -858,7 +865,12 @@ export interface RouteStepExecution {
   stepSequence: number;
   stepCode: string;
   stepName: string;
+  workCenterId: number;
+  workCenterName: string;
   state: string;
+  isRequired: boolean;
+  requiresScan: boolean;
+  dataCaptureMode: string;
   timeCaptureMode: string;
   scanInUtc: string | null;
   scanOutUtc: string | null;
@@ -867,12 +879,30 @@ export interface RouteStepExecution {
   manualDurationMinutes: number | null;
   manualDurationReason: string | null;
   timeCaptureSource: string;
+  requiresUsageEntry: boolean;
+  requiresScrapEntry: boolean;
+  requiresSerialCapture: boolean;
+  requiresChecklistCompletion: boolean;
+  checklistTemplateId: number | null;
+  checklistFailurePolicy: string;
+  requireScrapReasonWhenBad: boolean;
+  requiresTrailerCapture: boolean;
+  requiresSerialLoadVerification: boolean;
+  generatePackingSlipOnComplete: boolean;
+  generateBolOnComplete: boolean;
+  requiresAttachment: boolean;
+  requiresSupervisorApproval: boolean;
+  blockedReason: string | null;
 }
 
 export interface LineRouteExecution {
   routeInstanceId: number;
   lineId: number;
   state: string;
+  quantityOrdered: number;
+  quantityReceived: number | null;
+  quantityCompleted: number | null;
+  quantityScrapped: number | null;
   steps: RouteStepExecution[];
 }
 

@@ -609,14 +609,26 @@ public record WorkCenterQueueItemDto(
     string StepName,
     int StepSequence,
     string StepState,
-    DateTime? ScanInUtc);
+    DateTime? ScanInUtc,
+    string? CustomerName = null,
+    string? ItemNo = null,
+    string? ItemDescription = null,
+    DateTime? PromisedDateUtc = null,
+    int? Priority = null,
+    string? LineNotes = null,
+    string? OrderComments = null);
 
 public record RouteStepExecutionDto(
     long StepInstanceId,
     int StepSequence,
     string StepCode,
     string StepName,
+    int WorkCenterId,
+    string WorkCenterName,
     string State,
+    bool IsRequired,
+    bool RequiresScan,
+    string DataCaptureMode,
     string TimeCaptureMode,
     DateTime? ScanInUtc,
     DateTime? ScanOutUtc,
@@ -624,12 +636,30 @@ public record RouteStepExecutionDto(
     decimal? DurationMinutes,
     decimal? ManualDurationMinutes,
     string? ManualDurationReason,
-    string TimeCaptureSource);
+    string TimeCaptureSource,
+    bool RequiresUsageEntry,
+    bool RequiresScrapEntry,
+    bool RequiresSerialCapture,
+    bool RequiresChecklistCompletion,
+    int? ChecklistTemplateId,
+    string ChecklistFailurePolicy,
+    bool RequireScrapReasonWhenBad,
+    bool RequiresTrailerCapture,
+    bool RequiresSerialLoadVerification,
+    bool GeneratePackingSlipOnComplete,
+    bool GenerateBolOnComplete,
+    bool RequiresAttachment,
+    bool RequiresSupervisorApproval,
+    string? BlockedReason);
 
 public record LineRouteExecutionDto(
     long RouteInstanceId,
     int LineId,
     string State,
+    decimal QuantityOrdered,
+    decimal? QuantityReceived,
+    decimal? QuantityCompleted,
+    decimal? QuantityScrapped,
     List<RouteStepExecutionDto> Steps);
 
 public record OrderRouteExecutionDto(

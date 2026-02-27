@@ -22,6 +22,7 @@ const modules = [
   { label: "Orders", path: "/orders", icon: <ClipboardTask24Regular /> },
   { label: "Receiving", path: "/receiving", icon: <VehicleTruckProfile24Regular /> },
   { label: "Production", path: "/production", icon: <Wrench24Regular /> },
+  { label: "Operator Console", path: "/operator-console", icon: <Wrench24Regular /> },
   { label: "Shipping", path: "/shipping", icon: <BoxCheckmark24Regular /> },
   { label: "Invoicing", path: "/invoicing", icon: <Receipt24Regular /> },
   { label: "Customers", path: "/customers", icon: <People24Regular /> },

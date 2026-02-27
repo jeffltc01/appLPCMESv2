@@ -1,14 +1,22 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { OperatorWorkCenterConsolePage } from "./OperatorWorkCenterConsolePage";
+import { ApiError } from "../services/api";
 
 const ordersApiMock = vi.hoisted(() => ({
   workCenterQueue: vi.fn(),
   lineRouteExecution: vi.fn(),
   orderWorkCenterActivityLog: vi.fn(),
   scanIn: vi.fn(),
-  scanOut: vi.fn(),
+  addStepUsage: vi.fn(),
+  addStepScrap: vi.fn(),
+  addStepSerial: vi.fn(),
+  addStepChecklist: vi.fn(),
   captureTrailer: vi.fn(),
+  verifySerialLoad: vi.fn(),
+  generatePackingSlip: vi.fn(),
+  generateBol: vi.fn(),
   correctStepDuration: vi.fn(),
+  scanOut: vi.fn(),
   completeStep: vi.fn(),
 }));
 
@@ -21,7 +29,19 @@ describe("OperatorWorkCenterConsolePage", () => {
     vi.clearAllMocks();
   });
 
-  const setupBaseMocks = (timeCaptureMode: "Automated" | "Manual" | "Hybrid") => {
+  const setupBaseMocks = (
+    overrides: Partial<{
+      state: "Pending" | "InProgress";
+      requiresUsageEntry: boolean;
+      requiresScrapEntry: boolean;
+      requiresSerialCapture: boolean;
+      requiresChecklistCompletion: boolean;
+      requiresTrailerCapture: boolean;
+      requiresSerialLoadVerification: boolean;
+      generatePackingSlipOnComplete: boolean;
+      generateBolOnComplete: boolean;
+    }> = {}
+  ) => {
     ordersApiMock.workCenterQueue.mockResolvedValue([
       {
         stepInstanceId: 501,
@@ -31,8 +51,15 @@ describe("OperatorWorkCenterConsolePage", () => {
         stepCode: "PREP",
         stepName: "Prep",
         stepSequence: 1,
-        stepState: "Pending",
+        stepState: overrides.state ?? "InProgress",
         scanInUtc: null,
+        customerName: "Acme",
+        itemNo: "ITEM-1",
+        itemDescription: "Cylinder",
+        promisedDateUtc: "2026-02-20T00:00:00Z",
+        priority: 1,
+        lineNotes: "Handle carefully",
+        orderComments: "Rush order",
       },
     ]);
     ordersApiMock.lineRouteExecution.mockResolvedValue({
@@ -50,8 +77,13 @@ describe("OperatorWorkCenterConsolePage", () => {
               stepSequence: 1,
               stepCode: "PREP",
               stepName: "Prep",
-              state: "Pending",
-              timeCaptureMode,
+              workCenterId: 10,
+              workCenterName: "Prep",
+              state: overrides.state ?? "InProgress",
+              isRequired: true,
+              requiresScan: true,
+              dataCaptureMode: "ElectronicRequired",
+              timeCaptureMode: "Automated",
               scanInUtc: null,
               scanOutUtc: null,
               completedUtc: null,
@@ -59,63 +91,76 @@ describe("OperatorWorkCenterConsolePage", () => {
               manualDurationMinutes: null,
               manualDurationReason: null,
               timeCaptureSource: "SystemScan",
+              requiresUsageEntry: overrides.requiresUsageEntry ?? false,
+              requiresScrapEntry: overrides.requiresScrapEntry ?? false,
+              requiresSerialCapture: overrides.requiresSerialCapture ?? false,
+              requiresChecklistCompletion: overrides.requiresChecklistCompletion ?? false,
+              checklistTemplateId: null,
+              checklistFailurePolicy: "BlockCompletion",
+              requireScrapReasonWhenBad: true,
+              requiresTrailerCapture: overrides.requiresTrailerCapture ?? false,
+              requiresSerialLoadVerification: overrides.requiresSerialLoadVerification ?? false,
+              generatePackingSlipOnComplete: overrides.generatePackingSlipOnComplete ?? false,
+              generateBolOnComplete: overrides.generateBolOnComplete ?? false,
+              requiresAttachment: false,
+              requiresSupervisorApproval: false,
+              blockedReason: null,
             },
           ],
+          quantityOrdered: 5,
+          quantityReceived: 4,
+          quantityCompleted: 2,
+          quantityScrapped: 1,
         },
       ],
     });
     ordersApiMock.orderWorkCenterActivityLog.mockResolvedValue([]);
+    ordersApiMock.scanIn.mockResolvedValue({});
+    ordersApiMock.addStepUsage.mockResolvedValue({});
+    ordersApiMock.scanOut.mockResolvedValue({});
+    ordersApiMock.completeStep.mockResolvedValue({});
   };
 
   it("loads queue and executes scan in action", async () => {
-    setupBaseMocks("Automated");
-    ordersApiMock.scanIn.mockResolvedValue({});
+    setupBaseMocks();
 
     render(<OperatorWorkCenterConsolePage />);
     await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "Scan In" }));
     await waitFor(() => expect(ordersApiMock.scanIn).toHaveBeenCalled());
+    expect(screen.getByText(/Order Context/i)).toBeInTheDocument();
   });
 
-  it("submits manual duration correction", async () => {
-    setupBaseMocks("Manual");
-    ordersApiMock.correctStepDuration.mockResolvedValue({});
-
+  it("blocks completion until required usage is saved", async () => {
+    setupBaseMocks({ requiresUsageEntry: true });
     render(<OperatorWorkCenterConsolePage />);
     await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText(/Time Capture Mode: Manual/i)).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText("Manual duration minutes"), { target: { value: "14.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply Duration" }));
-    await waitFor(() => expect(ordersApiMock.correctStepDuration).toHaveBeenCalled());
+    const completeButton = await screen.findByRole("button", { name: /Scan Out & Complete/i });
+    expect(completeButton).toBeDisabled();
+
+    await screen.findByRole("button", { name: "Save Usage" });
+    fireEvent.change(screen.getByLabelText("Part item ID"), { target: { value: "12" } });
+    fireEvent.change(screen.getByLabelText("Quantity used"), { target: { value: "1.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Usage" }));
+
+    await waitFor(() => expect(ordersApiMock.addStepUsage).toHaveBeenCalled());
+    await waitFor(() => expect(completeButton).toBeEnabled());
   });
 
-  it("captures trailer number for loading step", async () => {
-    setupBaseMocks("Manual");
-    ordersApiMock.captureTrailer.mockResolvedValue({});
-
+  it("shows conflict recovery message and keeps unsaved values", async () => {
+    setupBaseMocks();
+    ordersApiMock.completeStep.mockRejectedValue(
+      new ApiError(409, "Conflict", { message: "Sequence violation: previous step incomplete." })
+    );
     render(<OperatorWorkCenterConsolePage />);
     await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
+    const completeButton = await screen.findByRole("button", { name: /Scan Out & Complete/i });
+    await waitFor(() => expect(completeButton).toBeEnabled());
+
     fireEvent.change(screen.getByLabelText("Trailer number"), { target: { value: "TRL-77" } });
-    fireEvent.click(screen.getByRole("button", { name: "Capture Trailer" }));
+    fireEvent.click(completeButton);
 
-    await waitFor(() => expect(ordersApiMock.captureTrailer).toHaveBeenCalled());
-    expect(ordersApiMock.captureTrailer).toHaveBeenCalledWith(100, 200, 501, {
-      empNo: "OP001",
-      trailerNo: "TRL-77",
-      notes: "Captured from operator console",
-    });
-  });
-
-  it("blocks hybrid correction when reason is missing", async () => {
-    setupBaseMocks("Hybrid");
-    ordersApiMock.correctStepDuration.mockResolvedValue({});
-
-    render(<OperatorWorkCenterConsolePage />);
-    await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByText(/Time Capture Mode: Hybrid/i)).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText("Manual duration minutes"), { target: { value: "14.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply Duration" }));
-
-    await waitFor(() => expect(ordersApiMock.correctStepDuration).not.toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/Sequence or concurrency conflict/i)).toBeInTheDocument());
+    expect(screen.getByLabelText("Trailer number")).toHaveValue("TRL-77");
   });
 });
