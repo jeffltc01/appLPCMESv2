@@ -1,3 +1,192 @@
+export type OrderWorkflowStatus =
+  | "New"
+  | "Ready for Pickup"
+  | "Pickup Scheduled"
+  | "Received"
+  | "Ready to Ship"
+  | "Ready to Invoice"
+  | "Draft"
+  | "PendingOrderEntryValidation"
+  | "InboundLogisticsPlanned"
+  | "InboundInTransit"
+  | "ReceivedPendingReconciliation"
+  | "ReadyForProduction"
+  | "InProduction"
+  | "ProductionCompletePendingApproval"
+  | "ProductionComplete"
+  | "OutboundLogisticsPlanned"
+  | "DispatchedOrPickupReleased"
+  | "InvoiceReady"
+  | "Invoiced";
+
+export interface OrderStatusMetadata {
+  key: OrderWorkflowStatus;
+  displayLabel: string;
+  actorHint: string;
+}
+
+export const ORDER_WORKFLOW_STATUS_ORDER: OrderWorkflowStatus[] = [
+  "New",
+  "Ready for Pickup",
+  "Pickup Scheduled",
+  "Received",
+  "Ready to Ship",
+  "Ready to Invoice",
+  "Draft",
+  "PendingOrderEntryValidation",
+  "InboundLogisticsPlanned",
+  "InboundInTransit",
+  "ReceivedPendingReconciliation",
+  "ReadyForProduction",
+  "InProduction",
+  "ProductionCompletePendingApproval",
+  "ProductionComplete",
+  "OutboundLogisticsPlanned",
+  "DispatchedOrPickupReleased",
+  "InvoiceReady",
+  "Invoiced",
+];
+
+export const ORDER_STATUS_KEYS = {
+  NEW: "New" as OrderWorkflowStatus,
+  READY_FOR_PICKUP: "Ready for Pickup" as OrderWorkflowStatus,
+  PICKUP_SCHEDULED: "Pickup Scheduled" as OrderWorkflowStatus,
+  RECEIVED: "Received" as OrderWorkflowStatus,
+  READY_TO_SHIP: "Ready to Ship" as OrderWorkflowStatus,
+  READY_TO_INVOICE: "Ready to Invoice" as OrderWorkflowStatus,
+  DRAFT: "Draft" as OrderWorkflowStatus,
+  PENDING_ORDER_ENTRY_VALIDATION: "PendingOrderEntryValidation" as OrderWorkflowStatus,
+  INBOUND_LOGISTICS_PLANNED: "InboundLogisticsPlanned" as OrderWorkflowStatus,
+  INBOUND_IN_TRANSIT: "InboundInTransit" as OrderWorkflowStatus,
+  RECEIVED_PENDING_RECONCILIATION: "ReceivedPendingReconciliation" as OrderWorkflowStatus,
+  READY_FOR_PRODUCTION: "ReadyForProduction" as OrderWorkflowStatus,
+  IN_PRODUCTION: "InProduction" as OrderWorkflowStatus,
+  PRODUCTION_COMPLETE_PENDING_APPROVAL: "ProductionCompletePendingApproval" as OrderWorkflowStatus,
+  PRODUCTION_COMPLETE: "ProductionComplete" as OrderWorkflowStatus,
+  OUTBOUND_LOGISTICS_PLANNED: "OutboundLogisticsPlanned" as OrderWorkflowStatus,
+  DISPATCHED_OR_PICKUP_RELEASED: "DispatchedOrPickupReleased" as OrderWorkflowStatus,
+  INVOICE_READY: "InvoiceReady" as OrderWorkflowStatus,
+  INVOICED: "Invoiced" as OrderWorkflowStatus,
+};
+
+export const ORDER_STATUS_METADATA: Record<OrderWorkflowStatus, OrderStatusMetadata> = {
+  New: {
+    key: "New",
+    displayLabel: "Needs Order Info",
+    actorHint: "Office: gather missing order details.",
+  },
+  "Ready for Pickup": {
+    key: "Ready for Pickup",
+    displayLabel: "Awaiting Pickup Scheduling",
+    actorHint: "Transportation: schedule trailer pickup.",
+  },
+  "Pickup Scheduled": {
+    key: "Pickup Scheduled",
+    displayLabel: "Pickup Scheduled / Awaiting Arrival",
+    actorHint: "Receiving: wait for tanks to arrive.",
+  },
+  Received: {
+    key: "Received",
+    displayLabel: "At Plant / Ready for Production",
+    actorHint: "Production: schedule and complete refurbishment.",
+  },
+  "Ready to Ship": {
+    key: "Ready to Ship",
+    displayLabel: "Awaiting Delivery Scheduling",
+    actorHint: "Transportation: schedule outbound delivery.",
+  },
+  "Ready to Invoice": {
+    key: "Ready to Invoice",
+    displayLabel: "Ready for Invoicing",
+    actorHint: "Office: produce invoice and close order.",
+  },
+  Draft: {
+    key: "Draft",
+    displayLabel: "Draft",
+    actorHint: "Office: complete order setup.",
+  },
+  PendingOrderEntryValidation: {
+    key: "PendingOrderEntryValidation",
+    displayLabel: "Pending Order Entry Validation",
+    actorHint: "Office: validate sales-mobile intake.",
+  },
+  InboundLogisticsPlanned: {
+    key: "InboundLogisticsPlanned",
+    displayLabel: "Inbound Planned",
+    actorHint: "Transportation: plan inbound movement.",
+  },
+  InboundInTransit: {
+    key: "InboundInTransit",
+    displayLabel: "Inbound In Transit",
+    actorHint: "Transportation: inbound movement active.",
+  },
+  ReceivedPendingReconciliation: {
+    key: "ReceivedPendingReconciliation",
+    displayLabel: "Received Pending Reconciliation",
+    actorHint: "Receiving: reconcile received assets.",
+  },
+  ReadyForProduction: {
+    key: "ReadyForProduction",
+    displayLabel: "Ready for Production",
+    actorHint: "Production: begin route execution.",
+  },
+  InProduction: {
+    key: "InProduction",
+    displayLabel: "In Production",
+    actorHint: "Operator: execute work-center steps.",
+  },
+  ProductionCompletePendingApproval: {
+    key: "ProductionCompletePendingApproval",
+    displayLabel: "Production Complete Pending Approval",
+    actorHint: "Supervisor: approve completion gate.",
+  },
+  ProductionComplete: {
+    key: "ProductionComplete",
+    displayLabel: "Production Complete",
+    actorHint: "Transportation: prepare outbound release.",
+  },
+  OutboundLogisticsPlanned: {
+    key: "OutboundLogisticsPlanned",
+    displayLabel: "Outbound Planned",
+    actorHint: "Transportation: schedule delivery or pickup.",
+  },
+  DispatchedOrPickupReleased: {
+    key: "DispatchedOrPickupReleased",
+    displayLabel: "Dispatched / Pickup Released",
+    actorHint: "Shipping: release event captured.",
+  },
+  InvoiceReady: {
+    key: "InvoiceReady",
+    displayLabel: "Invoice Ready",
+    actorHint: "Office: complete invoice submit workflow.",
+  },
+  Invoiced: {
+    key: "Invoiced",
+    displayLabel: "Invoiced",
+    actorHint: "Accounting: invoice posted to ERP staging.",
+  },
+};
+
+export function isOrderWorkflowStatus(value: string): value is OrderWorkflowStatus {
+  return ORDER_WORKFLOW_STATUS_ORDER.includes(value as OrderWorkflowStatus);
+}
+
+export function getOrderStatusDisplayLabel(status: string): string {
+  if (!isOrderWorkflowStatus(status)) {
+    return status;
+  }
+
+  return ORDER_STATUS_METADATA[status].displayLabel;
+}
+
+export function getOrderStatusActorHint(status: string): string | null {
+  if (!isOrderWorkflowStatus(status)) {
+    return null;
+  }
+
+  return ORDER_STATUS_METADATA[status].actorHint;
+}
+
 export interface OrderDraftListItem {
   id: number;
   salesOrderNo: string;
@@ -347,4 +536,123 @@ export interface OrderItemLookup {
   id: number;
   itemNo: string;
   itemDescription: string | null;
+}
+
+export interface SubmitInvoiceRequest {
+  finalReviewConfirmed: boolean;
+  sendAttachmentEmail: boolean;
+  selectedAttachmentIds?: number[] | null;
+  attachmentRecipientSummary?: string | null;
+  attachmentSkipReason?: string | null;
+  correlationId?: string | null;
+  submittedByEmpNo?: string | null;
+}
+
+export interface WorkCenterQueueItem {
+  stepInstanceId: number;
+  orderId: number;
+  lineId: number;
+  salesOrderNo: string;
+  stepCode: string;
+  stepName: string;
+  stepSequence: number;
+  stepState: string;
+  scanInUtc: string | null;
+}
+
+export interface RouteStepExecution {
+  stepInstanceId: number;
+  stepSequence: number;
+  stepCode: string;
+  stepName: string;
+  state: string;
+  scanInUtc: string | null;
+  scanOutUtc: string | null;
+  completedUtc: string | null;
+}
+
+export interface LineRouteExecution {
+  routeInstanceId: number;
+  lineId: number;
+  state: string;
+  steps: RouteStepExecution[];
+}
+
+export interface OrderRouteExecution {
+  orderId: number;
+  lifecycleStatus: string | null;
+  hasOpenRework: boolean;
+  routes: LineRouteExecution[];
+}
+
+export interface OperatorScanInRequest {
+  empNo: string;
+  deviceId?: string | null;
+}
+
+export interface OperatorScanOutRequest {
+  empNo: string;
+  deviceId?: string | null;
+}
+
+export interface CompleteWorkCenterStepRequest {
+  empNo: string;
+  notes?: string | null;
+}
+
+export interface StepMaterialUsageCreateRequest {
+  partItemId: number;
+  quantityUsed: number;
+  uom?: string | null;
+  recordedByEmpNo: string;
+}
+
+export interface StepScrapEntryCreateRequest {
+  quantityScrapped: number;
+  scrapReasonId: number;
+  notes?: string | null;
+  recordedByEmpNo: string;
+}
+
+export interface StepSerialCaptureCreateRequest {
+  serialNo: string;
+  manufacturer: string;
+  manufactureDate?: string | null;
+  testDate?: string | null;
+  lidColorId?: number | null;
+  lidSizeId?: number | null;
+  conditionStatus: string;
+  scrapReasonId?: number | null;
+  recordedByEmpNo: string;
+}
+
+export interface StepChecklistResultCreateRequest {
+  checklistTemplateItemId: number;
+  itemLabel: string;
+  isRequiredItem: boolean;
+  resultStatus: string;
+  resultNotes?: string | null;
+  completedByEmpNo: string;
+}
+
+export interface SupervisorRouteReviewRequest {
+  isAdjusted: boolean;
+  notes?: string | null;
+  reviewerEmpNo: string;
+}
+
+export interface SupervisorDecisionRequest {
+  empNo: string;
+  notes?: string | null;
+}
+
+export interface ReworkRequest {
+  requestedByEmpNo: string;
+  reasonCode: string;
+  notes?: string | null;
+}
+
+export interface ReworkStateChangeRequest {
+  empNo: string;
+  notes?: string | null;
 }

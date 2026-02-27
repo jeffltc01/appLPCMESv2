@@ -20,6 +20,20 @@ import type {
   ProductionOrderDetail,
   OrderAttachment,
   CompleteProductionRequest,
+  SubmitInvoiceRequest,
+  WorkCenterQueueItem,
+  OrderRouteExecution,
+  OperatorScanInRequest,
+  OperatorScanOutRequest,
+  CompleteWorkCenterStepRequest,
+  StepMaterialUsageCreateRequest,
+  StepScrapEntryCreateRequest,
+  StepSerialCaptureCreateRequest,
+  StepChecklistResultCreateRequest,
+  SupervisorRouteReviewRequest,
+  SupervisorDecisionRequest,
+  ReworkRequest,
+  ReworkStateChangeRequest,
 } from "../types/order";
 import type {
   Lookup,
@@ -55,6 +69,9 @@ export const ordersApi = {
 
   advanceStatus: (id: number, targetStatus: string) =>
     api.post<OrderDraftDetail>(`/orders/${id}/advance-status`, { targetStatus }),
+
+  submitInvoice: (id: number, data: SubmitInvoiceRequest) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/invoice/submit`, data),
 
   transportBoard: (params: TransportBoardParams = {}) => {
     const qs = new URLSearchParams();
@@ -119,6 +136,72 @@ export const ordersApi = {
 
   attachmentDownloadUrl: (id: number, attachmentId: number) =>
     `/api/orders/${id}/attachments/${attachmentId}`,
+
+  workCenterQueue: (workCenterId: number) =>
+    api.get<WorkCenterQueueItem[]>(`/orders/workcenter/${workCenterId}/queue`),
+
+  orderRouteExecution: (orderId: number) =>
+    api.get<OrderRouteExecution>(`/orders/${orderId}/route-execution`),
+
+  lineRouteExecution: (orderId: number, lineId: number) =>
+    api.get<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/route-execution`),
+
+  scanIn: (orderId: number, lineId: number, stepId: number, data: OperatorScanInRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/scan-in`, data),
+
+  scanOut: (orderId: number, lineId: number, stepId: number, data: OperatorScanOutRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/scan-out`, data),
+
+  addStepUsage: (orderId: number, lineId: number, stepId: number, data: StepMaterialUsageCreateRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/usage`, data),
+
+  addStepScrap: (orderId: number, lineId: number, stepId: number, data: StepScrapEntryCreateRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/scrap`, data),
+
+  addStepSerial: (orderId: number, lineId: number, stepId: number, data: StepSerialCaptureCreateRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/serials`, data),
+
+  addStepChecklist: (orderId: number, lineId: number, stepId: number, data: StepChecklistResultCreateRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/checklist`, data),
+
+  completeStep: (orderId: number, lineId: number, stepId: number, data: CompleteWorkCenterStepRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/complete`, data),
+
+  pendingSupervisorReview: () =>
+    api.get<ProductionOrderListItem[]>("/orders/pending-supervisor-review"),
+
+  pendingRouteReview: () =>
+    api.get<ProductionOrderListItem[]>("/orders/pending-route-review"),
+
+  supervisorApprove: (orderId: number, data: SupervisorDecisionRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/supervisor/approve`, data),
+
+  supervisorReject: (orderId: number, data: SupervisorDecisionRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/supervisor/reject`, data),
+
+  validateRoute: (orderId: number, data: SupervisorRouteReviewRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/route/validate`, data),
+
+  adjustRoute: (orderId: number, data: SupervisorRouteReviewRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/route/adjust`, data),
+
+  reopenRoute: (orderId: number, data: SupervisorRouteReviewRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/route/reopen`, data),
+
+  reworkRequest: (orderId: number, lineId: number, stepId: number, data: ReworkRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/request`, data),
+
+  reworkApprove: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/approve`, data),
+
+  reworkStart: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/start`, data),
+
+  reworkSubmitVerification: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/submit-verification`, data),
+
+  reworkClose: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/close`, data),
 };
 
 export const orderLinesApi = {

@@ -15,6 +15,9 @@ import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { TransportationBoardPage } from "./pages/TransportationBoardPage";
 import { ProductionPage } from "./pages/ProductionPage";
 import { ProductionOrderPage } from "./pages/ProductionOrderPage";
+import { ReceivingPage } from "./pages/ReceivingPage";
+import { InvoicingPage } from "./pages/InvoicingPage";
+import { OperatorWorkCenterConsolePage } from "./pages/OperatorWorkCenterConsolePage";
 
 export default function App() {
   return (
@@ -27,18 +30,18 @@ export default function App() {
             <Route path="orders/new" element={<OrderDetailPage />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
             <Route path="transportation" element={<TransportationBoardPage />} />
-            <Route path="receiving" element={<TransportationBoardPage />} />
+            <Route path="receiving" element={<ReceivingPage />} />
             <Route path="production" element={<ProductionPage />} />
             <Route path="production/:id" element={<ProductionOrderPage />} />
             <Route path="shipping" element={<TransportationBoardPage />} />
-            <Route path="invoicing" element={<OrderListPage />} />
+            <Route path="invoicing" element={<InvoicingPage />} />
             <Route path="customers" element={<CustomerListPage />} />
             <Route path="customers/new" element={<NewCustomerPage />} />
             <Route path="customers/:id" element={<CustomerDetailPage />} />
             <Route path="items" element={<ItemListPage />} />
             <Route path="items/new" element={<NewItemPage />} />
             <Route path="items/:id" element={<ItemDetailPage />} />
-            <Route path="orderboard" element={<PlaceholderPage title="Order Board" />} />
+            <Route path="orderboard" element={<OperatorWorkCenterConsolePage />} />
             <Route path="contacts/*" element={<PlaceholderPage title="Contacts" />} />
             <Route path="setup/*" element={<PlaceholderPage title="Setup" />} />
           </Route>
