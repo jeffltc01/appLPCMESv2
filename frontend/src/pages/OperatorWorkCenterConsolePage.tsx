@@ -20,6 +20,10 @@ export function OperatorWorkCenterConsolePage() {
   const [selected, setSelected] = useState<WorkCenterQueueItem | null>(null);
   const [routeExecution, setRouteExecution] = useState<OrderRouteExecution | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [supervisorOverrideEmpNo, setSupervisorOverrideEmpNo] = useState("");
+  const [supervisorOverrideReason, setSupervisorOverrideReason] = useState("");
+  const [serialLoadVerified, setSerialLoadVerified] = useState(false);
+  const [verifiedSerialNosCsv, setVerifiedSerialNosCsv] = useState("");
 
   const loadQueue = useCallback(async () => {
     const id = Number(workCenterId);
@@ -62,9 +66,13 @@ export function OperatorWorkCenterConsolePage() {
     [routeExecution, selected]
   );
 
-  const performAction = async (action: "scanIn" | "scanOut" | "complete") => {
+  const performAction = async (action: "scanIn" | "scanOut" | "verifySerials" | "generatePackingSlip" | "generateBol" | "complete") => {
     if (!selected) return;
     try {
+      const verifiedSerialNos = verifiedSerialNosCsv
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
       if (action === "scanIn") {
         await ordersApi.scanIn(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: "OP001",
@@ -75,10 +83,32 @@ export function OperatorWorkCenterConsolePage() {
           empNo: "OP001",
           deviceId: "UI",
         });
+      } else if (action === "verifySerials") {
+        await ordersApi.verifySerialLoad(selected.orderId, selected.lineId, selected.stepInstanceId, {
+          empNo: "OP001",
+          verifiedSerialNos,
+          notes: "Verified from operator console",
+        });
+      } else if (action === "generatePackingSlip") {
+        await ordersApi.generatePackingSlip(selected.orderId, selected.lineId, selected.stepInstanceId, {
+          empNo: "OP001",
+          regenerate: false,
+          notes: "Generated from operator console",
+        });
+      } else if (action === "generateBol") {
+        await ordersApi.generateBol(selected.orderId, selected.lineId, selected.stepInstanceId, {
+          empNo: "OP001",
+          regenerate: false,
+          notes: "Generated from operator console",
+        });
       } else {
         await ordersApi.completeStep(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: "OP001",
           notes: "Completed from operator console",
+          supervisorOverrideEmpNo: supervisorOverrideEmpNo || null,
+          supervisorOverrideReason: supervisorOverrideReason || null,
+          serialLoadVerified,
+          verifiedSerialNos: verifiedSerialNos.length > 0 ? verifiedSerialNos : null,
         });
       }
 
@@ -134,9 +164,36 @@ export function OperatorWorkCenterConsolePage() {
                 <Body1>Order: {selected.salesOrderNo}</Body1>
                 <Body1>Step: {selected.stepCode} - {selected.stepName}</Body1>
                 <Body1>Current State: {selectedStep?.state ?? selected.stepState}</Body1>
+                <Field label="Supervisor override emp no (optional)">
+                  <Input
+                    value={supervisorOverrideEmpNo}
+                    onChange={(_, data) => setSupervisorOverrideEmpNo(data.value)}
+                  />
+                </Field>
+                <Field label="Supervisor override reason (optional)">
+                  <Input
+                    value={supervisorOverrideReason}
+                    onChange={(_, data) => setSupervisorOverrideReason(data.value)}
+                  />
+                </Field>
+                <Field label="Verified serial numbers CSV (optional)">
+                  <Input
+                    value={verifiedSerialNosCsv}
+                    onChange={(_, data) => setVerifiedSerialNosCsv(data.value)}
+                  />
+                </Field>
+                <Button
+                  appearance={serialLoadVerified ? "primary" : "secondary"}
+                  onClick={() => setSerialLoadVerified((prev) => !prev)}
+                >
+                  Serial Load Verified: {serialLoadVerified ? "Yes" : "No"}
+                </Button>
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <Button onClick={() => performAction("scanIn")}>Scan In</Button>
                   <Button onClick={() => performAction("scanOut")}>Scan Out</Button>
+                  <Button onClick={() => performAction("verifySerials")}>Verify Serials</Button>
+                  <Button onClick={() => performAction("generatePackingSlip")}>Generate Packing Slip</Button>
+                  <Button onClick={() => performAction("generateBol")}>Generate BOL</Button>
                   <Button appearance="primary" onClick={() => performAction("complete")}>
                     Complete
                   </Button>

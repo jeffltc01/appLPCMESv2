@@ -519,7 +519,23 @@ public record OperatorScanInDto(string EmpNo, string? DeviceId);
 
 public record OperatorScanOutDto(string EmpNo, string? DeviceId);
 
-public record CompleteWorkCenterStepDto(string EmpNo, string? Notes);
+public record CompleteWorkCenterStepDto(
+    string EmpNo,
+    string? Notes,
+    string? SupervisorOverrideEmpNo = null,
+    string? SupervisorOverrideReason = null,
+    bool? SerialLoadVerified = null,
+    List<string>? VerifiedSerialNos = null);
+
+public record VerifySerialLoadDto(
+    string EmpNo,
+    List<string> VerifiedSerialNos,
+    string? Notes = null);
+
+public record GenerateStepDocumentDto(
+    string EmpNo,
+    bool Regenerate = false,
+    string? Notes = null);
 
 public record StepMaterialUsageCreateDto(int PartItemId, decimal QuantityUsed, string? Uom, string RecordedByEmpNo);
 

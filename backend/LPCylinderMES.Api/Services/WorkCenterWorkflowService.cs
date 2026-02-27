@@ -2,13 +2,15 @@ using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.DTOs;
 using LPCylinderMES.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace LPCylinderMES.Api.Services;
 
 public class WorkCenterWorkflowService(
     LpcAppsDbContext db,
     IOrderPolicyService orderPolicyService,
-    IOrderWorkflowService? orderWorkflowService = null) : IWorkCenterWorkflowService
+    IOrderWorkflowService? orderWorkflowService = null,
+    IAttachmentStorage? attachmentStorage = null) : IWorkCenterWorkflowService
 {
     private static readonly Dictionary<string, string[]> ReworkStateTransitions = new(StringComparer.Ordinal)
     {
@@ -21,6 +23,8 @@ public class WorkCenterWorkflowService(
         ["Scrapped"] = [],
     };
     private readonly IOrderWorkflowService? _orderWorkflowService = orderWorkflowService;
+    private readonly IAttachmentStorage? _attachmentStorage = attachmentStorage;
+    private readonly StepCompletionValidationService _stepCompletionValidationService = new(db);
 
     public async Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default)
     {
@@ -155,10 +159,107 @@ public class WorkCenterWorkflowService(
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
     }
 
+    public async Task<OrderRouteExecutionDto> VerifySerialLoadAsync(int orderId, int lineId, long stepId, VerifySerialLoadDto dto, CancellationToken cancellationToken = default)
+    {
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        if (!step.RequiresSerialLoadVerification)
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Serial load verification is not required for this step.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.EmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EmpNo is required.");
+        }
+
+        var expectedSerials = await db.SalesOrderDetailSns
+            .Where(sn => sn.SalesOrderDetailId == lineId && !sn.Scrapped)
+            .Select(sn => sn.SerialNumber)
+            .ToListAsync(cancellationToken);
+        var expectedSet = expectedSerials
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var providedSet = dto.VerifiedSerialNos
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (providedSet.Count == 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "At least one verified serial number is required.");
+        }
+        if (expectedSet.Count > 0 && !expectedSet.SetEquals(providedSet))
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Verified loaded serials must match expected shipped serials.");
+        }
+
+        await AddActivityAsync(
+            step,
+            dto.EmpNo,
+            "SerialLoadVerified",
+            null,
+            $"serials={string.Join(",", providedSet.OrderBy(s => s, StringComparer.OrdinalIgnoreCase))};note={dto.Notes}",
+            cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<OrderRouteExecutionDto> GeneratePackingSlipAsync(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto, CancellationToken cancellationToken = default)
+    {
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        var order = step.OrderLineRouteInstance.SalesOrder;
+        if (string.IsNullOrWhiteSpace(dto.EmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EmpNo is required.");
+        }
+
+        var documentNo = BuildDocumentNumber("PS", order.SalesOrderNo, order.PackingSlipNo, dto.Regenerate);
+        var blobPath = await GenerateAndStoreDocumentAsync(
+            order,
+            lineId,
+            dto.EmpNo,
+            "PackingSlip",
+            documentNo,
+            dto.Notes,
+            cancellationToken);
+        order.PackingSlipNo = documentNo;
+        order.PackingSlipGeneratedUtc = DateTime.UtcNow;
+        order.PackingSlipDocumentUri = blobPath;
+        await AddActivityAsync(step, dto.EmpNo, "GeneratePackingSlip", null, dto.Notes, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<OrderRouteExecutionDto> GenerateBolAsync(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto, CancellationToken cancellationToken = default)
+    {
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        var order = step.OrderLineRouteInstance.SalesOrder;
+        if (string.IsNullOrWhiteSpace(dto.EmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EmpNo is required.");
+        }
+
+        var documentNo = BuildDocumentNumber("BOL", order.SalesOrderNo, order.BolNo, dto.Regenerate);
+        var blobPath = await GenerateAndStoreDocumentAsync(
+            order,
+            lineId,
+            dto.EmpNo,
+            "BillOfLading",
+            documentNo,
+            dto.Notes,
+            cancellationToken);
+        order.BolNo = documentNo;
+        order.BolGeneratedUtc = DateTime.UtcNow;
+        order.BolDocumentUri = blobPath;
+        await AddActivityAsync(step, dto.EmpNo, "GenerateBol", null, dto.Notes, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
     public async Task<OrderRouteExecutionDto> CompleteStepAsync(int orderId, int lineId, long stepId, CompleteWorkCenterStepDto dto, CancellationToken cancellationToken = default)
     {
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
-        await ValidateStepCompletionAsync(step, cancellationToken);
+        await _stepCompletionValidationService.ValidateAsync(step, dto, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(step.State) || !string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase))
         {
@@ -479,45 +580,6 @@ public class WorkCenterWorkflowService(
         }
     }
 
-    private async Task ValidateStepCompletionAsync(OrderLineRouteStepInstance step, CancellationToken cancellationToken)
-    {
-        if (step.RequiresUsageEntry)
-        {
-            var hasUsage = await db.StepMaterialUsages.AnyAsync(u => u.OrderLineRouteStepInstanceId == step.Id, cancellationToken);
-            if (!hasUsage)
-            {
-                throw new ServiceException(StatusCodes.Status409Conflict, "Usage entry is required before completion.");
-            }
-        }
-
-        if (step.RequiresScrapEntry)
-        {
-            var hasScrap = await db.StepScrapEntries.AnyAsync(u => u.OrderLineRouteStepInstanceId == step.Id, cancellationToken);
-            if (!hasScrap)
-            {
-                throw new ServiceException(StatusCodes.Status409Conflict, "Scrap entry is required before completion.");
-            }
-        }
-
-        if (step.RequiresSerialCapture)
-        {
-            var hasSerials = await db.StepSerialCaptures.AnyAsync(u => u.OrderLineRouteStepInstanceId == step.Id, cancellationToken);
-            if (!hasSerials)
-            {
-                throw new ServiceException(StatusCodes.Status409Conflict, "Serial capture is required before completion.");
-            }
-        }
-
-        if (step.RequiresChecklistCompletion)
-        {
-            var hasChecklist = await db.StepChecklistResults.AnyAsync(u => u.OrderLineRouteStepInstanceId == step.Id, cancellationToken);
-            if (!hasChecklist)
-            {
-                throw new ServiceException(StatusCodes.Status409Conflict, "Checklist completion is required before completion.");
-            }
-        }
-    }
-
     private async Task UpdateRouteAndOrderCompletionAsync(long routeInstanceId, string actorEmpNo, CancellationToken cancellationToken)
     {
         var route = await db.OrderLineRouteInstances
@@ -600,5 +662,104 @@ public class WorkCenterWorkflowService(
             ActionUtc = DateTime.UtcNow,
         });
         await Task.CompletedTask;
+    }
+
+    private static string BuildDocumentNumber(string prefix, string salesOrderNo, string? existingNo, bool regenerate)
+    {
+        var baseNo = $"{prefix}-{salesOrderNo}";
+        if (string.IsNullOrWhiteSpace(existingNo))
+        {
+            return baseNo;
+        }
+
+        var current = existingNo.Trim();
+        if (!regenerate)
+        {
+            return current;
+        }
+
+        var marker = $"{baseNo}-R";
+        if (current.StartsWith(marker, StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(current[marker.Length..], out var currentRevision) &&
+            currentRevision >= 1)
+        {
+            return $"{baseNo}-R{currentRevision + 1}";
+        }
+
+        return $"{baseNo}-R1";
+    }
+
+    private async Task<string> GenerateAndStoreDocumentAsync(
+        SalesOrder order,
+        int lineId,
+        string actorEmpNo,
+        string category,
+        string documentNo,
+        string? notes,
+        CancellationToken cancellationToken)
+    {
+        var storage = _attachmentStorage
+            ?? throw new ServiceException(
+                StatusCodes.Status500InternalServerError,
+                "Attachment storage is not configured. Document generation is unavailable.");
+
+        var utcNow = DateTime.UtcNow;
+        var fileName = $"{documentNo}.txt";
+        var blobPath = $"orders/{order.Id}/generated/{Guid.NewGuid():N}-{fileName}";
+        var content = BuildDocumentText(order, lineId, documentNo, category, utcNow, actorEmpNo, notes);
+        var bytes = Encoding.UTF8.GetBytes(content);
+        await using (var stream = new MemoryStream(bytes))
+        {
+            await storage.UploadAsync(blobPath, stream, "text/plain", cancellationToken);
+        }
+
+        var attachment = new OrderAttachment
+        {
+            OrderId = order.Id,
+            FileName = fileName,
+            BlobPath = blobPath,
+            ContentType = "text/plain",
+            SizeBytes = bytes.LongLength,
+            Category = category,
+            UploadedByEmpNo = actorEmpNo,
+            UploadedUtc = utcNow,
+            CreatedAtUtc = utcNow,
+        };
+        db.OrderAttachments.Add(attachment);
+        db.OrderAttachmentAudits.Add(new OrderAttachmentAudit
+        {
+            OrderId = order.Id,
+            Attachment = attachment,
+            ActionType = "Generated",
+            ActingRole = "Production",
+            ActorEmpNo = actorEmpNo,
+            OccurredUtc = utcNow,
+            Details = $"category={category};documentNo={documentNo};lineId={lineId}",
+        });
+
+        return blobPath;
+    }
+
+    private static string BuildDocumentText(
+        SalesOrder order,
+        int lineId,
+        string documentNo,
+        string category,
+        DateTime generatedUtc,
+        string actorEmpNo,
+        string? notes)
+    {
+        return string.Join(
+            Environment.NewLine,
+            $"{category} Document",
+            $"DocumentNo: {documentNo}",
+            $"SalesOrderId: {order.Id}",
+            $"SalesOrderNo: {order.SalesOrderNo}",
+            $"LineId: {lineId}",
+            $"CustomerId: {order.CustomerId}",
+            $"SiteId: {order.SiteId}",
+            $"GeneratedUtc: {generatedUtc:O}",
+            $"GeneratedByEmpNo: {actorEmpNo}",
+            $"Notes: {notes ?? string.Empty}");
     }
 }

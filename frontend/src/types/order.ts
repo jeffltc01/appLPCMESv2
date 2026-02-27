@@ -891,6 +891,22 @@ export interface OperatorScanOutRequest {
 export interface CompleteWorkCenterStepRequest {
   empNo: string;
   notes?: string | null;
+  supervisorOverrideEmpNo?: string | null;
+  supervisorOverrideReason?: string | null;
+  serialLoadVerified?: boolean | null;
+  verifiedSerialNos?: string[] | null;
+}
+
+export interface VerifySerialLoadRequest {
+  empNo: string;
+  verifiedSerialNos: string[];
+  notes?: string | null;
+}
+
+export interface GenerateStepDocumentRequest {
+  empNo: string;
+  regenerate?: boolean;
+  notes?: string | null;
 }
 
 export interface StepMaterialUsageCreateRequest {

@@ -629,6 +629,45 @@ public class OrdersController(
         }
     }
 
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/loading/verify-serials")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> VerifySerialLoad(int orderId, int lineId, long stepId, VerifySerialLoadDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.VerifySerialLoadAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/loading/generate-packing-slip")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> GeneratePackingSlip(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.GeneratePackingSlipAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/loading/generate-bol")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> GenerateBol(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.GenerateBolAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/complete")]
     public async Task<ActionResult<OrderRouteExecutionDto>> CompleteWorkCenterStep(int orderId, int lineId, long stepId, CompleteWorkCenterStepDto dto)
     {

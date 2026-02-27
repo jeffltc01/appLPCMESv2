@@ -10,6 +10,9 @@ public interface IWorkCenterWorkflowService
     Task<OrderRouteExecutionDto> AddScrapAsync(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddSerialAsync(int orderId, int lineId, long stepId, StepSerialCaptureCreateDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddChecklistAsync(int orderId, int lineId, long stepId, StepChecklistResultCreateDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> VerifySerialLoadAsync(int orderId, int lineId, long stepId, VerifySerialLoadDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> GeneratePackingSlipAsync(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> GenerateBolAsync(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> CompleteStepAsync(int orderId, int lineId, long stepId, CompleteWorkCenterStepDto dto, CancellationToken cancellationToken = default);
     Task<List<WorkCenterQueueItemDto>> GetQueueAsync(int workCenterId, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> GetOrderRouteExecutionAsync(int orderId, int? lineId = null, CancellationToken cancellationToken = default);

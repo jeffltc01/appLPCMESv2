@@ -35,6 +35,8 @@ import type {
   OperatorScanInRequest,
   OperatorScanOutRequest,
   CompleteWorkCenterStepRequest,
+  VerifySerialLoadRequest,
+  GenerateStepDocumentRequest,
   StepMaterialUsageCreateRequest,
   StepScrapEntryCreateRequest,
   StepSerialCaptureCreateRequest,
@@ -469,6 +471,15 @@ export const ordersApi = {
 
   addStepChecklist: (orderId: number, lineId: number, stepId: number, data: StepChecklistResultCreateRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/checklist`, data),
+
+  verifySerialLoad: (orderId: number, lineId: number, stepId: number, data: VerifySerialLoadRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/loading/verify-serials`, data),
+
+  generatePackingSlip: (orderId: number, lineId: number, stepId: number, data: GenerateStepDocumentRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/loading/generate-packing-slip`, data),
+
+  generateBol: (orderId: number, lineId: number, stepId: number, data: GenerateStepDocumentRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/loading/generate-bol`, data),
 
   completeStep: (orderId: number, lineId: number, stepId: number, data: CompleteWorkCenterStepRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/complete`, data),
