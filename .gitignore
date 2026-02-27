@@ -34,3 +34,4 @@ desktop.ini
 *.log
 backend/LPCylinderMES.Api/_temp_build/
 backend/_testbin/
+backend/_buildcheck/
