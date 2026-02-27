@@ -19,7 +19,7 @@ import {
 } from "@fluentui/react-components";
 import { Add24Regular, Search24Regular } from "@fluentui/react-icons";
 import { ordersApi, orderLookupsApi } from "../services/orders";
-import type { OrderDraftListItem } from "../types/order";
+import { ORDER_STATUS_KEYS, type OrderDraftListItem } from "../types/order";
 import type { Lookup, PaginatedResponse } from "../types/customer";
 
 const useStyles = makeStyles({
@@ -86,7 +86,10 @@ export function OrderListPage() {
   const [page, setPage] = useState(1);
   const [customers, setCustomers] = useState<Lookup[]>([]);
   const statusFilter = searchParams.get("status")?.trim()
-    || (location.pathname.startsWith("/invoicing") ? "Ready to Invoice" : "New");
+    ||
+    (location.pathname.startsWith("/invoicing")
+      ? ORDER_STATUS_KEYS.READY_TO_INVOICE
+      : ORDER_STATUS_KEYS.NEW);
 
   useEffect(() => {
     orderLookupsApi.activeCustomers().then(setCustomers);
@@ -200,7 +203,7 @@ export function OrderListPage() {
                 <TableRow
                   key={order.id}
                   className={styles.tableRow}
-                  onClick={() => navigate(`/orders/${order.id}`)}
+                  onClick={() => navigate(`/orders/${order.id}/workspace`)}
                 >
                   <TableCell>{order.salesOrderNo}</TableCell>
                   <TableCell>{order.orderDate}</TableCell>

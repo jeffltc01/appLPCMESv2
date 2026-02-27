@@ -19,6 +19,39 @@ export type OrderWorkflowStatus =
   | "InvoiceReady"
   | "Invoiced";
 
+export type OrderWorkspaceRole =
+  | "Office"
+  | "Transportation"
+  | "Receiving"
+  | "Production"
+  | "Supervisor"
+  | "Quality"
+  | "Admin"
+  | "PlantManager";
+
+export type HoldOverlayType =
+  | "OnHoldCustomer"
+  | "OnHoldQuality"
+  | "OnHoldLogistics"
+  | "ExceptionQuantityMismatch"
+  | "ExceptionDocumentation"
+  | "Cancelled"
+  | "ReworkOpen";
+
+export type OrderWorkspaceAction =
+  | "advanceInboundPlan"
+  | "advanceInboundTransit"
+  | "markReceived"
+  | "markReadyForProduction"
+  | "startProduction"
+  | "markProductionComplete"
+  | "planOutbound"
+  | "markDispatchedOrReleased"
+  | "openInvoiceWizard"
+  | "markInvoiced"
+  | "applyHold"
+  | "uploadAttachment";
+
 export interface OrderStatusMetadata {
   key: OrderWorkflowStatus;
   displayLabel: string;
@@ -200,6 +233,11 @@ export interface OrderDraftListItem {
   contact: string | null;
   lineCount: number;
   totalOrderedQuantity: number;
+  orderLifecycleStatus?: string | null;
+  holdOverlay?: HoldOverlayType | null;
+  statusOwnerRole?: string | null;
+  promisedDateUtc?: string | null;
+  currentCommittedDateUtc?: string | null;
 }
 
 export interface OrderLine {
@@ -255,6 +293,16 @@ export interface OrderDraftDetail {
   returnScrap: number | null;
   returnBrass: number | null;
   lines: OrderLine[];
+  orderLifecycleStatus?: string | null;
+  holdOverlay?: HoldOverlayType | null;
+  statusOwnerRole?: string | null;
+  statusReasonCode?: string | null;
+  statusNote?: string | null;
+  requestedDateUtc?: string | null;
+  promisedDateUtc?: string | null;
+  currentCommittedDateUtc?: string | null;
+  hasOpenRework?: boolean;
+  reworkBlockingInvoice?: boolean;
 }
 
 export interface OrderDraftCreate {
@@ -546,6 +594,13 @@ export interface SubmitInvoiceRequest {
   attachmentSkipReason?: string | null;
   correlationId?: string | null;
   submittedByEmpNo?: string | null;
+}
+
+export interface OrderLifecycleMigrationResult {
+  totalOrdersScanned: number;
+  ordersAlreadyInitialized: number;
+  ordersUpdated: number;
+  dryRun: boolean;
 }
 
 export interface WorkCenterQueueItem {

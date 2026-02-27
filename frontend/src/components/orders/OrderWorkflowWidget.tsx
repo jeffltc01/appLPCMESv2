@@ -4,6 +4,12 @@ import {
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
+import {
+  ORDER_STATUS_METADATA,
+  getOrderStatusActorHint,
+  getOrderStatusDisplayLabel,
+  type OrderWorkflowStatus,
+} from "../../types/order";
 
 interface WorkflowDates {
   orderCreatedDate: string;
@@ -23,32 +29,40 @@ interface WorkflowWidgetProps {
 }
 
 type WorkflowStep = {
-  key: string;
+  key: OrderWorkflowStatus;
   label: string;
   getDate: (dates: WorkflowDates) => string | null;
 };
 
 const WORKFLOW_STEPS: WorkflowStep[] = [
-  { key: "New", label: "New", getDate: (d) => d.orderCreatedDate },
+  {
+    key: "New",
+    label: ORDER_STATUS_METADATA.New.displayLabel,
+    getDate: (d) => d.orderCreatedDate,
+  },
   {
     key: "Ready for Pickup",
-    label: "Ready for Pickup",
+    label: ORDER_STATUS_METADATA["Ready for Pickup"].displayLabel,
     getDate: (d) => d.readyForPickupDate,
   },
   {
     key: "Pickup Scheduled",
-    label: "Pickup Scheduled",
+    label: ORDER_STATUS_METADATA["Pickup Scheduled"].displayLabel,
     getDate: (d) => d.pickupScheduledDate,
   },
-  { key: "Received", label: "Received", getDate: (d) => d.receivedDate },
+  {
+    key: "Received",
+    label: ORDER_STATUS_METADATA.Received.displayLabel,
+    getDate: (d) => d.receivedDate,
+  },
   {
     key: "Ready to Ship",
-    label: "Ready to Ship",
+    label: ORDER_STATUS_METADATA["Ready to Ship"].displayLabel,
     getDate: (d) => d.readyToShipDate,
   },
   {
     key: "Ready to Invoice",
-    label: "Ready to Invoice",
+    label: ORDER_STATUS_METADATA["Ready to Invoice"].displayLabel,
     getDate: (d) => d.readyToInvoiceDate,
   },
 ];
@@ -170,13 +184,23 @@ export function OrderWorkflowWidget({
   isAdvancing = false,
 }: WorkflowWidgetProps) {
   const styles = useStyles();
+  const normalizedStatus = currentStatus ?? "";
+  const currentHint = getOrderStatusActorHint(normalizedStatus);
   const currentIdx = WORKFLOW_STEPS.findIndex((s) => s.key === currentStatus);
 
   return (
     <div className={styles.container}>
       {currentIdx < 0 && currentStatus ? (
         <div className={styles.header}>
-          <Caption1 className={styles.unknown}>Unknown status: {currentStatus}</Caption1>
+          <Caption1 className={styles.unknown}>
+            Unknown status: {getOrderStatusDisplayLabel(currentStatus)}
+          </Caption1>
+        </div>
+      ) : null}
+      {currentIdx >= 0 && currentStatus ? (
+        <div className={styles.header}>
+          <Caption1>{getOrderStatusDisplayLabel(currentStatus)}</Caption1>
+          {currentHint ? <Caption1 className={styles.upcomingText}>{currentHint}</Caption1> : null}
         </div>
       ) : null}
 
@@ -197,7 +221,7 @@ export function OrderWorkflowWidget({
             <div
               className={`${styles.step} ${isClickable ? styles.stepClickable : ""}`}
               key={step.key}
-              onClick={isClickable ? () => onAdvanceStatus?.(step.key) : undefined}
+              onClick={isClickable ? () => onAdvanceStatus?.(step.key as string) : undefined}
             >
               <div
                 className={`${styles.marker} ${isCurrent ? styles.markerCurrent : ""} ${

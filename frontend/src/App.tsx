@@ -18,6 +18,8 @@ import { ProductionOrderPage } from "./pages/ProductionOrderPage";
 import { ReceivingPage } from "./pages/ReceivingPage";
 import { InvoicingPage } from "./pages/InvoicingPage";
 import { OperatorWorkCenterConsolePage } from "./pages/OperatorWorkCenterConsolePage";
+import { OrderWorkspacePage } from "./pages/OrderWorkspacePage";
+import { OrderBoardPage } from "./pages/OrderBoardPage";
 
 export default function App() {
   return (
@@ -29,6 +31,7 @@ export default function App() {
             <Route path="orders" element={<OrderListPage />} />
             <Route path="orders/new" element={<OrderDetailPage />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
+            <Route path="orders/:id/workspace" element={<OrderWorkspacePage />} />
             <Route path="transportation" element={<TransportationBoardPage />} />
             <Route path="receiving" element={<ReceivingPage />} />
             <Route path="production" element={<ProductionPage />} />
@@ -41,7 +44,8 @@ export default function App() {
             <Route path="items" element={<ItemListPage />} />
             <Route path="items/new" element={<NewItemPage />} />
             <Route path="items/:id" element={<ItemDetailPage />} />
-            <Route path="orderboard" element={<OperatorWorkCenterConsolePage />} />
+            <Route path="orderboard" element={<OrderBoardPage />} />
+            <Route path="operator-console" element={<OperatorWorkCenterConsolePage />} />
             <Route path="contacts/*" element={<PlaceholderPage title="Contacts" />} />
             <Route path="setup/*" element={<PlaceholderPage title="Setup" />} />
           </Route>

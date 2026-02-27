@@ -612,7 +612,7 @@ describe("ProductionOrderPage", () => {
     fireEvent.click(screen.getByTestId("serial-card-delete-101-1"));
     expect(await screen.findByText("Delete Serial Number")).toBeInTheDocument();
     expect(screen.getByText('Are you sure you want to delete serial "SN-002"?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByText("Delete"));
     await waitFor(() => {
       expect(screen.queryByText("SN-002")).not.toBeInTheDocument();
     });

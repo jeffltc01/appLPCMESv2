@@ -40,6 +40,7 @@ import type {
   ProductionOrderDetail,
   ProductionSerialNumberUpsert,
 } from "../types/order";
+import { getOrderStatusDisplayLabel } from "../types/order";
 import type { Lookup } from "../types/customer";
 import { OrderWorkflowWidget } from "../components/orders/OrderWorkflowWidget";
 
@@ -697,7 +698,7 @@ export function ProductionOrderPage() {
           onClick={() => navigate("/production")}
         />
         <div className={styles.titleWrap}>
-          <Title2>{`${detail.salesOrderNo} (${detail.orderStatus})`}</Title2>
+          <Title2>{`${detail.salesOrderNo} (${getOrderStatusDisplayLabel(detail.orderStatus)})`}</Title2>
         </div>
       </div>
 

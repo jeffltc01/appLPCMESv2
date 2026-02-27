@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { OrderListPage } from "./OrderListPage";
+import { ORDER_STATUS_KEYS } from "../types/order";
 
 const ordersApiMock = vi.hoisted(() => ({
   list: vi.fn(),
@@ -20,7 +21,7 @@ describe("OrderListPage", () => {
     vi.clearAllMocks();
   });
 
-  it("loads orders and opens selected order detail", async () => {
+  it("loads orders and opens selected order workspace", async () => {
     orderLookupsApiMock.activeCustomers.mockResolvedValue([
       { id: 12, name: "Acme" },
     ]);
@@ -50,19 +51,19 @@ describe("OrderListPage", () => {
       <MemoryRouter initialEntries={["/orders"]}>
         <Routes>
           <Route path="/orders" element={<OrderListPage />} />
-          <Route path="/orders/:id" element={<div>Order Detail Screen</div>} />
+          <Route path="/orders/:id/workspace" element={<div>Order Workspace Screen</div>} />
         </Routes>
       </MemoryRouter>
     );
 
     await waitFor(() => expect(ordersApiMock.list).toHaveBeenCalled());
     expect(ordersApiMock.list).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "New" })
+      expect.objectContaining({ status: ORDER_STATUS_KEYS.NEW })
     );
     expect(screen.getByText("SO-0099")).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("SO-0099"));
-    expect(screen.getByText("Order Detail Screen")).toBeInTheDocument();
+    expect(screen.getByText("Order Workspace Screen")).toBeInTheDocument();
   });
 
   it("applies Ready to Invoice filter on invoicing route", async () => {
@@ -84,7 +85,7 @@ describe("OrderListPage", () => {
 
     await waitFor(() => expect(ordersApiMock.list).toHaveBeenCalled());
     expect(ordersApiMock.list).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "Ready to Invoice" })
+      expect.objectContaining({ status: ORDER_STATUS_KEYS.READY_TO_INVOICE })
     );
   });
 });

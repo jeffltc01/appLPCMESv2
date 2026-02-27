@@ -17,6 +17,7 @@ import {
   Board24Regular,
   Settings24Regular,
 } from "@fluentui/react-icons";
+import { ORDER_STATUS_KEYS } from "../../types/order";
 
 interface NavItem {
   key: string;
@@ -33,7 +34,7 @@ const navItems: NavItem[] = [
     label: "Orders",
     icon: <ClipboardTask24Regular />,
     path: "/orders",
-    navigateTo: "/orders?status=New",
+    navigateTo: `/orders?status=${encodeURIComponent(ORDER_STATUS_KEYS.NEW)}`,
   },
   {
     key: "receiving",
@@ -58,7 +59,7 @@ const navItems: NavItem[] = [
     label: "Invoicing",
     icon: <Receipt24Regular />,
     path: "/invoicing",
-    navigateTo: "/invoicing?status=Ready%20to%20Invoice",
+    navigateTo: `/invoicing?status=${encodeURIComponent(ORDER_STATUS_KEYS.READY_TO_INVOICE)}`,
   },
   {
     key: "customers",
@@ -68,7 +69,7 @@ const navItems: NavItem[] = [
   },
   {
     key: "orderboard",
-    label: "Order Board",
+    label: "Role Queue",
     icon: <Board24Regular />,
     path: "/orderboard",
   },

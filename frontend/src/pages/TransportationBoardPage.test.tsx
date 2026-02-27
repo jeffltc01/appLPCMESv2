@@ -97,6 +97,7 @@ describe("TransportationBoardPage", () => {
 
     await waitFor(() => expect(ordersApiMock.transportBoard).toHaveBeenCalled());
     expect(screen.getAllByText("SO-42").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Awaiting Pickup Scheduling").length).toBeGreaterThan(0);
 
     const textareas = container.querySelectorAll("textarea");
     expect(textareas.length).toBeGreaterThan(0);

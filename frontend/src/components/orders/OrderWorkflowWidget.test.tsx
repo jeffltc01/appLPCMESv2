@@ -41,9 +41,9 @@ describe("OrderWorkflowWidget", () => {
       />
     );
 
-    getByText("Pickup Scheduled").click();
-    getByText("Ready to Ship").click();
-    getByText("New").click();
+    getByText("Pickup Scheduled / Awaiting Arrival").click();
+    getByText("Awaiting Delivery Scheduling").click();
+    getByText("Needs Order Info").click();
 
     expect(onAdvanceStatus).toHaveBeenCalledTimes(2);
     expect(onAdvanceStatus).toHaveBeenNthCalledWith(1, "Pickup Scheduled");

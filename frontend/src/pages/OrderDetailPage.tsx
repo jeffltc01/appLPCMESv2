@@ -48,6 +48,7 @@ import type {
   OrderDraftUpdate,
   OrderLine,
 } from "../types/order";
+import { ORDER_STATUS_KEYS, getOrderStatusDisplayLabel } from "../types/order";
 import type { Lookup, SalesPersonLookup } from "../types/customer";
 import { OrderLineDialog } from "../components/orders/OrderLineDialog";
 import { OrderWorkflowWidget } from "../components/orders/OrderWorkflowWidget";
@@ -404,7 +405,10 @@ export function OrderDetailPage() {
       const updated = await ordersApi.advanceStatus(order.id, targetStatus);
       setOrder(updated);
       populateForm(updated);
-      setSaveMsg({ type: "success", text: `Order moved to ${updated.orderStatus}.` });
+      setSaveMsg({
+        type: "success",
+        text: `Order moved to ${getOrderStatusDisplayLabel(updated.orderStatus)}.`,
+      });
     } catch (err) {
       const apiError = err as ApiError;
       const body = apiError.body as { message?: string } | undefined;
@@ -456,7 +460,7 @@ export function OrderDetailPage() {
           <Title2>
             {isNew
               ? "New Draft Order"
-              : `${order?.salesOrderNo ?? ""} (${order?.orderStatus ?? "New"})`}
+              : `${order?.salesOrderNo ?? ""} (${getOrderStatusDisplayLabel(order?.orderStatus ?? ORDER_STATUS_KEYS.NEW)})`}
           </Title2>
         </div>
         <Button
@@ -467,6 +471,11 @@ export function OrderDetailPage() {
         >
           {saving ? "Saving..." : "Save"}
         </Button>
+        {!isNew && order ? (
+          <Button appearance="secondary" onClick={() => navigate(`/orders/${order.id}/workspace`)}>
+            Open Workspace
+          </Button>
+        ) : null}
       </div>
 
       {saveMsg && (
@@ -479,7 +488,7 @@ export function OrderDetailPage() {
       )}
 
       <OrderWorkflowWidget
-        currentStatus={isNew ? "New" : order?.orderStatus}
+        currentStatus={isNew ? ORDER_STATUS_KEYS.NEW : order?.orderStatus}
         dates={{
           orderCreatedDate: isNew
             ? orderDate
@@ -880,8 +889,9 @@ export function OrderDetailPage() {
             <DialogTitle>Advance Workflow Status</DialogTitle>
             <DialogContent>
               <Body1>
-                Move this order from <strong>{order?.orderStatus ?? "New"}</strong> to{" "}
-                <strong>{pendingAdvanceStatus ?? ""}</strong>?
+                Move this order from{" "}
+                <strong>{getOrderStatusDisplayLabel(order?.orderStatus ?? ORDER_STATUS_KEYS.NEW)}</strong> to{" "}
+                <strong>{getOrderStatusDisplayLabel(pendingAdvanceStatus ?? "")}</strong>?
               </Body1>
             </DialogContent>
             <DialogActions>

@@ -38,6 +38,7 @@ import type {
   ReceivingOrderDetail,
   ReceivingOrderListItem,
 } from "../types/order";
+import { getOrderStatusDisplayLabel } from "../types/order";
 
 const useStyles = makeStyles({
   page: {
@@ -524,7 +525,10 @@ export function ReceivingPage() {
     setMsg(null);
     try {
       await ordersApi.completeReceiving(detail.id, payload);
-      setMsg({ type: "success", text: `Order ${detail.salesOrderNo} marked as Received.` });
+      setMsg({
+        type: "success",
+        text: `Order ${detail.salesOrderNo} marked as ${getOrderStatusDisplayLabel("Received")}.`,
+      });
       const refreshedQueue = await ordersApi.receivingList();
       setOrders(refreshedQueue);
       setSelectedId(refreshedQueue[0]?.id ?? null);

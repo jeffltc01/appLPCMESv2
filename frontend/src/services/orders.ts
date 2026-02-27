@@ -21,6 +21,7 @@ import type {
   OrderAttachment,
   CompleteProductionRequest,
   SubmitInvoiceRequest,
+  OrderLifecycleMigrationResult,
   WorkCenterQueueItem,
   OrderRouteExecution,
   OperatorScanInRequest,
@@ -34,6 +35,9 @@ import type {
   SupervisorDecisionRequest,
   ReworkRequest,
   ReworkStateChangeRequest,
+  OrderWorkspaceAction,
+  OrderWorkspaceRole,
+  OrderWorkflowStatus,
 } from "../types/order";
 import type {
   Lookup,
@@ -41,6 +45,190 @@ import type {
   SalesPersonLookup,
 } from "../types/customer";
 import { ApiError } from "./api";
+
+const STATUS_SEQUENCE: OrderWorkflowStatus[] = [
+  "Draft",
+  "PendingOrderEntryValidation",
+  "InboundLogisticsPlanned",
+  "InboundInTransit",
+  "ReceivedPendingReconciliation",
+  "ReadyForProduction",
+  "InProduction",
+  "ProductionCompletePendingApproval",
+  "ProductionComplete",
+  "OutboundLogisticsPlanned",
+  "DispatchedOrPickupReleased",
+  "InvoiceReady",
+  "Invoiced",
+];
+
+const ROLE_ACTIONS: Record<OrderWorkspaceRole, Set<OrderWorkspaceAction>> = {
+  Office: new Set([
+    "advanceInboundPlan",
+    "openInvoiceWizard",
+    "markInvoiced",
+    "applyHold",
+    "uploadAttachment",
+  ]),
+  Transportation: new Set([
+    "advanceInboundPlan",
+    "advanceInboundTransit",
+    "planOutbound",
+    "markDispatchedOrReleased",
+    "applyHold",
+    "uploadAttachment",
+  ]),
+  Receiving: new Set(["markReceived", "markReadyForProduction", "uploadAttachment"]),
+  Production: new Set([
+    "startProduction",
+    "markProductionComplete",
+    "applyHold",
+    "uploadAttachment",
+  ]),
+  Supervisor: new Set(["markProductionComplete", "applyHold", "uploadAttachment"]),
+  Quality: new Set(["markProductionComplete", "applyHold", "uploadAttachment"]),
+  Admin: new Set([
+    "advanceInboundPlan",
+    "advanceInboundTransit",
+    "markReceived",
+    "markReadyForProduction",
+    "startProduction",
+    "markProductionComplete",
+    "planOutbound",
+    "markDispatchedOrReleased",
+    "openInvoiceWizard",
+    "markInvoiced",
+    "applyHold",
+    "uploadAttachment",
+  ]),
+  PlantManager: new Set([
+    "advanceInboundPlan",
+    "advanceInboundTransit",
+    "markReceived",
+    "markReadyForProduction",
+    "startProduction",
+    "markProductionComplete",
+    "planOutbound",
+    "markDispatchedOrReleased",
+    "openInvoiceWizard",
+    "markInvoiced",
+    "applyHold",
+    "uploadAttachment",
+  ]),
+};
+
+const ACTION_TO_STATUS: Partial<Record<OrderWorkspaceAction, OrderWorkflowStatus>> = {
+  advanceInboundPlan: "InboundLogisticsPlanned",
+  advanceInboundTransit: "InboundInTransit",
+  markReceived: "ReceivedPendingReconciliation",
+  markReadyForProduction: "ReadyForProduction",
+  startProduction: "InProduction",
+  markProductionComplete: "ProductionComplete",
+  planOutbound: "OutboundLogisticsPlanned",
+  markDispatchedOrReleased: "DispatchedOrPickupReleased",
+  markInvoiced: "Invoiced",
+};
+
+const ACTION_ALLOWED_STATUSES: Partial<Record<OrderWorkspaceAction, OrderWorkflowStatus[]>> = {
+  advanceInboundPlan: ["Draft", "PendingOrderEntryValidation"],
+  advanceInboundTransit: ["InboundLogisticsPlanned"],
+  markReceived: [
+    "Draft",
+    "PendingOrderEntryValidation",
+    "InboundLogisticsPlanned",
+    "InboundInTransit",
+  ],
+  markReadyForProduction: ["ReceivedPendingReconciliation"],
+  startProduction: ["ReadyForProduction"],
+  markProductionComplete: ["InProduction", "ProductionCompletePendingApproval"],
+  planOutbound: ["ProductionComplete"],
+  markDispatchedOrReleased: ["ProductionComplete", "OutboundLogisticsPlanned"],
+  openInvoiceWizard: ["DispatchedOrPickupReleased", "InvoiceReady"],
+  markInvoiced: ["InvoiceReady"],
+};
+
+export function getSuggestedWorkspaceActions(currentStatus: string): OrderWorkspaceAction[] {
+  const byStatus: Partial<Record<OrderWorkflowStatus, OrderWorkspaceAction[]>> = {
+    Draft: ["advanceInboundPlan", "markReceived"],
+    PendingOrderEntryValidation: ["advanceInboundPlan", "markReceived"],
+    InboundLogisticsPlanned: ["advanceInboundTransit", "markReceived"],
+    InboundInTransit: ["markReceived"],
+    ReceivedPendingReconciliation: ["markReadyForProduction"],
+    ReadyForProduction: ["startProduction"],
+    InProduction: ["markProductionComplete"],
+    ProductionCompletePendingApproval: ["markProductionComplete"],
+    ProductionComplete: ["planOutbound", "markDispatchedOrReleased"],
+    OutboundLogisticsPlanned: ["markDispatchedOrReleased"],
+    DispatchedOrPickupReleased: ["openInvoiceWizard"],
+    InvoiceReady: ["openInvoiceWizard", "markInvoiced"],
+    Invoiced: [],
+  };
+
+  const known = byStatus[currentStatus as OrderWorkflowStatus];
+  if (known) {
+    return [...known, "uploadAttachment", "applyHold"];
+  }
+  return ["uploadAttachment", "applyHold"];
+}
+
+export function getWorkspaceCurrentStatus(orderStatus: string | null | undefined): string {
+  if (!orderStatus) {
+    return "Draft";
+  }
+
+  const legacyToLifecycle: Record<string, string> = {
+    New: "Draft",
+    "Ready for Pickup": "InboundLogisticsPlanned",
+    "Pickup Scheduled": "InboundInTransit",
+    Received: "ReceivedPendingReconciliation",
+    "Ready to Ship": "ProductionComplete",
+    "Ready to Invoice": "InvoiceReady",
+  };
+
+  return legacyToLifecycle[orderStatus] ?? orderStatus;
+}
+
+export function getWorkspaceActionState(
+  role: OrderWorkspaceRole,
+  action: OrderWorkspaceAction,
+  currentStatus: string,
+  hasHoldOverlay: boolean,
+  overrideEnabled: boolean
+): { enabled: boolean; reason?: string; targetStatus?: OrderWorkflowStatus } {
+  if (!ROLE_ACTIONS[role].has(action) && !overrideEnabled) {
+    return { enabled: false, reason: "Role does not allow this action." };
+  }
+
+  if (hasHoldOverlay && action !== "applyHold" && !overrideEnabled) {
+    return { enabled: false, reason: "Hold overlay blocks forward transitions." };
+  }
+
+  const targetStatus = ACTION_TO_STATUS[action];
+  const allowedStatuses = ACTION_ALLOWED_STATUSES[action];
+  if (allowedStatuses && !allowedStatuses.includes(currentStatus as OrderWorkflowStatus) && !overrideEnabled) {
+    return { enabled: false, reason: "Action is not valid from current status.", targetStatus };
+  }
+
+  if (!targetStatus) {
+    return { enabled: true };
+  }
+
+  const currentIdx = STATUS_SEQUENCE.indexOf(currentStatus as OrderWorkflowStatus);
+  const targetIdx = STATUS_SEQUENCE.indexOf(targetStatus);
+  if (currentIdx === -1 || targetIdx === -1) {
+    return { enabled: overrideEnabled, reason: "Unknown lifecycle status.", targetStatus };
+  }
+
+  if (targetIdx < currentIdx && !overrideEnabled) {
+    return { enabled: false, reason: "Backwards transitions require override.", targetStatus };
+  }
+
+  if (targetIdx > currentIdx + 1 && !overrideEnabled) {
+    return { enabled: false, reason: "Guided mode only allows next-step progress.", targetStatus };
+  }
+
+  return { enabled: true, targetStatus };
+}
 
 export const ordersApi = {
   list: (params: OrderListParams = {}) => {
@@ -72,6 +260,12 @@ export const ordersApi = {
 
   submitInvoice: (id: number, data: SubmitInvoiceRequest) =>
     api.post<OrderDraftDetail>(`/orders/${id}/invoice/submit`, data),
+
+  migrateLifecycleStatuses: (dryRun: boolean) =>
+    api.post<OrderLifecycleMigrationResult>(
+      `/orders/migrate-lifecycle-statuses?dryRun=${dryRun ? "true" : "false"}`,
+      {}
+    ),
 
   transportBoard: (params: TransportBoardParams = {}) => {
     const qs = new URLSearchParams();

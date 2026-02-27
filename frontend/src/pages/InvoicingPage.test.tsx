@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { InvoicingPage } from "./InvoicingPage";
 
 const ordersApiMock = vi.hoisted(() => ({
@@ -16,7 +17,7 @@ describe("InvoicingPage", () => {
     vi.clearAllMocks();
   });
 
-  it("loads invoice-ready queue and submits invoice", async () => {
+  it("loads invoice-ready queue and submits invoice via wizard", async () => {
     ordersApiMock.list.mockResolvedValue({
       items: [
         {
@@ -38,16 +39,34 @@ describe("InvoicingPage", () => {
       pageSize: 200,
       totalCount: 1,
     });
-    ordersApiMock.attachments.mockResolvedValue([{ id: 11, orderId: 1 }]);
+    ordersApiMock.attachments.mockResolvedValue([
+      {
+        id: 11,
+        orderId: 1,
+        fileName: "PackingSlip.pdf",
+        contentType: "application/pdf",
+        sizeBytes: 32,
+        createdAtUtc: "2026-02-27T12:00:00Z",
+      },
+    ]);
     ordersApiMock.submitInvoice.mockResolvedValue({});
 
-    render(<InvoicingPage />);
+    render(
+      <MemoryRouter>
+        <InvoicingPage />
+      </MemoryRouter>
+    );
     await waitFor(() => expect(ordersApiMock.list).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByLabelText("Final office review completed"));
+    fireEvent.click(screen.getByLabelText("Required paperwork is present"));
+    fireEvent.click(screen.getByLabelText("Quantity and pricing reviewed"));
+    fireEvent.click(screen.getByLabelText("Customer and billing details reviewed"));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Attachments" }));
+
     fireEvent.change(screen.getByRole("textbox", { name: "Skip reason" }), {
       target: { value: "No attachments required by customer" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Continue to Submit" }));
     fireEvent.click(screen.getByRole("button", { name: "Submit Invoice" }));
 
     await waitFor(() => expect(ordersApiMock.submitInvoice).toHaveBeenCalled());

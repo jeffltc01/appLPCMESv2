@@ -32,6 +32,11 @@ import type {
   TransportBoardUpdate,
   TransportBoardParams,
 } from "../types/order";
+import {
+  ORDER_STATUS_KEYS,
+  getOrderStatusDisplayLabel,
+  type OrderWorkflowStatus,
+} from "../types/order";
 import type { Lookup, PaginatedResponse } from "../types/customer";
 import { ApiError } from "../services/api";
 
@@ -791,11 +796,17 @@ export function TransportationBoardPage() {
   };
 
   const getNextStatusAction = (orderStatus: string) => {
-    if (orderStatus === "Ready for Pickup") {
-      return { label: "Set Pickup Scheduled", targetStatus: "Pickup Scheduled" };
+    if (orderStatus === ORDER_STATUS_KEYS.READY_FOR_PICKUP) {
+      return {
+        label: "Mark Pickup Scheduled",
+        targetStatus: ORDER_STATUS_KEYS.PICKUP_SCHEDULED as OrderWorkflowStatus,
+      };
     }
-    if (orderStatus === "Ready to Ship") {
-      return { label: "Set Ready to Invoice", targetStatus: "Ready to Invoice" };
+    if (orderStatus === ORDER_STATUS_KEYS.READY_TO_SHIP) {
+      return {
+        label: "Mark Ready for Invoicing",
+        targetStatus: ORDER_STATUS_KEYS.READY_TO_INVOICE as OrderWorkflowStatus,
+      };
     }
     return null;
   };
@@ -808,14 +819,19 @@ export function TransportationBoardPage() {
     setMsg(null);
     try {
       await ordersApi.advanceStatus(row.id, action.targetStatus);
-      setMsg({ type: "success", text: `Order ${row.salesOrderNo} moved to ${action.targetStatus}.` });
+      setMsg({
+        type: "success",
+        text: `Order ${row.salesOrderNo} moved to ${getOrderStatusDisplayLabel(action.targetStatus)}.`,
+      });
       await load();
     } catch (err) {
       const apiError = err as ApiError;
       const body = apiError.body as { message?: string } | undefined;
       setMsg({
         type: "error",
-        text: body?.message ?? `Failed to move order ${row.salesOrderNo} to ${action.targetStatus}.`,
+        text:
+          body?.message ??
+          `Failed to move order ${row.salesOrderNo} to ${getOrderStatusDisplayLabel(action.targetStatus)}.`,
       });
     } finally {
       setAdvancingId(null);
@@ -996,12 +1012,12 @@ export function TransportationBoardPage() {
                           <div className={styles.statusCellWrap}>
                             <span
                               className={`${styles.statusPill} ${
-                                row.orderStatus === "Ready to Ship"
+                                row.orderStatus === ORDER_STATUS_KEYS.READY_TO_SHIP
                                   ? styles.statusScheduled
                                   : styles.statusOpen
                               }`}
                             >
-                              {row.orderStatus}
+                              {getOrderStatusDisplayLabel(row.orderStatus)}
                             </span>
                             {(() => {
                               const action = getNextStatusAction(row.orderStatus);
@@ -1280,9 +1296,9 @@ export function TransportationBoardPage() {
                   <Button
                     appearance="secondary"
                     className={styles.openOrderButton}
-                    onClick={() => navigate(`/orders/${selectedRow.id}`)}
+                    onClick={() => navigate(`/orders/${selectedRow.id}/workspace`)}
                   >
-                    Jump to Order (↗)
+                    Open Workspace (↗)
                   </Button>
                 </>
               ) : (
