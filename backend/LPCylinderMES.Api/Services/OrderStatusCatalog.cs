@@ -136,12 +136,30 @@ public static class OrderStatusCatalog
     {
         New => Draft,
         ReadyForPickup => InboundLogisticsPlanned,
-        PickupScheduled => InboundInTransit,
+        PickupScheduled => InboundLogisticsPlanned,
         Received => ReceivedPendingReconciliation,
         ReadyToShip => ProductionComplete,
         ReadyToInvoice => InvoiceReady,
+        "Invoiced" => Invoiced,
+        "Complete" => Invoiced,
+        "Closed" => Invoiced,
         _ => Draft,
     };
+
+    public static string MapLegacyToLifecycle(
+        string legacyStatus,
+        string? orderOrigin,
+        DateTime? validatedUtc)
+    {
+        if (string.Equals(legacyStatus, New, StringComparison.Ordinal) &&
+            string.Equals(orderOrigin, "SalesMobile", StringComparison.OrdinalIgnoreCase) &&
+            !validatedUtc.HasValue)
+        {
+            return PendingOrderEntryValidation;
+        }
+
+        return MapLegacyToLifecycle(legacyStatus);
+    }
 
     public static string MapLifecycleToLegacy(string lifecycleStatus) => lifecycleStatus switch
     {

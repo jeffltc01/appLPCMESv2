@@ -99,7 +99,7 @@ public class OrderAttachmentService(
         }
 
         var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
-            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc)
             : order.OrderLifecycleStatus!;
         if (string.Equals(lifecycleStatus, OrderStatusCatalog.Invoiced, StringComparison.Ordinal))
         {

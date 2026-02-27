@@ -19,7 +19,7 @@ vi.mock("../services/orders", () => ({
     const legacyToLifecycle: Record<string, string> = {
       New: "Draft",
       "Ready for Pickup": "InboundLogisticsPlanned",
-      "Pickup Scheduled": "InboundInTransit",
+      "Pickup Scheduled": "InboundLogisticsPlanned",
       Received: "ReceivedPendingReconciliation",
       "Ready to Ship": "ProductionComplete",
       "Ready to Invoice": "InvoiceReady",

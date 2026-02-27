@@ -43,6 +43,8 @@ public class OrderWorkflowService(
         "InternalOnly",
     };
 
+    private sealed record LifecycleProposal(string ProposedLifecycleStatus, string RuleApplied);
+
     public async Task<OrderDraftDetailDto> ApplyHoldAsync(
         int orderId,
         ApplyHoldDto dto,
@@ -72,7 +74,7 @@ public class OrderWorkflowService(
         }
 
         var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
-            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc)
             : order.OrderLifecycleStatus!;
         if (string.Equals(lifecycleStatus, OrderStatusCatalog.Invoiced, StringComparison.Ordinal))
         {
@@ -189,7 +191,7 @@ public class OrderWorkflowService(
         }
 
         var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
-            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc)
             : order.OrderLifecycleStatus!;
         if (!string.Equals(lifecycleStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal))
         {
@@ -689,34 +691,227 @@ public class OrderWorkflowService(
 
     public async Task<OrderLifecycleMigrationResultDto> BackfillLifecycleStatusesAsync(
         bool dryRun = false,
+        string? migratedBy = null,
+        string? migrationBatchId = null,
+        int batchSize = 500,
         CancellationToken cancellationToken = default)
     {
-        var orders = await db.SalesOrders
-            .AsTracking()
-            .ToListAsync(cancellationToken);
+        var effectiveBatchSize = Math.Clamp(batchSize, 50, 5000);
+        var normalizedBatchId = string.IsNullOrWhiteSpace(migrationBatchId)
+            ? Guid.NewGuid().ToString("N")
+            : migrationBatchId.Trim();
+        var normalizedMigratedBy = TrimToNull(migratedBy) ?? "system";
+        var dryRunActor = dryRun ? $"{normalizedMigratedBy}:dry-run" : normalizedMigratedBy;
 
-        var alreadyInitialized = orders.Count(o => !string.IsNullOrWhiteSpace(o.OrderLifecycleStatus));
-        var needsBackfill = orders.Where(o => string.IsNullOrWhiteSpace(o.OrderLifecycleStatus)).ToList();
+        var totalOrdersScanned = 0;
+        var ordersAlreadyInitialized = 0;
+        var candidateOrders = 0;
+        var proposedChanges = 0;
+        var auditRecordsWritten = 0;
+        var sampleDeltas = new List<OrderLifecycleMigrationDeltaDto>();
+        var nowUtc = DateTime.UtcNow;
+        var lastOrderId = 0;
 
-        foreach (var order in needsBackfill)
+        while (true)
         {
-            order.OrderLifecycleStatus = OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus);
-            if (!order.StatusUpdatedUtc.HasValue)
+            var batchQuery = db.SalesOrders
+                .Where(o => o.Id > lastOrderId)
+                .OrderBy(o => o.Id)
+                .Take(effectiveBatchSize);
+
+            var batch = dryRun
+                ? await batchQuery.AsNoTracking().ToListAsync(cancellationToken)
+                : await batchQuery.AsTracking().ToListAsync(cancellationToken);
+            if (batch.Count == 0)
             {
-                order.StatusUpdatedUtc = DateTime.UtcNow;
+                break;
+            }
+
+            lastOrderId = batch[^1].Id;
+            totalOrdersScanned += batch.Count;
+            ordersAlreadyInitialized += batch.Count(o => !string.IsNullOrWhiteSpace(o.OrderLifecycleStatus));
+            candidateOrders += batch.Count;
+
+            var orderIds = batch.Select(o => o.Id).ToList();
+            var routeAggregates = await db.OrderLineRouteInstances
+                .AsNoTracking()
+                .Where(r => orderIds.Contains(r.SalesOrderId))
+                .GroupBy(r => r.SalesOrderId)
+                .Select(g => new
+                {
+                    OrderId = g.Key,
+                    HasRoutes = g.Any(),
+                    AllRoutesComplete = g.All(r => r.State == "Completed"),
+                    AllRequiredApprovalsComplete = g.All(r => !r.SupervisorApprovalRequired || r.SupervisorApprovedUtc.HasValue),
+                })
+                .ToDictionaryAsync(row => row.OrderId, cancellationToken);
+
+            var startedRouteOrderIds = await db.OrderLineRouteStepInstances
+                .AsNoTracking()
+                .Where(step => orderIds.Contains(step.OrderLineRouteInstance.SalesOrderId) &&
+                               (step.ScanInUtc.HasValue ||
+                                step.ScanOutUtc.HasValue ||
+                                step.CompletedUtc.HasValue ||
+                                step.State == "InProgress" ||
+                                step.State == "Completed"))
+                .Select(step => step.OrderLineRouteInstance.SalesOrderId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var startedRouteOrderSet = startedRouteOrderIds.ToHashSet();
+
+            var requiredLineOrderIds = await db.SalesOrderDetails
+                .AsNoTracking()
+                .Where(d => orderIds.Contains(d.SalesOrderId) && d.QuantityAsOrdered > 0)
+                .Select(d => d.SalesOrderId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var requiredLineOrderSet = requiredLineOrderIds.ToHashSet();
+
+            var unreconciledOrderIds = await db.SalesOrderDetails
+                .AsNoTracking()
+                .Where(d => orderIds.Contains(d.SalesOrderId) &&
+                            d.QuantityAsOrdered > 0 &&
+                            (d.QuantityAsReceived ?? 0m) <= 0m)
+                .Select(d => d.SalesOrderId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var unreconciledOrderSet = unreconciledOrderIds.ToHashSet();
+
+            var migrationAudits = new List<OrderLifecycleMigrationAudit>();
+            foreach (var order in batch)
+            {
+                var hasRoutes = routeAggregates.TryGetValue(order.Id, out var routeAgg) && routeAgg.HasRoutes;
+                var allRoutesComplete = routeAgg?.AllRoutesComplete ?? false;
+                var approvalsComplete = routeAgg?.AllRequiredApprovalsComplete ?? false;
+                var hasProductionStartedEvidence = startedRouteOrderSet.Contains(order.Id);
+                var hasReconciliationCompleteEvidence =
+                    requiredLineOrderSet.Contains(order.Id) &&
+                    !unreconciledOrderSet.Contains(order.Id);
+                var proposal = BuildLifecycleProposal(
+                    order,
+                    hasRoutes,
+                    allRoutesComplete,
+                    approvalsComplete,
+                    hasProductionStartedEvidence,
+                    hasReconciliationCompleteEvidence);
+
+                var currentLifecycle = TrimToNull(order.OrderLifecycleStatus);
+                if (string.Equals(currentLifecycle, proposal.ProposedLifecycleStatus, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                proposedChanges += 1;
+                if (sampleDeltas.Count < 25)
+                {
+                    sampleDeltas.Add(new OrderLifecycleMigrationDeltaDto(
+                        order.Id,
+                        order.OrderStatus,
+                        currentLifecycle,
+                        proposal.ProposedLifecycleStatus,
+                        proposal.RuleApplied));
+                }
+
+                migrationAudits.Add(new OrderLifecycleMigrationAudit
+                {
+                    MigrationBatchId = normalizedBatchId,
+                    OrderId = order.Id,
+                    LegacyStatus = order.OrderStatus,
+                    PreviousLifecycleStatus = currentLifecycle,
+                    ProposedLifecycleStatus = proposal.ProposedLifecycleStatus,
+                    RuleApplied = proposal.RuleApplied,
+                    DryRun = dryRun,
+                    WasUpdated = !dryRun,
+                    MigratedBy = dryRunActor,
+                    ComputedUtc = nowUtc,
+                    AppliedUtc = dryRun ? null : nowUtc,
+                });
+
+                if (!dryRun)
+                {
+                    order.OrderLifecycleStatus = proposal.ProposedLifecycleStatus;
+                    order.StatusUpdatedUtc ??= nowUtc;
+                }
+            }
+
+            if (!dryRun && migrationAudits.Count > 0)
+            {
+                db.OrderLifecycleMigrationAudits.AddRange(migrationAudits);
+                auditRecordsWritten += migrationAudits.Count;
+                await db.SaveChangesAsync(cancellationToken);
             }
         }
 
-        if (!dryRun && needsBackfill.Count > 0)
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-
         return new OrderLifecycleMigrationResultDto(
-            orders.Count,
-            alreadyInitialized,
-            needsBackfill.Count,
-            dryRun);
+            totalOrdersScanned,
+            ordersAlreadyInitialized,
+            proposedChanges,
+            dryRun,
+            normalizedBatchId,
+            candidateOrders,
+            auditRecordsWritten,
+            sampleDeltas);
+    }
+
+    private static LifecycleProposal BuildLifecycleProposal(
+        SalesOrder order,
+        bool hasRoutes,
+        bool allRoutesComplete,
+        bool allRequiredApprovalsComplete,
+        bool hasProductionStartedEvidence,
+        bool hasReconciliationCompleteEvidence)
+    {
+        var defaultStatus = OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc);
+        var defaultRule = $"LegacyMap:{order.OrderStatus}";
+        var hasBlockingHold = !string.IsNullOrWhiteSpace(order.HoldOverlay) &&
+                              !string.Equals(order.HoldOverlay, OrderStatusCatalog.Cancelled, StringComparison.Ordinal);
+        var hasDispatchOrReleaseEvidence = order.DispatchDate.HasValue ||
+                                           string.Equals(order.OrderStatus, OrderStatusCatalog.ReadyToInvoice, StringComparison.Ordinal) ||
+                                           string.Equals(order.OrderStatus, "Invoiced", StringComparison.OrdinalIgnoreCase) ||
+                                           string.Equals(order.OrderStatus, "Complete", StringComparison.OrdinalIgnoreCase);
+        var hasOutboundPlanEvidence = !string.IsNullOrWhiteSpace(order.Carrier) ||
+                                      order.ReadyToShipDate.HasValue;
+        var hasProductionCompleteEvidence = (hasRoutes && allRoutesComplete && allRequiredApprovalsComplete) ||
+                                            order.ReadyToShipDate.HasValue;
+        var hasReceiveEvidence = order.ReceivedDate.HasValue ||
+                                 string.Equals(order.OrderStatus, OrderStatusCatalog.Received, StringComparison.Ordinal) ||
+                                 hasReconciliationCompleteEvidence;
+        var hasInboundTransitEvidence = order.PickupScheduledDate.HasValue ||
+                                        string.Equals(order.OrderStatus, OrderStatusCatalog.PickupScheduled, StringComparison.Ordinal);
+        var hasInboundPlanningEvidence = order.PickupDate.HasValue ||
+                                         string.Equals(order.OrderStatus, OrderStatusCatalog.ReadyForPickup, StringComparison.Ordinal) ||
+                                         hasInboundTransitEvidence;
+        var invoiceStagingSucceeded =
+            string.Equals(order.InvoiceStagingResult, "Success", StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrWhiteSpace(order.ErpInvoiceReference) ||
+            string.Equals(order.OrderStatus, "Invoiced", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(order.OrderStatus, "Complete", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(order.OrderStatus, "Closed", StringComparison.OrdinalIgnoreCase);
+
+        if (invoiceStagingSucceeded)
+            return new LifecycleProposal(OrderStatusCatalog.Invoiced, "Rule1:InvoiceStagingSucceeded");
+        if (hasDispatchOrReleaseEvidence && !hasBlockingHold)
+            return new LifecycleProposal(OrderStatusCatalog.InvoiceReady, "Rule2:DispatchOrReleaseNoBlockingHold");
+        if (hasDispatchOrReleaseEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.DispatchedOrPickupReleased, "Rule3:DispatchOrReleaseEvent");
+        if (hasOutboundPlanEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.OutboundLogisticsPlanned, "Rule4:OutboundPlanEvidence");
+        if (hasProductionCompleteEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.ProductionComplete, "Rule5:ProductionCompleteEvidence");
+        if (hasProductionStartedEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.InProduction, "Rule6:ProductionStartedEvidence");
+        if (hasReconciliationCompleteEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.ReadyForProduction, "Rule7:ReconciliationComplete");
+        if (hasReceiveEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.ReceivedPendingReconciliation, "Rule8:ReceiveEventExists");
+        if (hasInboundTransitEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.InboundInTransit, "Rule9:InboundTransitEventExists");
+        if (hasInboundPlanningEvidence)
+            return new LifecycleProposal(OrderStatusCatalog.InboundLogisticsPlanned, "Rule10:InboundPlanningExists");
+        if (string.Equals(order.OrderOrigin, "SalesMobile", StringComparison.OrdinalIgnoreCase) && !order.ValidatedUtc.HasValue)
+            return new LifecycleProposal(OrderStatusCatalog.PendingOrderEntryValidation, "Rule11:SalesMobileNotValidated");
+
+        return new LifecycleProposal(defaultStatus, defaultRule);
     }
 
     private static bool ShouldUseLifecycleFlow(SalesOrder order, string targetStatus) =>
@@ -776,7 +971,7 @@ public class OrderWorkflowService(
         CancellationToken cancellationToken)
     {
         var currentStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
-            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc)
             : order.OrderLifecycleStatus!;
         var targetStatus = OrderStatusCatalog.IsLifecycleStatus(requestedTargetStatus)
             ? requestedTargetStatus

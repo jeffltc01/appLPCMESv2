@@ -185,10 +185,12 @@ export function getWorkspaceCurrentStatus(orderStatus: string | null | undefined
   const legacyToLifecycle: Record<string, string> = {
     New: "Draft",
     "Ready for Pickup": "InboundLogisticsPlanned",
-    "Pickup Scheduled": "InboundInTransit",
+    "Pickup Scheduled": "InboundLogisticsPlanned",
     Received: "ReceivedPendingReconciliation",
     "Ready to Ship": "ProductionComplete",
     "Ready to Invoice": "InvoiceReady",
+    Complete: "Invoiced",
+    Closed: "Invoiced",
   };
 
   return legacyToLifecycle[orderStatus] ?? orderStatus;
@@ -300,9 +302,18 @@ export const ordersApi = {
   promiseHistory: (id: number) =>
     api.get<OrderPromiseChangeEvent[]>(`/orders/${id}/promise-history`),
 
-  migrateLifecycleStatuses: (dryRun: boolean) =>
+  migrateLifecycleStatuses: (
+    dryRun: boolean,
+    options?: { migratedBy?: string; migrationBatchId?: string; batchSize?: number }
+  ) =>
     api.post<OrderLifecycleMigrationResult>(
-      `/orders/migrate-lifecycle-statuses?dryRun=${dryRun ? "true" : "false"}`,
+      `/orders/migrate-lifecycle-statuses?dryRun=${dryRun ? "true" : "false"}${
+        options?.migratedBy ? `&migratedBy=${encodeURIComponent(options.migratedBy)}` : ""
+      }${
+        options?.migrationBatchId ? `&migrationBatchId=${encodeURIComponent(options.migrationBatchId)}` : ""
+      }${
+        options?.batchSize ? `&batchSize=${encodeURIComponent(String(options.batchSize))}` : ""
+      }`,
       {}
     ),
 

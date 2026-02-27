@@ -44,6 +44,9 @@ public interface IOrderWorkflowService
 
     Task<OrderLifecycleMigrationResultDto> BackfillLifecycleStatusesAsync(
         bool dryRun = false,
+        string? migratedBy = null,
+        string? migrationBatchId = null,
+        int batchSize = 500,
         CancellationToken cancellationToken = default);
 }
 

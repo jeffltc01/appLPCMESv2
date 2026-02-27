@@ -140,7 +140,18 @@ public record OrderLifecycleMigrationResultDto(
     int TotalOrdersScanned,
     int OrdersAlreadyInitialized,
     int OrdersUpdated,
-    bool DryRun);
+    bool DryRun,
+    string MigrationBatchId,
+    int CandidateOrders,
+    int AuditRecordsWritten,
+    List<OrderLifecycleMigrationDeltaDto> SampleDeltas);
+
+public record OrderLifecycleMigrationDeltaDto(
+    int OrderId,
+    string LegacyStatus,
+    string? PreviousLifecycleStatus,
+    string ProposedLifecycleStatus,
+    string RuleApplied);
 
 public record OrderDraftCreateDto(
     int CustomerId,

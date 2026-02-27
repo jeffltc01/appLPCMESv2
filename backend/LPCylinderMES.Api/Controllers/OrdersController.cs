@@ -336,9 +336,16 @@ public class OrdersController(
 
     [HttpPost("migrate-lifecycle-statuses")]
     public async Task<ActionResult<OrderLifecycleMigrationResultDto>> MigrateLifecycleStatuses(
-        [FromQuery] bool dryRun = false)
+        [FromQuery] bool dryRun = false,
+        [FromQuery] string? migratedBy = null,
+        [FromQuery] string? migrationBatchId = null,
+        [FromQuery] int batchSize = 500)
     {
-        var result = await orderWorkflowService.BackfillLifecycleStatusesAsync(dryRun);
+        var result = await orderWorkflowService.BackfillLifecycleStatusesAsync(
+            dryRun,
+            migratedBy,
+            migrationBatchId,
+            batchSize);
         return Ok(result);
     }
 

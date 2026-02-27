@@ -759,6 +759,18 @@ export interface OrderLifecycleMigrationResult {
   ordersAlreadyInitialized: number;
   ordersUpdated: number;
   dryRun: boolean;
+  migrationBatchId?: string;
+  candidateOrders?: number;
+  auditRecordsWritten?: number;
+  sampleDeltas?: OrderLifecycleMigrationDelta[];
+}
+
+export interface OrderLifecycleMigrationDelta {
+  orderId: number;
+  legacyStatus: string;
+  previousLifecycleStatus?: string | null;
+  proposedLifecycleStatus: string;
+  ruleApplied: string;
 }
 
 export interface WorkCenterQueueItem {

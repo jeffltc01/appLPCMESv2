@@ -376,7 +376,7 @@ public class WorkCenterWorkflowService(
         order.StatusUpdatedUtc = now;
 
         var currentLifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
-            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus, order.OrderOrigin, order.ValidatedUtc)
             : order.OrderLifecycleStatus!;
         if (!isTerminal && string.Equals(currentLifecycleStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal))
         {

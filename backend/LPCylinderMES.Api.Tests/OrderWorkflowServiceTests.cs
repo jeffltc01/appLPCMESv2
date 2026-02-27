@@ -701,11 +701,15 @@ public class OrderWorkflowServiceTests
         Assert.Equal(1, result.OrdersAlreadyInitialized);
         Assert.Equal(2, result.OrdersUpdated);
         Assert.False(result.DryRun);
+        Assert.Equal(3, result.CandidateOrders);
+        Assert.Equal(2, result.AuditRecordsWritten);
+        Assert.NotNull(result.MigrationBatchId);
 
         var order501 = await db.SalesOrders.FirstAsync(o => o.Id == 501);
         var order502 = await db.SalesOrders.FirstAsync(o => o.Id == 502);
         Assert.Equal(OrderStatusCatalog.Draft, order501.OrderLifecycleStatus);
         Assert.Equal(OrderStatusCatalog.ProductionComplete, order502.OrderLifecycleStatus);
+        Assert.Equal(2, await db.OrderLifecycleMigrationAudits.CountAsync());
     }
 
     [Fact]
@@ -728,9 +732,40 @@ public class OrderWorkflowServiceTests
 
         Assert.True(result.DryRun);
         Assert.Equal(1, result.OrdersUpdated);
+        Assert.Equal(0, result.AuditRecordsWritten);
+        Assert.Single(result.SampleDeltas);
 
         var order = await db.SalesOrders.AsNoTracking().FirstAsync(o => o.Id == 601);
         Assert.Null(order.OrderLifecycleStatus);
+    }
+
+    [Fact]
+    public async Task BackfillLifecycleStatusesAsync_SalesMobileUnvalidated_UsesPendingValidation()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(BackfillLifecycleStatusesAsync_SalesMobileUnvalidated_UsesPendingValidation));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 602,
+            SalesOrderNo = "SO-602",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderOrigin = "SalesMobile",
+            ValidatedUtc = null,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var result = await service.BackfillLifecycleStatusesAsync(dryRun: false, migratedBy: "EMP602", batchSize: 100);
+
+        Assert.False(result.DryRun);
+        Assert.Equal(1, result.OrdersUpdated);
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 602);
+        Assert.Equal(OrderStatusCatalog.PendingOrderEntryValidation, order.OrderLifecycleStatus);
+        var audit = await db.OrderLifecycleMigrationAudits.SingleAsync(a => a.OrderId == 602);
+        Assert.Equal("Rule11:SalesMobileNotValidated", audit.RuleApplied);
+        Assert.Equal("EMP602", audit.MigratedBy);
     }
 
     [Fact]

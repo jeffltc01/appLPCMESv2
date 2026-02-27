@@ -33,6 +33,7 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
     public virtual DbSet<OrderAttachmentAudit> OrderAttachmentAudits { get; set; }
     public virtual DbSet<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; }
+    public virtual DbSet<OrderLifecycleMigrationAudit> OrderLifecycleMigrationAudits { get; set; }
     public virtual DbSet<OrderPromiseChangeEvent> OrderPromiseChangeEvents { get; set; }
 
     public virtual DbSet<BusinessDecisionPolicy> BusinessDecisionPolicies { get; set; }
@@ -492,6 +493,57 @@ public partial class LpcAppsDbContext : DbContext
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_order_invoice_submission_audits_sales_orders");
+        });
+
+        modelBuilder.Entity<OrderLifecycleMigrationAudit>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_lifecycle_migration_audits");
+
+            entity.ToTable("order_lifecycle_migration_audits");
+
+            entity.HasIndex(e => e.MigrationBatchId, "ix_order_lifecycle_migration_audits_batch_id");
+            entity.HasIndex(e => e.OrderId, "ix_order_lifecycle_migration_audits_order_id");
+            entity.HasIndex(e => e.ComputedUtc, "ix_order_lifecycle_migration_audits_computed_utc");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.MigrationBatchId)
+                .HasMaxLength(64)
+                .IsUnicode(false)
+                .HasColumnName("migration_batch_id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.LegacyStatus)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("legacy_status");
+            entity.Property(e => e.PreviousLifecycleStatus)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("previous_lifecycle_status");
+            entity.Property(e => e.ProposedLifecycleStatus)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("proposed_lifecycle_status");
+            entity.Property(e => e.RuleApplied)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasColumnName("rule_applied");
+            entity.Property(e => e.DryRun).HasColumnName("dry_run");
+            entity.Property(e => e.WasUpdated).HasColumnName("was_updated");
+            entity.Property(e => e.MigratedBy)
+                .HasMaxLength(64)
+                .IsUnicode(false)
+                .HasColumnName("migrated_by");
+            entity.Property(e => e.ComputedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("computed_utc");
+            entity.Property(e => e.AppliedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("applied_utc");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderLifecycleMigrationAudits)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_order_lifecycle_migration_audits_sales_orders");
         });
 
         modelBuilder.Entity<OrderPromiseChangeEvent>(entity =>
