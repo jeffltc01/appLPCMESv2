@@ -5,25 +5,30 @@ using Scalar.AspNetCore;
 using Microsoft.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("LPCApps")
-    ?? throw new InvalidOperationException("Missing connection string: LPCApps");
-
-if (builder.Environment.IsDevelopment())
+var useInMemoryDatabase = builder.Configuration.GetValue<bool>("Testing:UseInMemoryDatabase");
+string? connectionString = null;
+if (!useInMemoryDatabase)
 {
-    var csb = new SqlConnectionStringBuilder(connectionString);
-    var dataSource = csb.DataSource ?? string.Empty;
-    var isLocalHost = dataSource.StartsWith("localhost", StringComparison.OrdinalIgnoreCase)
-        || dataSource.StartsWith("(local)", StringComparison.OrdinalIgnoreCase)
-        || dataSource.StartsWith(".", StringComparison.OrdinalIgnoreCase)
-        || dataSource.StartsWith("127.0.0.1", StringComparison.OrdinalIgnoreCase)
-        || dataSource.StartsWith("::1", StringComparison.OrdinalIgnoreCase)
-        || dataSource.StartsWith(@"DadGaming01", StringComparison.OrdinalIgnoreCase);
+    connectionString = builder.Configuration.GetConnectionString("LPCApps")
+        ?? throw new InvalidOperationException("Missing connection string: LPCApps");
 
-    if (!isLocalHost)
+    if (builder.Environment.IsDevelopment())
     {
-        throw new InvalidOperationException(
-            $"Unsafe Development database host '{dataSource}'. " +
-            "Development must use a local SQL Server instance.");
+        var csb = new SqlConnectionStringBuilder(connectionString);
+        var dataSource = csb.DataSource ?? string.Empty;
+        var isLocalHost = dataSource.StartsWith("localhost", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith("(local)", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith(".", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith("::1", StringComparison.OrdinalIgnoreCase)
+            || dataSource.StartsWith(@"DadGaming01", StringComparison.OrdinalIgnoreCase);
+
+        if (!isLocalHost)
+        {
+            throw new InvalidOperationException(
+                $"Unsafe Development database host '{dataSource}'. " +
+                "Development must use a local SQL Server instance.");
+        }
     }
 }
 
@@ -35,8 +40,22 @@ builder.Services.AddControllers()
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<LpcAppsDbContext>(options =>
-    options.UseSqlServer(connectionString));
+if (useInMemoryDatabase)
+{
+    var inMemoryDatabaseName = builder.Configuration["Testing:InMemoryDatabaseName"];
+    if (string.IsNullOrWhiteSpace(inMemoryDatabaseName))
+    {
+        inMemoryDatabaseName = "LpcAppsInMemory";
+    }
+
+    builder.Services.AddDbContext<LpcAppsDbContext>(options =>
+        options.UseInMemoryDatabase(inMemoryDatabaseName));
+}
+else
+{
+    builder.Services.AddDbContext<LpcAppsDbContext>(options =>
+        options.UseSqlServer(connectionString));
+}
 builder.Services.AddSingleton<IAttachmentStorage, AzureBlobAttachmentStorage>();
 builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
 builder.Services.AddScoped<IOrderKpiService, OrderKpiService>();
@@ -64,7 +83,10 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<LpcAppsDbContext>();
-    dbContext.Database.Migrate();
+    if (dbContext.Database.IsRelational())
+    {
+        dbContext.Database.Migrate();
+    }
 }
 
 if (app.Environment.IsDevelopment())
@@ -79,3 +101,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;
