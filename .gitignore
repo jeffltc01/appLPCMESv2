@@ -32,3 +32,5 @@ desktop.ini
 
 # Build outputs
 *.log
+backend/LPCylinderMES.Api/_temp_build/
+backend/_testbin/
