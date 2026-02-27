@@ -128,6 +128,91 @@ public class OrderWorkflowServiceTests
     }
 
     [Fact]
+    public async Task AdvanceStatusAsync_ToReadyForProduction_CreatesRouteInstances()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_ToReadyForProduction_CreatesRouteInstances));
+        db.Items.Add(new Item { Id = 1101, ItemNo = "TNK-1101", ItemType = "Tank", RequiresSerialNumbers = 0 });
+        db.WorkCenters.Add(new WorkCenter
+        {
+            Id = 1110,
+            WorkCenterCode = "WC-1110",
+            WorkCenterName = "Routing WC",
+            SiteId = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.RouteTemplates.Add(new RouteTemplate
+        {
+            Id = 1120,
+            RouteTemplateCode = "RT-1120",
+            RouteTemplateName = "Route 1120",
+            IsActive = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+            Steps =
+            {
+                new RouteTemplateStep
+                {
+                    Id = 1121,
+                    StepSequence = 1,
+                    StepCode = "STEP-1",
+                    StepName = "Prep",
+                    WorkCenterId = 1110,
+                    IsRequired = true,
+                },
+            },
+        });
+        db.RouteTemplateAssignments.Add(new RouteTemplateAssignment
+        {
+            Id = 1122,
+            AssignmentName = "Global route",
+            RouteTemplateId = 1120,
+            IsActive = true,
+            Priority = 1,
+            RevisionNo = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 1100,
+            SalesOrderNo = "SO-1100",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.Received,
+            OrderLifecycleStatus = OrderStatusCatalog.ReceivedPendingReconciliation,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 11001,
+                    LineNo = 1,
+                    ItemId = 1101,
+                    QuantityAsOrdered = 1,
+                    QuantityAsReceived = 1,
+                    SalesOrderId = 1100,
+                    SiteId = 1,
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(
+                TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.Received)),
+        };
+
+        var service = new OrderWorkflowService(db, queries);
+        await service.AdvanceStatusAsync(1100, OrderStatusCatalog.ReadyForProduction);
+
+        var routes = await db.OrderLineRouteInstances.Where(r => r.SalesOrderId == 1100).ToListAsync();
+        Assert.Single(routes);
+        Assert.Equal(1120, routes[0].RouteTemplateId);
+    }
+
+    [Fact]
     public async Task AdvanceStatusAsync_LifecycleHoldOverlay_BlocksForwardTransition()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_LifecycleHoldOverlay_BlocksForwardTransition));
@@ -279,6 +364,80 @@ public class OrderWorkflowServiceTests
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 3);
         Assert.Equal(OrderStatusCatalog.Received, order.OrderStatus);
         Assert.Null(order.ReadyToShipDate);
+    }
+
+    [Fact]
+    public async Task BackfillLifecycleStatusesAsync_InitializesMissingLifecycleStatuses()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(BackfillLifecycleStatusesAsync_InitializesMissingLifecycleStatuses));
+        db.SalesOrders.AddRange(
+            new SalesOrder
+            {
+                Id = 501,
+                SalesOrderNo = "SO-501",
+                OrderDate = DateOnly.FromDateTime(DateTime.Today),
+                OrderStatus = OrderStatusCatalog.New,
+                CustomerId = 1,
+                SiteId = 1,
+            },
+            new SalesOrder
+            {
+                Id = 502,
+                SalesOrderNo = "SO-502",
+                OrderDate = DateOnly.FromDateTime(DateTime.Today),
+                OrderStatus = OrderStatusCatalog.ReadyToShip,
+                CustomerId = 1,
+                SiteId = 1,
+            },
+            new SalesOrder
+            {
+                Id = 503,
+                SalesOrderNo = "SO-503",
+                OrderDate = DateOnly.FromDateTime(DateTime.Today),
+                OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+                OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+                CustomerId = 1,
+                SiteId = 1,
+            });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var result = await service.BackfillLifecycleStatusesAsync();
+
+        Assert.Equal(3, result.TotalOrdersScanned);
+        Assert.Equal(1, result.OrdersAlreadyInitialized);
+        Assert.Equal(2, result.OrdersUpdated);
+        Assert.False(result.DryRun);
+
+        var order501 = await db.SalesOrders.FirstAsync(o => o.Id == 501);
+        var order502 = await db.SalesOrders.FirstAsync(o => o.Id == 502);
+        Assert.Equal(OrderStatusCatalog.Draft, order501.OrderLifecycleStatus);
+        Assert.Equal(OrderStatusCatalog.ProductionComplete, order502.OrderLifecycleStatus);
+    }
+
+    [Fact]
+    public async Task BackfillLifecycleStatusesAsync_DryRun_DoesNotPersistChanges()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(BackfillLifecycleStatusesAsync_DryRun_DoesNotPersistChanges));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 601,
+            SalesOrderNo = "SO-601",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService());
+        var result = await service.BackfillLifecycleStatusesAsync(dryRun: true);
+
+        Assert.True(result.DryRun);
+        Assert.Equal(1, result.OrdersUpdated);
+
+        var order = await db.SalesOrders.AsNoTracking().FirstAsync(o => o.Id == 601);
+        Assert.Null(order.OrderLifecycleStatus);
     }
 }
 

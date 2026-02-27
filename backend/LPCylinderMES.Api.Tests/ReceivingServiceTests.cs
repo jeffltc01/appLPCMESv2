@@ -1,4 +1,5 @@
 using LPCylinderMES.Api.DTOs;
+using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.Models;
 using LPCylinderMES.Api.Services;
 using Microsoft.AspNetCore.Http;
@@ -9,10 +10,191 @@ namespace LPCylinderMES.Api.Tests;
 public class ReceivingServiceTests
 {
     [Fact]
+    public async Task CompleteReceivingAsync_SameTierPrefersLowerPriorityNumber()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteReceivingAsync_SameTierPrefersLowerPriorityNumber));
+        db.Items.Add(new Item { Id = 71, ItemNo = "TNK-71", ItemType = "Tank", RequiresSerialNumbers = 0 });
+        SeedRoutingTemplate(db, routeTemplateId: 7110, workCenterId: 7111);
+        SeedRoutingTemplate(db, routeTemplateId: 7120, workCenterId: 7121);
+        db.RouteTemplateAssignments.AddRange(
+            new RouteTemplateAssignment
+            {
+                Id = 7112,
+                AssignmentName = "Exact lower precedence",
+                CustomerId = 1,
+                ItemId = 71,
+                SiteId = 1,
+                RouteTemplateId = 7110,
+                IsActive = true,
+                Priority = 25,
+                RevisionNo = 1,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow,
+            },
+            new RouteTemplateAssignment
+            {
+                Id = 7122,
+                AssignmentName = "Exact higher precedence",
+                CustomerId = 1,
+                ItemId = 71,
+                SiteId = 1,
+                RouteTemplateId = 7120,
+                IsActive = true,
+                Priority = 1,
+                RevisionNo = 1,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow,
+            });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 70,
+            SalesOrderNo = "SO-70",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.PickupScheduled,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundInTransit,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 701,
+                    LineNo = 1,
+                    ItemId = 71,
+                    QuantityAsOrdered = 1,
+                    QuantityAsReceived = 0,
+                    SalesOrderId = 70,
+                    SiteId = 1,
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetReceivingDetailHandler = (id, _) => Task.FromResult<ReceivingOrderDetailDto?>(
+                new ReceivingOrderDetailDto(
+                    id,
+                    "SO-70",
+                    OrderStatusCatalog.Received,
+                    "Customer",
+                    "Pickup",
+                    "TR-1",
+                    null,
+                    DateTime.UtcNow,
+                    [])),
+        };
+
+        var service = new ReceivingService(db, queries);
+        await service.CompleteReceivingAsync(
+            70,
+            new CompleteReceivingDto(DateTime.UtcNow, [new ReceivingLineUpdateDto(701, true, 1)], null));
+
+        var route = await db.OrderLineRouteInstances.SingleAsync(r => r.SalesOrderId == 70 && r.SalesOrderDetailId == 701);
+        Assert.Equal(7120, route.RouteTemplateId);
+        Assert.Equal(7122, route.RouteTemplateAssignmentId);
+    }
+
+    [Fact]
+    public async Task CompleteReceivingAsync_RouteResolutionPrefersExactMatchOverGlobal()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteReceivingAsync_RouteResolutionPrefersExactMatchOverGlobal));
+        db.Items.Add(new Item { Id = 81, ItemNo = "TNK-81", ItemType = "Tank", RequiresSerialNumbers = 0 });
+        SeedRoutingTemplate(db, routeTemplateId: 8110, workCenterId: 8111);
+        SeedRoutingTemplate(db, routeTemplateId: 8120, workCenterId: 8121);
+        db.RouteTemplateAssignments.AddRange(
+            new RouteTemplateAssignment
+            {
+                Id = 8112,
+                AssignmentName = "Exact customer+item+site",
+                CustomerId = 1,
+                ItemId = 81,
+                SiteId = 1,
+                RouteTemplateId = 8110,
+                IsActive = true,
+                Priority = 5,
+                RevisionNo = 1,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow,
+            },
+            new RouteTemplateAssignment
+            {
+                Id = 8122,
+                AssignmentName = "Global route",
+                RouteTemplateId = 8120,
+                IsActive = true,
+                Priority = 999,
+                RevisionNo = 999,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow,
+            });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 80,
+            SalesOrderNo = "SO-80",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.PickupScheduled,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundInTransit,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 801,
+                    LineNo = 1,
+                    ItemId = 81,
+                    QuantityAsOrdered = 1,
+                    QuantityAsReceived = 0,
+                    SalesOrderId = 80,
+                    SiteId = 1,
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetReceivingDetailHandler = (id, _) => Task.FromResult<ReceivingOrderDetailDto?>(
+                new ReceivingOrderDetailDto(
+                    id,
+                    "SO-80",
+                    OrderStatusCatalog.Received,
+                    "Customer",
+                    "Pickup",
+                    "TR-1",
+                    null,
+                    DateTime.UtcNow,
+                    [])),
+        };
+
+        var service = new ReceivingService(db, queries);
+        await service.CompleteReceivingAsync(
+            80,
+            new CompleteReceivingDto(DateTime.UtcNow, [new ReceivingLineUpdateDto(801, true, 1)], null));
+
+        var route = await db.OrderLineRouteInstances.SingleAsync(r => r.SalesOrderId == 80 && r.SalesOrderDetailId == 801);
+        Assert.Equal(8110, route.RouteTemplateId);
+        Assert.Equal(8112, route.RouteTemplateAssignmentId);
+    }
+
+    [Fact]
     public async Task CompleteReceivingAsync_LifecycleInboundState_TransitionsToReadyForProduction()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteReceivingAsync_LifecycleInboundState_TransitionsToReadyForProduction));
         db.Items.Add(new Item { Id = 91, ItemNo = "TNK-91", ItemType = "Tank", RequiresSerialNumbers = 0 });
+        SeedRoutingTemplate(db, routeTemplateId: 9010, workCenterId: 9011);
+        db.RouteTemplateAssignments.Add(new RouteTemplateAssignment
+        {
+            Id = 9012,
+            AssignmentName = "Global route",
+            RouteTemplateId = 9010,
+            IsActive = true,
+            Priority = 1,
+            RevisionNo = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 90,
@@ -58,7 +240,9 @@ public class ReceivingServiceTests
         await service.CompleteReceivingAsync(90, dto);
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 90);
+        var routes = await db.OrderLineRouteInstances.Where(r => r.SalesOrderId == 90).ToListAsync();
         Assert.Equal(OrderStatusCatalog.ReadyForProduction, order.OrderLifecycleStatus);
+        Assert.Single(routes);
     }
 
     [Fact]
@@ -107,6 +291,18 @@ public class ReceivingServiceTests
             new Item { Id = 51, ItemNo = "TNK-51", ItemType = "Tank", RequiresSerialNumbers = 0, ItemDescription = "Tank 51" },
             new Item { Id = 52, ItemNo = "TNK-52", ItemType = "Tank", RequiresSerialNumbers = 0, ItemDescription = "Tank 52" }
         );
+        SeedRoutingTemplate(db, routeTemplateId: 5010, workCenterId: 5011);
+        db.RouteTemplateAssignments.Add(new RouteTemplateAssignment
+        {
+            Id = 5012,
+            AssignmentName = "Global route",
+            RouteTemplateId = 5010,
+            IsActive = true,
+            Priority = 1,
+            RevisionNo = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 50,
@@ -155,10 +351,14 @@ public class ReceivingServiceTests
 
         var result = await service.CompleteReceivingAsync(50, dto);
         var order = await db.SalesOrders.Include(o => o.SalesOrderDetails).FirstAsync(o => o.Id == 50);
+        var routes = await db.OrderLineRouteInstances
+            .Where(r => r.SalesOrderId == 50)
+            .ToListAsync();
 
         Assert.Equal(OrderStatusCatalog.Received, order.OrderStatus);
         Assert.Equal(receivedAt, order.ReceivedDate);
         Assert.Equal(OrderStatusCatalog.Received, result.OrderStatus);
+        Assert.Equal(2, routes.Count);
 
         var originalLine = order.SalesOrderDetails.Single(l => l.Id == 501);
         Assert.Equal(0, originalLine.QuantityAsReceived);
@@ -166,6 +366,40 @@ public class ReceivingServiceTests
         var addedLine = order.SalesOrderDetails.Single(l => l.ItemId == 52);
         Assert.Equal(2, addedLine.QuantityAsReceived);
         Assert.Equal(2, addedLine.LineNo);
+    }
+
+    private static void SeedRoutingTemplate(LpcAppsDbContext db, int routeTemplateId, int workCenterId)
+    {
+        db.WorkCenters.Add(new WorkCenter
+        {
+            Id = workCenterId,
+            WorkCenterCode = $"WC-{workCenterId}",
+            WorkCenterName = "Routing WC",
+            SiteId = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.RouteTemplates.Add(new RouteTemplate
+        {
+            Id = routeTemplateId,
+            RouteTemplateCode = $"RT-{routeTemplateId}",
+            RouteTemplateName = "Routing template",
+            IsActive = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+            Steps =
+            {
+                new RouteTemplateStep
+                {
+                    Id = routeTemplateId + 1,
+                    StepSequence = 1,
+                    StepCode = "STEP-1",
+                    StepName = "Prep",
+                    WorkCenterId = workCenterId,
+                    IsRequired = true,
+                },
+            },
+        });
     }
 }
 

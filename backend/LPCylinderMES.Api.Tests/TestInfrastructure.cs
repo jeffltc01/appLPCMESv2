@@ -47,7 +47,10 @@ internal static class TestInfrastructure
             null,
             null,
             null,
-            new List<OrderLineDto>());
+            new List<OrderLineDto>(),
+            null,
+            null,
+            null);
 }
 
 internal sealed class FakeOrderQueryService : IOrderQueryService

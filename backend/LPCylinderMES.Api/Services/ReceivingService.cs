@@ -76,6 +76,7 @@ public class ReceivingService(
                     SalesOrderId = order.Id,
                     LineNo = nextLineNo,
                     ItemId = item.Id,
+                    Item = item,
                     ItemName = item.ItemDescription ?? item.ItemNo,
                     QuantityAsOrdered = 0,
                     QuantityAsReceived = added.QuantityAsReceived,
@@ -91,6 +92,12 @@ public class ReceivingService(
         order.OrderStatus = OrderStatusCatalog.Received;
         order.OrderLifecycleStatus = OrderStatusCatalog.ReadyForProduction;
         order.StatusUpdatedUtc = DateTime.UtcNow;
+
+        await RouteInstantiationService.EnsureRoutesForOrderAsync(
+            db,
+            order,
+            order.SalesOrderDetails.ToList(),
+            cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
 

@@ -30,14 +30,27 @@ public class ControllerServiceExtractionTests
     }
 
     [Fact]
+    public void SetupController_DependsOnSetupRoutingService()
+    {
+        var ctor = typeof(SetupController).GetConstructors().Single();
+        var parameterTypes = ctor.GetParameters().Select(p => p.ParameterType).ToList();
+
+        Assert.Contains(typeof(ISetupRoutingService), parameterTypes);
+        Assert.DoesNotContain(typeof(LpcAppsDbContext), parameterTypes);
+    }
+
+    [Fact]
     public void OrderStatusCatalog_DefinesExpectedWorkflow()
     {
-        Assert.Equal("New", OrderStatusCatalog.WorkflowSteps.First());
-        Assert.Equal("Ready to Invoice", OrderStatusCatalog.WorkflowSteps.Last());
-        Assert.Contains("Received", OrderStatusCatalog.WorkflowSteps);
-        Assert.Contains("Ready to Ship", OrderStatusCatalog.ShipmentStatuses);
-        Assert.Contains("Ready for Pickup", OrderStatusCatalog.TransportBoardVisibleStatuses);
-        Assert.Contains("Pickup Scheduled", OrderStatusCatalog.TransportEditableStatuses);
+        Assert.Equal(OrderStatusCatalog.New, OrderStatusCatalog.WorkflowSteps.First());
+        Assert.Equal(OrderStatusCatalog.ReadyToInvoice, OrderStatusCatalog.WorkflowSteps.Last());
+        Assert.Contains(OrderStatusCatalog.Received, OrderStatusCatalog.WorkflowSteps);
+        Assert.Contains(OrderStatusCatalog.ReadyToShip, OrderStatusCatalog.ShipmentStatuses);
+        Assert.Contains(OrderStatusCatalog.ReadyForPickup, OrderStatusCatalog.TransportBoardVisibleStatuses);
+        Assert.Contains(OrderStatusCatalog.PickupScheduled, OrderStatusCatalog.TransportEditableStatuses);
+        Assert.Equal(
+            "Awaiting Pickup Scheduling",
+            OrderStatusCatalog.MetadataByKey[OrderStatusCatalog.ReadyForPickup].DisplayLabel);
     }
 }
 

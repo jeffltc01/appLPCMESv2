@@ -13,5 +13,9 @@ public interface IOrderWorkflowService
         int orderId,
         SubmitInvoiceDto dto,
         CancellationToken cancellationToken = default);
+
+    Task<OrderLifecycleMigrationResultDto> BackfillLifecycleStatusesAsync(
+        bool dryRun = false,
+        CancellationToken cancellationToken = default);
 }
 

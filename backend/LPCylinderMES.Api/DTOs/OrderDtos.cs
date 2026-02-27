@@ -12,7 +12,8 @@ public record OrderDraftListDto(
     string? CustomerPoNo,
     string? Contact,
     int LineCount,
-    decimal TotalOrderedQuantity);
+    decimal TotalOrderedQuantity,
+    string? OrderLifecycleStatus);
 
 public record OrderDraftDetailDto(
     int Id,
@@ -44,7 +45,16 @@ public record OrderDraftDetailDto(
     int? PaymentTermId,
     int? ReturnScrap,
     int? ReturnBrass,
-    List<OrderLineDto> Lines);
+    List<OrderLineDto> Lines,
+    string? OrderLifecycleStatus,
+    string? HoldOverlay,
+    string? StatusOwnerRole);
+
+public record OrderLifecycleMigrationResultDto(
+    int TotalOrdersScanned,
+    int OrdersAlreadyInitialized,
+    int OrdersUpdated,
+    bool DryRun);
 
 public record OrderDraftCreateDto(
     int CustomerId,

@@ -154,6 +154,38 @@ public class OrderWorkflowService(
         return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken);
     }
 
+    public async Task<OrderLifecycleMigrationResultDto> BackfillLifecycleStatusesAsync(
+        bool dryRun = false,
+        CancellationToken cancellationToken = default)
+    {
+        var orders = await db.SalesOrders
+            .AsTracking()
+            .ToListAsync(cancellationToken);
+
+        var alreadyInitialized = orders.Count(o => !string.IsNullOrWhiteSpace(o.OrderLifecycleStatus));
+        var needsBackfill = orders.Where(o => string.IsNullOrWhiteSpace(o.OrderLifecycleStatus)).ToList();
+
+        foreach (var order in needsBackfill)
+        {
+            order.OrderLifecycleStatus = OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus);
+            if (!order.StatusUpdatedUtc.HasValue)
+            {
+                order.StatusUpdatedUtc = DateTime.UtcNow;
+            }
+        }
+
+        if (!dryRun && needsBackfill.Count > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return new OrderLifecycleMigrationResultDto(
+            orders.Count,
+            alreadyInitialized,
+            needsBackfill.Count,
+            dryRun);
+    }
+
     private static bool ShouldUseLifecycleFlow(SalesOrder order, string targetStatus) =>
         !string.IsNullOrWhiteSpace(order.OrderLifecycleStatus) ||
         OrderStatusCatalog.IsLifecycleStatus(targetStatus);
@@ -282,6 +314,11 @@ public class OrderWorkflowService(
         order.OrderStatus = OrderStatusCatalog.MapLifecycleToLegacy(targetStatus);
         order.StatusUpdatedUtc = DateTime.UtcNow;
         ApplyTransitionTimestamp(order, order.OrderStatus);
+        if (string.Equals(targetStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal))
+        {
+            return RouteInstantiationService.EnsureRoutesForOrderAsync(db, order, null, cancellationToken);
+        }
+
         return Task.CompletedTask;
     }
 

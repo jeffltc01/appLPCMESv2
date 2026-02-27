@@ -139,11 +139,11 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
 
     private static void EnsureOrderEditable(SalesOrder order)
     {
-        if (order.OrderStatus != "New")
+        if (order.OrderStatus != OrderStatusCatalog.New)
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                "Only orders in status 'New' can be edited in this sprint.");
+                $"Only orders in status '{OrderStatusCatalog.New}' can be edited in this sprint.");
         }
     }
 

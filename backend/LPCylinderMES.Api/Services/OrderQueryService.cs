@@ -31,7 +31,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             query = query.Where(o => o.CustomerId == customerId.Value);
 
         if (!string.IsNullOrWhiteSpace(status))
-            query = query.Where(o => o.OrderStatus == status);
+            query = query.Where(o => o.OrderStatus == status || o.OrderLifecycleStatus == status);
 
         if (dateFrom.HasValue)
             query = query.Where(o => o.OrderDate >= dateFrom.Value);
@@ -58,7 +58,8 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 o.CustomerPoNo,
                 o.Contact,
                 o.SalesOrderDetails.Count(),
-                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
+                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered),
+                o.OrderLifecycleStatus))
             .ToListAsync(cancellationToken);
 
         return new PaginatedResponse<OrderDraftListDto>(items, totalCount, page, pageSize);
@@ -123,7 +124,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.PaymentTermId,
             order.ReturnScrap,
             order.ReturnBrass,
-            lines);
+            lines,
+            order.OrderLifecycleStatus,
+            order.HoldOverlay,
+            order.StatusOwnerRole);
     }
 
     public async Task<PaginatedResponse<TransportBoardItemDto>> GetTransportBoardAsync(
@@ -212,7 +216,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
     public async Task<List<ReceivingOrderListItemDto>> GetReceivingQueueAsync(CancellationToken cancellationToken = default)
     {
         var orders = await db.SalesOrders
-            .Where(o => o.OrderStatus == "Pickup Scheduled")
+            .Where(o => o.OrderStatus == OrderStatusCatalog.PickupScheduled)
             .Include(o => o.Customer)
             .Include(o => o.Site)
             .Include(o => o.PickUpAddress)
@@ -246,7 +250,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
     public async Task<List<ProductionOrderListItemDto>> GetProductionQueueAsync(CancellationToken cancellationToken = default)
     {
         var orders = await db.SalesOrders
-            .Where(o => o.OrderStatus == "Received")
+            .Where(o => o.OrderStatus == OrderStatusCatalog.Received)
             .Include(o => o.Customer)
             .Include(o => o.Site)
             .Include(o => o.SalesOrderDetails)

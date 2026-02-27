@@ -88,6 +88,7 @@ public class OrdersController(
             SiteId = dto.SiteId,
             OrderDate = dto.OrderDate ?? DateOnly.FromDateTime(DateTime.Today),
             OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
             CustomerPoNo = dto.CustomerPoNo,
             Contact = string.IsNullOrWhiteSpace(dto.Contact) ? defaultContactName : dto.Contact,
             Phone = string.IsNullOrWhiteSpace(dto.Phone) ? defaultOfficePhone : dto.Phone,
@@ -102,6 +103,8 @@ public class OrdersController(
             PaymentTermId = dto.PaymentTermId ?? customer.DefaultPaymentTermId,
             ReturnScrap = dto.ReturnScrap ?? customer.DefaultReturnScrap,
             ReturnBrass = dto.ReturnBrass ?? customer.DefaultReturnBrass,
+            StatusUpdatedUtc = DateTime.UtcNow,
+            StatusOwnerRole = "Office",
         };
 
         db.SalesOrders.Add(order);
@@ -180,6 +183,14 @@ public class OrdersController(
         {
             return this.ToActionResult(ex);
         }
+    }
+
+    [HttpPost("migrate-lifecycle-statuses")]
+    public async Task<ActionResult<OrderLifecycleMigrationResultDto>> MigrateLifecycleStatuses(
+        [FromQuery] bool dryRun = false)
+    {
+        var result = await orderWorkflowService.BackfillLifecycleStatusesAsync(dryRun);
+        return Ok(result);
     }
 
     [HttpPut("transport-board")]

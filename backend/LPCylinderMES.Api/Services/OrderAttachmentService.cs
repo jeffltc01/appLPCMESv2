@@ -54,11 +54,11 @@ public class OrderAttachmentService(
         if (order is null)
             throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
 
-        if (order.OrderStatus != "Received")
+        if (order.OrderStatus != OrderStatusCatalog.Received)
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                "Attachments can only be added for orders in status 'Received'.");
+                $"Attachments can only be added for orders in status '{OrderStatusCatalog.Received}'.");
         }
 
         var safeFileName = Path.GetFileName(file.FileName);

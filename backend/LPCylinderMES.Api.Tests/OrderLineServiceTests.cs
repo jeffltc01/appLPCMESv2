@@ -24,7 +24,7 @@ public class OrderLineServiceTests
             Id = 10,
             SalesOrderNo = "SO-10",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "New",
+            OrderStatus = OrderStatusCatalog.New,
             CustomerId = 7,
             SiteId = 1,
         });
@@ -57,7 +57,7 @@ public class OrderLineServiceTests
             Id = 20,
             SalesOrderNo = "SO-20",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "Received",
+            OrderStatus = OrderStatusCatalog.Received,
             CustomerId = 1,
             SiteId = 1,
         });
@@ -98,7 +98,7 @@ public class OrderLineServiceTests
             Id = 30,
             SalesOrderNo = "SO-30",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = "New",
+            OrderStatus = OrderStatusCatalog.New,
             CustomerId = 1,
             SiteId = 1,
             SalesOrderDetails =
