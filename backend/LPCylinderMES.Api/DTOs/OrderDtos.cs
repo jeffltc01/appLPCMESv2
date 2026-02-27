@@ -289,8 +289,20 @@ public record OrderAttachmentDto(
     string FileName,
     string ContentType,
     long SizeBytes,
-    DateTime CreatedAtUtc,
-    string Category);
+    DateTime UploadedUtc,
+    string? UploadedByEmpNo,
+    string Category,
+    bool IsInvoiceRelevant);
+
+public record UpdateOrderAttachmentCategoryDto(
+    string Category,
+    string ActingRole,
+    string ActingEmpNo);
+
+public record DeleteOrderAttachmentDto(
+    string ActingRole,
+    string ActingEmpNo,
+    string? ReasonCode);
 
 public record OperatorScanInDto(string EmpNo, string? DeviceId);
 

@@ -46,8 +46,10 @@ describe("InvoicingPage", () => {
         fileName: "PackingSlip.pdf",
         contentType: "application/pdf",
         sizeBytes: 32,
-        createdAtUtc: "2026-02-27T12:00:00Z",
+        uploadedUtc: "2026-02-27T12:00:00Z",
+        uploadedByEmpNo: "EMP001",
         category: "PackingSlip",
+        isInvoiceRelevant: true,
       },
     ]);
     ordersApiMock.submitInvoice.mockResolvedValue({});

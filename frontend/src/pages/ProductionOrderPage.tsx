@@ -638,7 +638,7 @@ export function ProductionOrderPage() {
     setUploading(true);
     setMsg(null);
     try {
-      await ordersApi.uploadAttachment(detail.id, file);
+      await ordersApi.uploadAttachment(detail.id, file, "Other", "Production", "UI");
       const updated = await ordersApi.attachments(detail.id);
       setAttachments(updated);
       setMsg({ type: "success", text: "Attachment uploaded." });
@@ -663,7 +663,7 @@ export function ProductionOrderPage() {
     setBusyAttachmentId(attachment.id);
     setMsg(null);
     try {
-      await ordersApi.deleteAttachment(detail.id, attachment.id);
+      await ordersApi.deleteAttachment(detail.id, attachment.id, "Production", "UI", "ProductionAttachmentCleanup");
       setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
       setMsg({ type: "success", text: "Attachment deleted." });
     } catch {
@@ -1007,13 +1007,18 @@ export function ProductionOrderPage() {
                 </TableHeader>
                 <TableBody>
                   {attachments.map((attachment) => {
-                    const downloadUrl = ordersApi.attachmentDownloadUrl(detail.id, attachment.id);
+                    const downloadUrl = ordersApi.attachmentDownloadUrl(
+                      detail.id,
+                      attachment.id,
+                      "Production",
+                      "UI"
+                    );
                     return (
                       <TableRow key={attachment.id}>
                         <TableCell>{attachment.fileName}</TableCell>
                         <TableCell>{attachment.contentType}</TableCell>
                         <TableCell>{toMb(attachment.sizeBytes)}</TableCell>
-                        <TableCell>{new Date(attachment.createdAtUtc).toLocaleString()}</TableCell>
+                        <TableCell>{new Date(attachment.uploadedUtc).toLocaleString()}</TableCell>
                         <TableCell>
                           <div style={{ display: "flex", gap: tokens.spacingHorizontalS }}>
                             <a className={styles.fileLink} href={downloadUrl} target="_blank" rel="noreferrer">

@@ -9,6 +9,8 @@ public partial class OrderAttachment
     public string ContentType { get; set; } = null!;
     public long SizeBytes { get; set; }
     public string Category { get; set; } = "Other";
+    public string? UploadedByEmpNo { get; set; }
+    public DateTime? UploadedUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 
     public virtual SalesOrder Order { get; set; } = null!;

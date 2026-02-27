@@ -135,7 +135,7 @@ const useStyles = makeStyles({
   actionPanel: { display: "flex", flexDirection: "column", gap: "8px" },
   attachmentRow: {
     display: "grid",
-    gridTemplateColumns: "2fr 1fr 1fr",
+    gridTemplateColumns: "2fr 1fr 1fr 1fr",
     gap: "8px",
     padding: "8px 0",
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -417,11 +417,33 @@ export function OrderWorkspacePage() {
   const uploadAttachment = async (file: File) => {
     if (!order) return;
     try {
-      await ordersApi.uploadAttachment(order.id, file);
+      await ordersApi.uploadAttachment(order.id, file, "Other", role, "UI");
       setMessage({ type: "success", text: "Attachment uploaded." });
       setAttachments(await ordersApi.attachments(order.id));
     } catch {
       setMessage({ type: "error", text: "Attachment upload failed." });
+    }
+  };
+
+  const updateAttachmentCategory = async (attachmentId: number, category: string) => {
+    if (!order) return;
+    try {
+      await ordersApi.updateAttachmentCategory(order.id, attachmentId, category, role, "UI");
+      setAttachments(await ordersApi.attachments(order.id));
+      setMessage({ type: "success", text: "Attachment category updated." });
+    } catch {
+      setMessage({ type: "error", text: "Unable to update attachment category." });
+    }
+  };
+
+  const deleteAttachment = async (attachmentId: number) => {
+    if (!order) return;
+    try {
+      await ordersApi.deleteAttachment(order.id, attachmentId, role, "UI", "UserRequestedRemoval");
+      setAttachments(await ordersApi.attachments(order.id));
+      setMessage({ type: "success", text: "Attachment removed." });
+    } catch {
+      setMessage({ type: "error", text: "Unable to remove attachment." });
     }
   };
 
@@ -712,9 +734,40 @@ export function OrderWorkspacePage() {
           ) : (
             attachments.map((attachment) => (
               <div key={attachment.id} className={styles.attachmentRow}>
-                <Body1>{attachment.fileName}</Body1>
+                <Body1>
+                  {attachment.fileName}
+                  {attachment.isInvoiceRelevant ? " (Invoice Relevant)" : ""}
+                </Body1>
                 <Body1>{attachment.contentType}</Body1>
-                <Body1>{new Date(attachment.createdAtUtc).toLocaleString()}</Body1>
+                <Body1>{new Date(attachment.uploadedUtc).toLocaleString()}</Body1>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Button
+                    appearance="secondary"
+                    onClick={() =>
+                      window.open(
+                        ordersApi.attachmentDownloadUrl(order.id, attachment.id, role, "UI"),
+                        "_blank",
+                        "noopener,noreferrer"
+                      )
+                    }
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    appearance="secondary"
+                    onClick={() => {
+                      const nextCategory = window.prompt("Update category", attachment.category);
+                      if (nextCategory && nextCategory.trim()) {
+                        void updateAttachmentCategory(attachment.id, nextCategory.trim());
+                      }
+                    }}
+                  >
+                    Category
+                  </Button>
+                  <Button appearance="secondary" onClick={() => void deleteAttachment(attachment.id)}>
+                    Remove
+                  </Button>
+                </div>
               </div>
             ))
           )}

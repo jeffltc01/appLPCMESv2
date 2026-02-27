@@ -326,10 +326,18 @@ export const ordersApi = {
 
   attachments: (id: number) => api.get<OrderAttachment[]>(`/orders/${id}/attachments`),
 
-  uploadAttachment: async (id: number, file: File, category = "Other") => {
+  uploadAttachment: async (
+    id: number,
+    file: File,
+    category = "Other",
+    actingRole = "Office",
+    actingEmpNo = "UI"
+  ) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("category", category);
+    formData.append("actingRole", actingRole);
+    formData.append("actingEmpNo", actingEmpNo);
 
     const res = await fetch(`/api/orders/${id}/attachments`, {
       method: "POST",
@@ -349,11 +357,39 @@ export const ordersApi = {
     return (await res.json()) as OrderAttachment;
   },
 
-  deleteAttachment: (id: number, attachmentId: number) =>
-    api.delete<void>(`/orders/${id}/attachments/${attachmentId}`),
+  updateAttachmentCategory: (
+    id: number,
+    attachmentId: number,
+    category: string,
+    actingRole = "Office",
+    actingEmpNo = "UI"
+  ) =>
+    api.patch<OrderAttachment>(`/orders/${id}/attachments/${attachmentId}`, {
+      category,
+      actingRole,
+      actingEmpNo,
+    }),
 
-  attachmentDownloadUrl: (id: number, attachmentId: number) =>
-    `/api/orders/${id}/attachments/${attachmentId}`,
+  deleteAttachment: (
+    id: number,
+    attachmentId: number,
+    actingRole = "Office",
+    actingEmpNo = "UI",
+    reasonCode?: string
+  ) =>
+    api.deleteWithBody<void>(`/orders/${id}/attachments/${attachmentId}`, {
+      actingRole,
+      actingEmpNo,
+      reasonCode: reasonCode ?? null,
+    }),
+
+  attachmentDownloadUrl: (
+    id: number,
+    attachmentId: number,
+    actingRole = "Office",
+    actingEmpNo = "UI"
+  ) =>
+    `/api/orders/${id}/attachments/${attachmentId}?actingRole=${encodeURIComponent(actingRole)}&actingEmpNo=${encodeURIComponent(actingEmpNo)}`,
 
   workCenterQueue: (workCenterId: number) =>
     api.get<WorkCenterQueueItem[]>(`/orders/workcenter/${workCenterId}/queue`),

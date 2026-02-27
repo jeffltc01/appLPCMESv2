@@ -555,8 +555,10 @@ export interface OrderAttachment {
   fileName: string;
   contentType: string;
   sizeBytes: number;
-  createdAtUtc: string;
+  uploadedUtc: string;
+  uploadedByEmpNo: string | null;
   category: string;
+  isInvoiceRelevant: boolean;
 }
 
 export interface ReceivingLineUpdate {

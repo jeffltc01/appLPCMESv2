@@ -31,6 +31,7 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<OperatorActivityLog> OperatorActivityLogs { get; set; }
 
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
+    public virtual DbSet<OrderAttachmentAudit> OrderAttachmentAudits { get; set; }
     public virtual DbSet<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; }
 
     public virtual DbSet<BusinessDecisionPolicy> BusinessDecisionPolicies { get; set; }
@@ -363,6 +364,13 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(60)
                 .IsUnicode(false)
                 .HasColumnName("category");
+            entity.Property(e => e.UploadedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("uploaded_by_emp_no");
+            entity.Property(e => e.UploadedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("uploaded_utc");
             entity.Property(e => e.SizeBytes).HasColumnName("size_bytes");
             entity.Property(e => e.CreatedAtUtc)
                 .HasColumnType("datetime")
@@ -372,6 +380,49 @@ public partial class LpcAppsDbContext : DbContext
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_order_attachments_sales_orders");
+        });
+
+        modelBuilder.Entity<OrderAttachmentAudit>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_attachment_audits");
+
+            entity.ToTable("order_attachment_audits");
+
+            entity.HasIndex(e => e.OrderId, "ix_order_attachment_audits_order_id");
+            entity.HasIndex(e => e.AttachmentId, "ix_order_attachment_audits_attachment_id");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.AttachmentId).HasColumnName("attachment_id");
+            entity.Property(e => e.ActionType)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("action_type");
+            entity.Property(e => e.ActingRole)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("acting_role");
+            entity.Property(e => e.ActorEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("actor_emp_no");
+            entity.Property(e => e.OccurredUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("occurred_utc");
+            entity.Property(e => e.Details)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("details");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderAttachmentAudits)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .HasConstraintName("FK_order_attachment_audits_sales_orders");
+
+            entity.HasOne(d => d.Attachment).WithMany()
+                .HasForeignKey(d => d.AttachmentId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_order_attachment_audits_order_attachments");
         });
 
         modelBuilder.Entity<OrderInvoiceSubmissionAudit>(entity =>

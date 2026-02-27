@@ -395,11 +395,19 @@ public class OrdersController(
         int id,
         [FromForm] IFormFile? file,
         [FromForm] string? category,
+        [FromForm] string? actingRole,
+        [FromForm] string? actingEmpNo,
         CancellationToken cancellationToken)
     {
         try
         {
-            var attachment = await orderAttachmentService.UploadAttachmentAsync(id, file, category, cancellationToken);
+            var attachment = await orderAttachmentService.UploadAttachmentAsync(
+                id,
+                file,
+                category,
+                actingRole,
+                actingEmpNo,
+                cancellationToken);
             return CreatedAtAction(
                 nameof(DownloadAttachment),
                 new { id, attachmentId = attachment.Id },
@@ -412,11 +420,21 @@ public class OrdersController(
     }
 
     [HttpGet("{id:int}/attachments/{attachmentId:int}")]
-    public async Task<IActionResult> DownloadAttachment(int id, int attachmentId, CancellationToken cancellationToken)
+    public async Task<IActionResult> DownloadAttachment(
+        int id,
+        int attachmentId,
+        [FromQuery] string? actingRole,
+        [FromQuery] string? actingEmpNo,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var result = await orderAttachmentService.DownloadAttachmentAsync(id, attachmentId, cancellationToken);
+            var result = await orderAttachmentService.DownloadAttachmentAsync(
+                id,
+                attachmentId,
+                actingRole,
+                actingEmpNo,
+                cancellationToken);
             return File(result.Stream, result.ContentType, result.FileName);
         }
         catch (ServiceException ex)
@@ -425,12 +443,33 @@ public class OrdersController(
         }
     }
 
-    [HttpDelete("{id:int}/attachments/{attachmentId:int}")]
-    public async Task<IActionResult> DeleteAttachment(int id, int attachmentId, CancellationToken cancellationToken)
+    [HttpPatch("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<ActionResult<OrderAttachmentDto>> UpdateAttachmentCategory(
+        int id,
+        int attachmentId,
+        UpdateOrderAttachmentCategoryDto dto,
+        CancellationToken cancellationToken)
     {
         try
         {
-            await orderAttachmentService.DeleteAttachmentAsync(id, attachmentId, cancellationToken);
+            return Ok(await orderAttachmentService.UpdateAttachmentCategoryAsync(id, attachmentId, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> DeleteAttachment(
+        int id,
+        int attachmentId,
+        [FromBody] DeleteOrderAttachmentDto dto,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await orderAttachmentService.DeleteAttachmentAsync(id, attachmentId, dto, cancellationToken);
             return NoContent();
         }
         catch (ServiceException ex)

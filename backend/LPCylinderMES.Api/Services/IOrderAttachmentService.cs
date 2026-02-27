@@ -10,16 +10,27 @@ public interface IOrderAttachmentService
         int orderId,
         IFormFile? file,
         string? category,
+        string? actingRole,
+        string? actingEmpNo,
         CancellationToken cancellationToken = default);
 
     Task<(Stream Stream, string ContentType, string FileName)> DownloadAttachmentAsync(
         int orderId,
         int attachmentId,
+        string? actingRole,
+        string? actingEmpNo,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderAttachmentDto> UpdateAttachmentCategoryAsync(
+        int orderId,
+        int attachmentId,
+        UpdateOrderAttachmentCategoryDto dto,
         CancellationToken cancellationToken = default);
 
     Task DeleteAttachmentAsync(
         int orderId,
         int attachmentId,
+        DeleteOrderAttachmentDto dto,
         CancellationToken cancellationToken = default);
 }
 

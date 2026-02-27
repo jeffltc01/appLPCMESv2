@@ -193,6 +193,7 @@ public partial class SalesOrder
 
     public virtual ICollection<SalesOrderDetail> SalesOrderDetails { get; set; } = new List<SalesOrderDetail>();
     public virtual ICollection<OrderAttachment> OrderAttachments { get; set; } = new List<OrderAttachment>();
+    public virtual ICollection<OrderAttachmentAudit> OrderAttachmentAudits { get; set; } = new List<OrderAttachmentAudit>();
     public virtual ICollection<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; } = new List<OrderInvoiceSubmissionAudit>();
 
     public virtual SalesPeople? SalesPerson { get; set; }

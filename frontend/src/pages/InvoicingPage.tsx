@@ -82,7 +82,8 @@ export function InvoicingPage() {
       .attachments(selectedOrder.id)
       .then((items) => {
         setAttachments(items);
-        setSelectedAttachmentIds(items.map((item) => item.id));
+        const invoiceRelevant = items.filter((item) => item.isInvoiceRelevant).map((item) => item.id);
+        setSelectedAttachmentIds(invoiceRelevant.length > 0 ? invoiceRelevant : items.map((item) => item.id));
         setSendAttachmentEmail(items.length > 0);
         setSkipReason(items.length > 0 ? "" : "NoAttachmentsAvailable");
         setCorrelationId(null);
@@ -282,7 +283,7 @@ export function InvoicingPage() {
                 {attachments.map((attachment) => (
                   <Checkbox
                     key={attachment.id}
-                    label={attachment.fileName}
+                    label={`${attachment.fileName} (${attachment.category})${attachment.isInvoiceRelevant ? " - invoice relevant" : ""}`}
                     checked={selectedAttachmentIds.includes(attachment.id)}
                     onChange={(_, data) => {
                       setSelectedAttachmentIds((prev) => {
