@@ -44,6 +44,7 @@ builder.Services.AddScoped<IReceivingService, ReceivingService>();
 builder.Services.AddScoped<IProductionService, ProductionService>();
 builder.Services.AddScoped<IOrderAttachmentService, OrderAttachmentService>();
 builder.Services.AddScoped<IOrderLineService, OrderLineService>();
+builder.Services.AddScoped<IWorkCenterWorkflowService, WorkCenterWorkflowService>();
 
 builder.Services.AddCors(options =>
 {
