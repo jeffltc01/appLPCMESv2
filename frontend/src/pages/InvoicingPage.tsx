@@ -17,7 +17,7 @@ import {
 import { ordersApi } from "../services/orders";
 import type { OrderAttachment, OrderDraftListItem } from "../types/order";
 
-const INVOICE_READY_STATUSES = new Set(["Ready to Invoice", "InvoiceReady"]);
+const INVOICE_READY_STATUSES = new Set(["InvoiceReady"]);
 type WizardStep = "review" | "attachments" | "submit";
 
 function generateCorrelationId(): string {
@@ -51,7 +51,9 @@ export function InvoicingPage() {
     setLoading(true);
     try {
       const response = await ordersApi.list({ page: 1, pageSize: 200 });
-      const rows = response.items.filter((row) => INVOICE_READY_STATUSES.has(row.orderStatus));
+      const rows = response.items.filter((row) =>
+        INVOICE_READY_STATUSES.has(row.orderLifecycleStatus ?? row.orderStatus)
+      );
       setOrders(rows);
       setSelectedOrder((prev) => {
         if (selectedOrderIdFromRoute) {

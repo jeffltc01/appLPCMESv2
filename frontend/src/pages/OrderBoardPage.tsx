@@ -103,6 +103,16 @@ export function OrderBoardPage() {
     });
   }, [role, rows]);
 
+  const kpi = useMemo(() => {
+    return {
+      inboundComplete: filteredRows.filter((row) => row.isInboundComplete).length,
+      productionComplete: filteredRows.filter((row) => row.isProductionComplete).length,
+      shipmentReady: filteredRows.filter((row) => row.isProductionCompleteForShipment).length,
+      invoiceComplete: filteredRows.filter((row) => row.isInvoiceComplete).length,
+      reworkOpen: filteredRows.filter((row) => row.isReworkOpen).length,
+    };
+  }, [filteredRows]);
+
   const runMigration = async (dryRun: boolean) => {
     setMigrating(true);
     setMigrationMsg(null);
@@ -157,6 +167,15 @@ export function OrderBoardPage() {
             />
           </Field>
           <Button onClick={() => void load()}>Refresh</Button>
+        </div>
+      </Card>
+      <Card>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <Body1>Inbound Complete: {kpi.inboundComplete}</Body1>
+          <Body1>Production Complete: {kpi.productionComplete}</Body1>
+          <Body1>Ready for Shipment: {kpi.shipmentReady}</Body1>
+          <Body1>Invoice Complete: {kpi.invoiceComplete}</Body1>
+          <Body1>Rework Open: {kpi.reworkOpen}</Body1>
         </div>
       </Card>
 

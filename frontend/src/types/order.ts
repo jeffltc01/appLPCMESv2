@@ -235,10 +235,50 @@ export interface OrderDraftListItem {
   lineCount: number;
   totalOrderedQuantity: number;
   orderLifecycleStatus?: string | null;
+  orderOrigin?: string | null;
+  inboundMode?: string | null;
+  outboundMode?: string | null;
+  statusUpdatedUtc?: string | null;
   holdOverlay?: HoldOverlayType | null;
   statusOwnerRole?: string | null;
+  statusReasonCode?: string | null;
+  statusNote?: string | null;
+  validatedByEmpNo?: string | null;
+  validatedUtc?: string | null;
+  deliveryEvidenceStatus?: string | null;
+  deliveryEvidenceReceivedUtc?: string | null;
+  customerReadyRetryUtc?: string | null;
+  customerReadyLastContactUtc?: string | null;
+  customerReadyContactName?: string | null;
+  attachmentCount?: number;
+  hasInvoiceRelevantAttachments?: boolean;
+  isInboundComplete?: boolean;
+  isProductionComplete?: boolean;
+  isProductionCompleteForShipment?: boolean;
+  isInvoiceComplete?: boolean;
+  isReworkOpen?: boolean;
+  hasOpenRework?: boolean;
+  reworkBlockingInvoice?: boolean;
+  invoiceReviewCompletedByEmpNo?: string | null;
+  invoiceReviewCompletedUtc?: string | null;
+  attachmentEmailPrompted?: boolean;
+  attachmentEmailSent?: boolean;
+  attachmentEmailSentUtc?: string | null;
+  attachmentEmailRecipientSummary?: string | null;
+  invoiceSubmissionRequestedByEmpNo?: string | null;
+  invoiceSubmissionRequestedUtc?: string | null;
+  invoiceSubmissionChannel?: string | null;
+  invoiceSubmissionCorrelationId?: string | null;
+  invoiceStagingResult?: string | null;
+  invoiceStagingError?: string | null;
+  erpInvoiceReference?: string | null;
+  requestedDateUtc?: string | null;
   promisedDateUtc?: string | null;
   currentCommittedDateUtc?: string | null;
+  promiseDateLastChangedUtc?: string | null;
+  promiseDateLastChangedByEmpNo?: string | null;
+  promiseRevisionCount?: number;
+  promiseMissReasonCode?: string | null;
 }
 
 export interface OrderLine {
@@ -295,19 +335,50 @@ export interface OrderDraftDetail {
   returnBrass: number | null;
   lines: OrderLine[];
   orderLifecycleStatus?: string | null;
+  orderOrigin?: string | null;
+  inboundMode?: string | null;
+  outboundMode?: string | null;
+  statusUpdatedUtc?: string | null;
   holdOverlay?: HoldOverlayType | null;
   statusOwnerRole?: string | null;
   statusReasonCode?: string | null;
   statusNote?: string | null;
+  validatedByEmpNo?: string | null;
+  validatedUtc?: string | null;
+  deliveryEvidenceStatus?: string | null;
+  deliveryEvidenceReceivedUtc?: string | null;
+  customerReadyRetryUtc?: string | null;
+  customerReadyLastContactUtc?: string | null;
+  customerReadyContactName?: string | null;
+  attachmentCount?: number;
+  hasInvoiceRelevantAttachments?: boolean;
+  isInboundComplete?: boolean;
+  isProductionComplete?: boolean;
+  isProductionCompleteForShipment?: boolean;
+  isInvoiceComplete?: boolean;
+  isReworkOpen?: boolean;
   requestedDateUtc?: string | null;
   promisedDateUtc?: string | null;
   currentCommittedDateUtc?: string | null;
-  promiseRevisionCount?: number | null;
+  promiseRevisionCount?: number;
   promiseDateLastChangedUtc?: string | null;
   promiseDateLastChangedByEmpNo?: string | null;
   promiseMissReasonCode?: string | null;
   hasOpenRework?: boolean;
   reworkBlockingInvoice?: boolean;
+  invoiceReviewCompletedByEmpNo?: string | null;
+  invoiceReviewCompletedUtc?: string | null;
+  attachmentEmailPrompted?: boolean;
+  attachmentEmailSent?: boolean;
+  attachmentEmailSentUtc?: string | null;
+  attachmentEmailRecipientSummary?: string | null;
+  invoiceSubmissionRequestedByEmpNo?: string | null;
+  invoiceSubmissionRequestedUtc?: string | null;
+  invoiceSubmissionChannel?: string | null;
+  invoiceSubmissionCorrelationId?: string | null;
+  invoiceStagingResult?: string | null;
+  invoiceStagingError?: string | null;
+  erpInvoiceReference?: string | null;
 }
 
 export interface OrderDraftCreate {
@@ -404,6 +475,7 @@ export interface TransportBoardItem {
   id: number;
   salesOrderNo: string;
   orderStatus: string;
+  orderLifecycleStatus?: string | null;
   movementType: "Pickup" | "Shipment";
   orderDate: string;
   customerId: number;
@@ -426,6 +498,11 @@ export interface TransportBoardItem {
   scheduledDate: string | null;
   transportationStatus: string | null;
   transportationNotes: string | null;
+  isInboundComplete?: boolean;
+  isProductionComplete?: boolean;
+  isProductionCompleteForShipment?: boolean;
+  isInvoiceComplete?: boolean;
+  isReworkOpen?: boolean;
 }
 
 export interface TransportBoardUpdate {
@@ -661,15 +738,15 @@ export interface RecordPromiseNotificationRequest {
 }
 
 export interface OrderPromiseChangeEvent {
-  id: number;
+  promiseChangeEventId: number;
   orderId: number;
   eventType: string;
-  oldCommittedDateUtc?: string | null;
-  newCommittedDateUtc?: string | null;
+  oldCommittedDate?: string | null;
+  newCommittedDate?: string | null;
   promiseChangeReasonCode?: string | null;
   promiseChangeReasonNote?: string | null;
   changedByEmpNo?: string | null;
-  occurredUtc: string;
+  changedUtc: string;
   customerNotificationStatus?: string | null;
   customerNotificationChannel?: string | null;
   customerNotificationUtc?: string | null;

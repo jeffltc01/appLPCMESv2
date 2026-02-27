@@ -33,11 +33,11 @@ import type {
   TransportBoardParams,
 } from "../types/order";
 import {
-  ORDER_STATUS_KEYS,
   getOrderStatusDisplayLabel,
   type OrderWorkspaceRole,
   type OrderWorkflowStatus,
 } from "../types/order";
+import { getWorkspaceCurrentStatus } from "../services/orders";
 import type { Lookup, PaginatedResponse } from "../types/customer";
 import { ApiError } from "../services/api";
 
@@ -800,23 +800,24 @@ export function TransportationBoardPage() {
   };
 
   const getNextStatusAction = (orderStatus: string) => {
-    if (orderStatus === ORDER_STATUS_KEYS.READY_FOR_PICKUP) {
+    const lifecycleStatus = getWorkspaceCurrentStatus(orderStatus);
+    if (lifecycleStatus === "InboundLogisticsPlanned") {
       return {
-        label: "Mark Pickup Scheduled",
-        targetStatus: ORDER_STATUS_KEYS.PICKUP_SCHEDULED as OrderWorkflowStatus,
+        label: "Mark Inbound In Transit",
+        targetStatus: "InboundInTransit" as OrderWorkflowStatus,
       };
     }
-    if (orderStatus === ORDER_STATUS_KEYS.READY_TO_SHIP) {
+    if (lifecycleStatus === "OutboundLogisticsPlanned") {
       return {
-        label: "Mark Ready for Invoicing",
-        targetStatus: ORDER_STATUS_KEYS.READY_TO_INVOICE as OrderWorkflowStatus,
+        label: "Mark Dispatched / Released",
+        targetStatus: "DispatchedOrPickupReleased" as OrderWorkflowStatus,
       };
     }
     return null;
   };
 
   const advanceTransportRowStatus = async (row: TransportBoardItem) => {
-    const action = getNextStatusAction(row.orderStatus);
+    const action = getNextStatusAction(row.orderLifecycleStatus ?? row.orderStatus);
     if (!action) return;
 
     setAdvancingId(row.id);
@@ -1020,15 +1021,15 @@ export function TransportationBoardPage() {
                           <div className={styles.statusCellWrap}>
                             <span
                               className={`${styles.statusPill} ${
-                                row.orderStatus === ORDER_STATUS_KEYS.READY_TO_SHIP
+                                getWorkspaceCurrentStatus(row.orderLifecycleStatus ?? row.orderStatus) === "OutboundLogisticsPlanned"
                                   ? styles.statusScheduled
                                   : styles.statusOpen
                               }`}
                             >
-                              {getOrderStatusDisplayLabel(row.orderStatus)}
+                              {getOrderStatusDisplayLabel(row.orderLifecycleStatus ?? row.orderStatus)}
                             </span>
                             {(() => {
-                              const action = getNextStatusAction(row.orderStatus);
+                              const action = getNextStatusAction(row.orderLifecycleStatus ?? row.orderStatus);
                               if (!action) return null;
                               return (
                                 <Button

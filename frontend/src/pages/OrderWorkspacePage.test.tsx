@@ -43,6 +43,7 @@ describe("OrderWorkspacePage", () => {
       orderLifecycleStatus: "Draft",
     });
     vi.spyOn(ordersApi, "attachments").mockResolvedValue([]);
+    vi.spyOn(ordersApi, "promiseHistory").mockResolvedValue([]);
     const advanceStatusSpy = vi.spyOn(ordersApi, "advanceStatus").mockResolvedValue({
       id: 1,
       salesOrderNo: "SO-1001",

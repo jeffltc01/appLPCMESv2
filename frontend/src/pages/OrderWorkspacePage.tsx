@@ -1033,12 +1033,12 @@ export function OrderWorkspacePage() {
               <Body1>No promise history events recorded yet.</Body1>
             ) : (
               promiseHistory.map((event) => (
-                <div key={event.id} className={styles.attachmentRow}>
+                <div key={event.promiseChangeEventId} className={styles.attachmentRow}>
                   <Body1>{event.eventType}</Body1>
                   <Body1>{event.promiseChangeReasonCode ?? event.missReasonCode ?? "--"}</Body1>
-                  <Body1>{new Date(event.occurredUtc).toLocaleString()}</Body1>
+                  <Body1>{new Date(event.changedUtc).toLocaleString()}</Body1>
                   <Body1>
-                    {event.oldCommittedDateUtc ?? "--"} → {event.newCommittedDateUtc ?? "--"}
+                    {event.oldCommittedDate ?? "--"} → {event.newCommittedDate ?? "--"}
                   </Body1>
                 </div>
               ))
@@ -1049,8 +1049,17 @@ export function OrderWorkspacePage() {
         <div className={styles.placeholder}>
           {tab === "auditLog" &&
             "Audit log placeholder. UI contract will map to /api/orders/{id}/audit-events later."}
-          {tab === "integrationEvents" &&
-            "Integration events placeholder for ERP staging status and correlation IDs."}
+          {tab === "integrationEvents" && (
+            <>
+              <Body1>
+                ERP submit status: <strong>{order.invoiceStagingResult ?? "--"}</strong>
+              </Body1>
+              <Body1>Correlation ID: {order.invoiceSubmissionCorrelationId ?? "--"}</Body1>
+              <Body1>Submission channel: {order.invoiceSubmissionChannel ?? "--"}</Body1>
+              <Body1>ERP reference: {order.erpInvoiceReference ?? "--"}</Body1>
+              <Body1>Error: {order.invoiceStagingError ?? "--"}</Body1>
+            </>
+          )}
         </div>
       )}
 

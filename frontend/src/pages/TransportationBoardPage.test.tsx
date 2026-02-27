@@ -15,6 +15,17 @@ const orderLookupsApiMock = vi.hoisted(() => ({
 vi.mock("../services/orders", () => ({
   ordersApi: ordersApiMock,
   orderLookupsApi: orderLookupsApiMock,
+  getWorkspaceCurrentStatus: (status: string) => {
+    const legacyToLifecycle: Record<string, string> = {
+      New: "Draft",
+      "Ready for Pickup": "InboundLogisticsPlanned",
+      "Pickup Scheduled": "InboundInTransit",
+      Received: "ReceivedPendingReconciliation",
+      "Ready to Ship": "ProductionComplete",
+      "Ready to Invoice": "InvoiceReady",
+    };
+    return legacyToLifecycle[status] ?? status;
+  },
 }));
 
 describe("TransportationBoardPage", () => {

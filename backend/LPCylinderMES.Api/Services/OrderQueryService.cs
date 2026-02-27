@@ -7,6 +7,14 @@ namespace LPCylinderMES.Api.Services;
 
 public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
 {
+    private static readonly HashSet<string> InvoiceRelevantCategories = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TestResult",
+        "SerialReport",
+        "PackingSlip",
+        "BillOfLading",
+    };
+
     public async Task<PaginatedResponse<OrderDraftListDto>> GetOrdersAsync(
         int page,
         int pageSize,
@@ -60,10 +68,67 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 o.SalesOrderDetails.Count(),
                 o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered),
                 o.OrderLifecycleStatus,
+                o.OrderOrigin,
+                o.InboundMode,
+                o.OutboundMode,
+                o.StatusUpdatedUtc,
+                o.StatusOwnerRole,
+                o.StatusReasonCode,
+                o.StatusNote,
+                o.HoldOverlay,
+                o.ValidatedByEmpNo,
+                o.ValidatedUtc,
+                o.DeliveryEvidenceStatus,
+                o.DeliveryEvidenceReceivedUtc,
+                o.CustomerReadyRetryUtc,
+                o.CustomerReadyLastContactUtc,
+                o.CustomerReadyContactName,
+                o.OrderAttachments.Count(),
+                o.OrderAttachments.Any(a => InvoiceRelevantCategories.Contains(a.Category)),
+                false,
+                false,
+                false,
+                false,
+                false,
+                o.HasOpenRework ?? false,
+                o.ReworkBlockingInvoice ?? false,
+                o.InvoiceReviewCompletedByEmpNo,
+                o.InvoiceReviewCompletedUtc,
+                o.AttachmentEmailPrompted ?? false,
+                o.AttachmentEmailSent ?? false,
+                o.AttachmentEmailSentUtc,
+                o.AttachmentEmailRecipientSummary,
+                o.InvoiceSubmissionRequestedByEmpNo,
+                o.InvoiceSubmissionRequestedUtc,
+                o.InvoiceSubmissionChannel,
+                o.InvoiceSubmissionCorrelationId,
+                o.InvoiceStagingResult,
+                o.InvoiceStagingError,
+                o.ErpInvoiceReference,
                 o.RequestedDateUtc,
                 o.PromisedDateUtc,
-                o.CurrentCommittedDateUtc))
+                o.CurrentCommittedDateUtc,
+                o.PromiseDateLastChangedUtc,
+                o.PromiseDateLastChangedByEmpNo,
+                o.PromiseRevisionCount ?? 0,
+                o.PromiseMissReasonCode))
             .ToListAsync(cancellationToken);
+
+        items = items
+            .Select(item =>
+            {
+                var lifecycleStatus = ResolveLifecycleStatus(item.OrderLifecycleStatus, item.OrderStatus);
+                var progress = ComputeProgress(lifecycleStatus, item.HoldOverlay, item.HasOpenRework, item.ReworkBlockingInvoice);
+                return item with
+                {
+                    IsInboundComplete = progress.IsInboundComplete,
+                    IsProductionComplete = progress.IsProductionComplete,
+                    IsProductionCompleteForShipment = progress.IsProductionCompleteForShipment,
+                    IsInvoiceComplete = progress.IsInvoiceComplete,
+                    IsReworkOpen = progress.IsReworkOpen,
+                };
+            })
+            .ToList();
 
         return new PaginatedResponse<OrderDraftListDto>(items, totalCount, page, pageSize);
     }
@@ -86,6 +151,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 .ThenInclude(d => d.Color)
             .Include(o => o.SalesOrderDetails)
                 .ThenInclude(d => d.LidColor)
+            .Include(o => o.OrderAttachments)
             .Where(o => o.Id == id)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -96,6 +162,11 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             .OrderBy(d => d.LineNo)
             .Select(ToOrderLineDto)
             .ToList();
+
+        var attachmentCount = order.OrderAttachments.Count;
+        var hasInvoiceRelevantAttachments = order.OrderAttachments.Any(a => InvoiceRelevantCategories.Contains(a.Category));
+        var lifecycleStatus = ResolveLifecycleStatus(order.OrderLifecycleStatus, order.OrderStatus);
+        var progress = ComputeProgress(lifecycleStatus, order.HoldOverlay, order.HasOpenRework ?? false, order.ReworkBlockingInvoice ?? false);
 
         return new OrderDraftDetailDto(
             order.Id,
@@ -129,19 +200,50 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.ReturnBrass,
             lines,
             order.OrderLifecycleStatus,
+            order.OrderOrigin,
+            order.InboundMode,
+            order.OutboundMode,
+            order.StatusUpdatedUtc,
             order.HoldOverlay,
             order.StatusOwnerRole,
             order.StatusReasonCode,
             order.StatusNote,
+            order.ValidatedByEmpNo,
+            order.ValidatedUtc,
+            order.DeliveryEvidenceStatus,
+            order.DeliveryEvidenceReceivedUtc,
+            order.CustomerReadyRetryUtc,
+            order.CustomerReadyLastContactUtc,
+            order.CustomerReadyContactName,
+            attachmentCount,
+            hasInvoiceRelevantAttachments,
+            progress.IsInboundComplete,
+            progress.IsProductionComplete,
+            progress.IsProductionCompleteForShipment,
+            progress.IsInvoiceComplete,
+            progress.IsReworkOpen,
             order.RequestedDateUtc,
             order.PromisedDateUtc,
             order.CurrentCommittedDateUtc,
-            order.PromiseRevisionCount,
+            order.PromiseRevisionCount ?? 0,
             order.PromiseDateLastChangedUtc,
             order.PromiseDateLastChangedByEmpNo,
             order.PromiseMissReasonCode,
-            order.HasOpenRework,
-            order.ReworkBlockingInvoice);
+            order.HasOpenRework ?? false,
+            order.ReworkBlockingInvoice ?? false,
+            order.InvoiceReviewCompletedByEmpNo,
+            order.InvoiceReviewCompletedUtc,
+            order.AttachmentEmailPrompted ?? false,
+            order.AttachmentEmailSent ?? false,
+            order.AttachmentEmailSentUtc,
+            order.AttachmentEmailRecipientSummary,
+            order.InvoiceSubmissionRequestedByEmpNo,
+            order.InvoiceSubmissionRequestedUtc,
+            order.InvoiceSubmissionChannel,
+            order.InvoiceSubmissionCorrelationId,
+            order.InvoiceStagingResult,
+            order.InvoiceStagingError,
+            order.ErpInvoiceReference);
     }
 
     public async Task<PaginatedResponse<TransportBoardItemDto>> GetTransportBoardAsync(
@@ -351,6 +453,8 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
     {
         var lineCount = order.SalesOrderDetails.Count;
         var totalQuantity = order.SalesOrderDetails.Sum(d => d.QuantityAsOrdered);
+        var lifecycleStatus = ResolveLifecycleStatus(order.OrderLifecycleStatus, order.OrderStatus);
+        var progress = ComputeProgress(lifecycleStatus, order.HoldOverlay, order.HasOpenRework ?? false, order.ReworkBlockingInvoice ?? false);
         var topLines = order.SalesOrderDetails
             .OrderBy(d => d.LineNo)
             .Take(3)
@@ -367,6 +471,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.Id,
             order.SalesOrderNo,
             order.OrderStatus,
+            order.OrderLifecycleStatus,
             OrderStatusCatalog.ShipmentStatuses.Contains(order.OrderStatus) ? "Shipment" : "Pickup",
             order.OrderDate,
             order.CustomerId,
@@ -388,7 +493,12 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.DispatchDate,
             order.PickupScheduledDate,
             order.TransportationStatus,
-            order.TransportationNotes);
+            order.TransportationNotes,
+            progress.IsInboundComplete,
+            progress.IsProductionComplete,
+            progress.IsProductionCompleteForShipment,
+            progress.IsInvoiceComplete,
+            progress.IsReworkOpen);
     }
 
     private static string? FormatAddressLabel(Address? address)
@@ -428,6 +538,44 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
         return value.Trim();
+    }
+
+    private static string ResolveLifecycleStatus(string? lifecycleStatus, string legacyStatus)
+    {
+        if (!string.IsNullOrWhiteSpace(lifecycleStatus))
+        {
+            return lifecycleStatus;
+        }
+
+        return OrderStatusCatalog.MapLegacyToLifecycle(legacyStatus);
+    }
+
+    private static (bool IsInboundComplete, bool IsProductionComplete, bool IsProductionCompleteForShipment, bool IsInvoiceComplete, bool IsReworkOpen)
+        ComputeProgress(string lifecycleStatus, string? holdOverlay, bool hasOpenRework, bool reworkBlockingInvoice)
+    {
+        var isReworkOpen = string.Equals(holdOverlay, OrderStatusCatalog.ReworkOpen, StringComparison.Ordinal) ||
+                           hasOpenRework ||
+                           reworkBlockingInvoice;
+
+        var isInboundComplete = lifecycleStatus is OrderStatusCatalog.ReadyForProduction or
+            OrderStatusCatalog.InProduction or
+            OrderStatusCatalog.ProductionCompletePendingApproval or
+            OrderStatusCatalog.ProductionComplete or
+            OrderStatusCatalog.OutboundLogisticsPlanned or
+            OrderStatusCatalog.DispatchedOrPickupReleased or
+            OrderStatusCatalog.InvoiceReady or
+            OrderStatusCatalog.Invoiced;
+
+        var isProductionComplete = lifecycleStatus is OrderStatusCatalog.ProductionComplete or
+            OrderStatusCatalog.OutboundLogisticsPlanned or
+            OrderStatusCatalog.DispatchedOrPickupReleased or
+            OrderStatusCatalog.InvoiceReady or
+            OrderStatusCatalog.Invoiced;
+
+        var isProductionCompleteForShipment = isProductionComplete && !isReworkOpen;
+        var isInvoiceComplete = lifecycleStatus is OrderStatusCatalog.Invoiced;
+
+        return (isInboundComplete, isProductionComplete, isProductionCompleteForShipment, isInvoiceComplete, isReworkOpen);
     }
 
     private static ReceivingOrderDetailDto ToReceivingDetailDto(SalesOrder order)

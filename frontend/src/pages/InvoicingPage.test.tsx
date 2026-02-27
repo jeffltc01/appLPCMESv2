@@ -25,6 +25,7 @@ describe("InvoicingPage", () => {
           salesOrderNo: "SO-1",
           orderDate: "2026-02-26",
           orderStatus: "Ready to Invoice",
+          orderLifecycleStatus: "InvoiceReady",
           customerId: 10,
           customerName: "Acme",
           siteId: 1,
