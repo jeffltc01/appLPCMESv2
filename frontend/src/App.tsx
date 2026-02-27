@@ -22,6 +22,11 @@ import { OrderWorkspacePage } from "./pages/OrderWorkspacePage";
 import { OrderBoardPage } from "./pages/OrderBoardPage";
 import { OrderPolicyPage } from "./pages/OrderPolicyPage";
 import { KpiDiagnosticsPage } from "./pages/KpiDiagnosticsPage";
+import { SupervisorRouteReviewPage } from "./pages/SupervisorRouteReviewPage";
+import { SetupHomePage } from "./pages/SetupHomePage";
+import { SetupWorkCentersPage } from "./pages/SetupWorkCentersPage";
+import { SetupRouteTemplatesPage } from "./pages/SetupRouteTemplatesPage";
+import { SetupAssignmentsPage } from "./pages/SetupAssignmentsPage";
 
 export default function App() {
   return (
@@ -49,9 +54,14 @@ export default function App() {
             <Route path="orderboard" element={<OrderBoardPage />} />
             <Route path="orderboard/kpi-diagnostics" element={<KpiDiagnosticsPage />} />
             <Route path="operator-console" element={<OperatorWorkCenterConsolePage />} />
+            <Route path="supervisor/review" element={<SupervisorRouteReviewPage />} />
             <Route path="contacts/*" element={<PlaceholderPage title="Contacts" />} />
+            <Route path="setup" element={<SetupHomePage />} />
+            <Route path="setup/workcenters" element={<SetupWorkCentersPage />} />
+            <Route path="setup/route-templates" element={<SetupRouteTemplatesPage />} />
+            <Route path="setup/assignments" element={<SetupAssignmentsPage />} />
             <Route path="setup/policies" element={<OrderPolicyPage />} />
-            <Route path="setup/*" element={<PlaceholderPage title="Setup" />} />
+            <Route path="setup/*" element={<SetupHomePage />} />
           </Route>
         </Routes>
       </BrowserRouter>

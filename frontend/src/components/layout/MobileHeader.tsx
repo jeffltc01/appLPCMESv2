@@ -44,6 +44,7 @@ const allNavItems: NavItem[] = [
   { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
   { key: "production", label: "Production", icon: <Wrench24Regular />, path: "/production" },
   { key: "operatorConsole", label: "Operator Console", icon: <Wrench24Regular />, path: "/operator-console" },
+  { key: "supervisorReview", label: "Supervisor Review", icon: <Board24Regular />, path: "/supervisor/review" },
   { key: "shipping", label: "Shipping", icon: <BoxCheckmark24Regular />, path: "/shipping" },
   {
     key: "invoicing",

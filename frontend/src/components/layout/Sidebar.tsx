@@ -55,6 +55,12 @@ const navItems: NavItem[] = [
     path: "/operator-console",
   },
   {
+    key: "supervisorReview",
+    label: "Supervisor Review",
+    icon: <Board24Regular />,
+    path: "/supervisor/review",
+  },
+  {
     key: "shipping",
     label: "Shipping",
     icon: <BoxCheckmark24Regular />,
@@ -93,7 +99,7 @@ const bottomItems: NavItem[] = [
     label: "Setup",
     icon: <Settings24Regular />,
     path: "/setup",
-    navigateTo: "/setup/policies",
+    navigateTo: "/setup",
   },
 ];
 
