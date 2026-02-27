@@ -113,6 +113,24 @@ public partial class SalesOrder
 
     public bool? ReworkBlockingInvoice { get; set; }
 
+    public string? ReworkState { get; set; }
+
+    public string? ReworkReasonCode { get; set; }
+
+    public string? ReworkDisposition { get; set; }
+
+    public DateTime? ReworkRequestedUtc { get; set; }
+
+    public DateTime? ReworkApprovedUtc { get; set; }
+
+    public DateTime? ReworkInProgressUtc { get; set; }
+
+    public DateTime? ReworkVerificationPendingUtc { get; set; }
+
+    public DateTime? ReworkClosedUtc { get; set; }
+
+    public string? ReworkLastUpdatedByEmpNo { get; set; }
+
     public DateTime? RequestedDateUtc { get; set; }
 
     public DateTime? PromisedDateUtc { get; set; }

@@ -101,6 +101,16 @@ public record OrderAdvanceStatusDto(
     string? Note,
     string? ActingEmpNo);
 
+public record ApplyHoldDto(
+    string HoldOverlay,
+    string ActingRole,
+    string AppliedByEmpNo,
+    string ReasonCode,
+    string? Note,
+    DateTime? CustomerReadyRetryUtc,
+    DateTime? CustomerReadyLastContactUtc,
+    string? CustomerReadyContactName);
+
 public record ClearHoldDto(string ActingRole, string ClearedByEmpNo, string? Note);
 
 public record ErpReconcileFailureDto(string ErrorMessage, string? CorrelationId, string? FailedByEmpNo);

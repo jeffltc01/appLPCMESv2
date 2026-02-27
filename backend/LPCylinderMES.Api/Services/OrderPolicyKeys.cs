@@ -10,6 +10,7 @@ public static class OrderPolicyKeys
     public const string MissingDeliveryEvidenceBehavior = "MissingDeliveryEvidenceBehavior";
     public const string RequiredAttachmentCategoriesCsv = "RequiredAttachmentCategoriesCsv";
     public const string ReworkRevertTargetStatus = "ReworkRevertTargetStatus";
+    public const string HoldForwardAllowTransitionsCsv = "HoldForwardAllowTransitionsCsv";
     public const string PromiseReasonTaxonomyOwnerRole = "PromiseReasonTaxonomyOwnerRole";
 
     public static readonly string[] RequiredFunctionsForActivation =

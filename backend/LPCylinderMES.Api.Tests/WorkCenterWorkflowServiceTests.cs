@@ -16,7 +16,7 @@ public class WorkCenterWorkflowServiceTests
         SeedRouteWithTwoSteps(db, orderId: 500, lineId: 5001, routeId: 5100, firstStepState: "Pending", secondStepState: "Pending");
         await db.SaveChangesAsync();
 
-        var service = new WorkCenterWorkflowService(db);
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
             service.ScanInAsync(500, 5001, 5102, new OperatorScanInDto("EMP001", null)));
 
@@ -30,7 +30,7 @@ public class WorkCenterWorkflowServiceTests
         SeedRouteWithTwoSteps(db, orderId: 600, lineId: 6001, routeId: 6100, firstStepState: "Completed", secondStepState: "InProgress", requiresUsageForSecond: true);
         await db.SaveChangesAsync();
 
-        var service = new WorkCenterWorkflowService(db);
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
             service.CompleteStepAsync(600, 6001, 6102, new CompleteWorkCenterStepDto("EMP002", null)));
 
@@ -47,14 +47,29 @@ public class WorkCenterWorkflowServiceTests
         order.HoldOverlay = OrderStatusCatalog.ReworkOpen;
         order.HasOpenRework = true;
         order.ReworkBlockingInvoice = true;
+        order.ReworkState = "VerificationPending";
         await db.SaveChangesAsync();
 
-        var service = new WorkCenterWorkflowService(db);
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         await service.CloseReworkAsync(700, 7001, 7102, new ReworkStateChangeDto("EMP003", "Closed verification"));
 
         var updated = await db.SalesOrders.FirstAsync(o => o.Id == 700);
         Assert.Null(updated.HoldOverlay);
         Assert.False(updated.HasOpenRework);
+    }
+
+    [Fact]
+    public async Task ReworkAsync_RejectsInvalidLifecycleJump()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ReworkAsync_RejectsInvalidLifecycleJump));
+        SeedRouteWithTwoSteps(db, orderId: 710, lineId: 7101, routeId: 7200, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.StartReworkAsync(710, 7101, 7202, new ReworkStateChangeDto("EMP004", "skip approval")));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
 
     private static void SeedRouteWithTwoSteps(

@@ -25,4 +25,6 @@ public interface IWorkCenterWorkflowService
     Task<OrderRouteExecutionDto> StartReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> SubmitReworkVerificationAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> CloseReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> CancelReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> ScrapReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default);
 }

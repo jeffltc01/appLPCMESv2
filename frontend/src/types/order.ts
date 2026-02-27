@@ -598,6 +598,23 @@ export interface SubmitInvoiceRequest {
   submittedByEmpNo?: string | null;
 }
 
+export interface ApplyHoldRequest {
+  holdOverlay: HoldOverlayType;
+  actingRole: string;
+  appliedByEmpNo: string;
+  reasonCode: string;
+  note?: string | null;
+  customerReadyRetryUtc?: string | null;
+  customerReadyLastContactUtc?: string | null;
+  customerReadyContactName?: string | null;
+}
+
+export interface ClearHoldRequest {
+  actingRole: string;
+  clearedByEmpNo: string;
+  note?: string | null;
+}
+
 export interface OrderLifecycleMigrationResult {
   totalOrdersScanned: number;
   ordersAlreadyInitialized: number;

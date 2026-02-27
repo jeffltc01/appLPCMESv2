@@ -207,6 +207,15 @@ public class OrdersController(
             });
         }
 
+        if (string.Equals(order.HoldOverlay, OrderStatusCatalog.OnHoldCustomer, StringComparison.Ordinal) &&
+            (!order.CustomerReadyRetryUtc.HasValue || !order.CustomerReadyLastContactUtc.HasValue))
+        {
+            return Conflict(new
+            {
+                message = "OnHoldCustomer can only be cleared after customer readiness confirmation fields are recorded."
+            });
+        }
+
         order.HoldOverlay = null;
         order.StatusReasonCode = "HoldCleared";
         order.StatusNote = dto.Note;
@@ -216,6 +225,20 @@ public class OrdersController(
 
         var detail = await orderQueryService.GetOrderDetailAsync(id);
         return Ok(detail);
+    }
+
+    [HttpPost("{id:int}/hold/apply")]
+    public async Task<ActionResult<OrderDraftDetailDto>> ApplyHold(int id, ApplyHoldDto dto)
+    {
+        try
+        {
+            var detail = await orderWorkflowService.ApplyHoldAsync(id, dto);
+            return Ok(detail);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
     }
 
     [HttpPost("{id:int}/erp-reconcile/failure")]
@@ -704,6 +727,32 @@ public class OrdersController(
         try
         {
             return Ok(await workCenterWorkflowService.CloseReworkAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/cancel")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> CancelRework(int orderId, int lineId, long stepId, ReworkStateChangeDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.CancelReworkAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/rework/scrap")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> ScrapRework(int orderId, int lineId, long stepId, ReworkStateChangeDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.ScrapReworkAsync(orderId, lineId, stepId, dto));
         }
         catch (ServiceException ex)
         {

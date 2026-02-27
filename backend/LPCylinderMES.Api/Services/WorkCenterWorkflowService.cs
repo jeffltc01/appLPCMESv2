@@ -5,8 +5,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Services;
 
-public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflowService
+public class WorkCenterWorkflowService(
+    LpcAppsDbContext db,
+    IOrderPolicyService orderPolicyService) : IWorkCenterWorkflowService
 {
+    private static readonly Dictionary<string, string[]> ReworkStateTransitions = new(StringComparer.Ordinal)
+    {
+        ["Requested"] = ["Approved", "Cancelled", "Scrapped"],
+        ["Approved"] = ["InProgress", "Cancelled", "Scrapped"],
+        ["InProgress"] = ["VerificationPending", "Cancelled", "Scrapped"],
+        ["VerificationPending"] = ["Closed", "Cancelled", "Scrapped"],
+        ["Closed"] = [],
+        ["Cancelled"] = [],
+        ["Scrapped"] = [],
+    };
+
     public async Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default)
     {
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
@@ -265,34 +278,125 @@ public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflo
     }
 
     public Task<OrderRouteExecutionDto> RequestReworkAsync(int orderId, int lineId, long stepId, ReworkRequestDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.RequestedByEmpNo, "Requested", dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.RequestedByEmpNo, "Requested", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> ApproveReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Approved", dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Approved", null, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> StartReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "InProgress", dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "InProgress", null, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> SubmitReworkVerificationAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "VerificationPending", dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "VerificationPending", null, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> CloseReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Closed", dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Closed", null, dto.Notes, cancellationToken);
 
-    private async Task<OrderRouteExecutionDto> ApplyReworkStateAsync(int orderId, int lineId, long stepId, string actorEmpNo, string reworkState, string? notes, CancellationToken cancellationToken)
+    public Task<OrderRouteExecutionDto> CancelReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Cancelled", null, dto.Notes, cancellationToken);
+
+    public Task<OrderRouteExecutionDto> ScrapReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Scrapped", null, dto.Notes, cancellationToken);
+
+    private async Task<OrderRouteExecutionDto> ApplyReworkStateAsync(
+        int orderId,
+        int lineId,
+        long stepId,
+        string actorEmpNo,
+        string reworkState,
+        string? reasonCode,
+        string? notes,
+        CancellationToken cancellationToken)
     {
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         var order = step.OrderLineRouteInstance.SalesOrder;
+        var currentReworkState = string.IsNullOrWhiteSpace(order.ReworkState) ? null : order.ReworkState.Trim();
 
-        order.HoldOverlay = string.Equals(reworkState, "Closed", StringComparison.Ordinal) ? null : OrderStatusCatalog.ReworkOpen;
-        order.HasOpenRework = !string.Equals(reworkState, "Closed", StringComparison.Ordinal);
+        if (currentReworkState is null)
+        {
+            if (!string.Equals(reworkState, "Requested", StringComparison.Ordinal))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Rework must start with Requested state.");
+            }
+
+            if (string.IsNullOrWhiteSpace(reasonCode))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    "Rework reason code is required when requesting rework.");
+            }
+        }
+        else if (ReworkStateTransitions.TryGetValue(currentReworkState, out var allowedStates))
+        {
+            if (!allowedStates.Contains(reworkState, StringComparer.Ordinal))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    $"Invalid rework transition '{currentReworkState}' -> '{reworkState}'.");
+            }
+        }
+
+        var isTerminal = string.Equals(reworkState, "Closed", StringComparison.Ordinal) ||
+                         string.Equals(reworkState, "Cancelled", StringComparison.Ordinal) ||
+                         string.Equals(reworkState, "Scrapped", StringComparison.Ordinal);
+        var now = DateTime.UtcNow;
+        order.HoldOverlay = isTerminal ? null : OrderStatusCatalog.ReworkOpen;
+        order.HasOpenRework = !isTerminal;
         order.ReworkBlockingInvoice = order.HasOpenRework;
+        order.ReworkState = reworkState;
+        order.ReworkLastUpdatedByEmpNo = actorEmpNo;
+        if (string.Equals(reworkState, "Requested", StringComparison.Ordinal))
+        {
+            order.ReworkRequestedUtc = now;
+            order.ReworkReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim();
+        }
+        else if (string.Equals(reworkState, "Approved", StringComparison.Ordinal))
+        {
+            order.ReworkApprovedUtc = now;
+        }
+        else if (string.Equals(reworkState, "InProgress", StringComparison.Ordinal))
+        {
+            order.ReworkInProgressUtc = now;
+        }
+        else if (string.Equals(reworkState, "VerificationPending", StringComparison.Ordinal))
+        {
+            order.ReworkVerificationPendingUtc = now;
+        }
+        else if (isTerminal)
+        {
+            order.ReworkClosedUtc = now;
+            order.ReworkDisposition = reworkState;
+        }
+
         order.StatusReasonCode = $"Rework:{reworkState}";
         order.StatusNote = notes;
         order.StatusOwnerRole = "Quality";
-        order.StatusUpdatedUtc = DateTime.UtcNow;
+        order.StatusUpdatedUtc = now;
 
-        if (!string.Equals(reworkState, "Closed", StringComparison.Ordinal))
+        var currentLifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            : order.OrderLifecycleStatus!;
+        if (!isTerminal && string.Equals(currentLifecycleStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal))
+        {
+            var target = await orderPolicyService.GetDecisionValueAsync(
+                OrderPolicyKeys.ReworkRevertTargetStatus,
+                order.SiteId,
+                order.CustomerId,
+                OrderStatusCatalog.InProduction,
+                cancellationToken);
+            if (!string.Equals(target, OrderStatusCatalog.InProduction, StringComparison.Ordinal) &&
+                !string.Equals(target, OrderStatusCatalog.ProductionCompletePendingApproval, StringComparison.Ordinal))
+            {
+                target = OrderStatusCatalog.InProduction;
+            }
+
+            order.OrderLifecycleStatus = target;
+            order.OrderStatus = OrderStatusCatalog.MapLifecycleToLegacy(target);
+        }
+
+        if (!isTerminal)
         {
             step.State = "Blocked";
             step.BlockedReason = $"Rework-{reworkState}";

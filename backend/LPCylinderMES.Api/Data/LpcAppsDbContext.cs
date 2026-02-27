@@ -659,6 +659,37 @@ public partial class LpcAppsDbContext : DbContext
                 .HasColumnType("datetime")
                 .HasColumnName("requested_date_utc");
             entity.Property(e => e.ReworkBlockingInvoice).HasColumnName("rework_blocking_invoice");
+            entity.Property(e => e.ReworkState)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("rework_state");
+            entity.Property(e => e.ReworkReasonCode)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("rework_reason_code");
+            entity.Property(e => e.ReworkDisposition)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("rework_disposition");
+            entity.Property(e => e.ReworkRequestedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("rework_requested_utc");
+            entity.Property(e => e.ReworkApprovedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("rework_approved_utc");
+            entity.Property(e => e.ReworkInProgressUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("rework_in_progress_utc");
+            entity.Property(e => e.ReworkVerificationPendingUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("rework_verification_pending_utc");
+            entity.Property(e => e.ReworkClosedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("rework_closed_utc");
+            entity.Property(e => e.ReworkLastUpdatedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("rework_last_updated_by_emp_no");
             entity.Property(e => e.ReturnBrass).HasColumnName("return_brass");
             entity.Property(e => e.ReturnScrap).HasColumnName("return_scrap");
             entity.Property(e => e.SalesOrderNo)

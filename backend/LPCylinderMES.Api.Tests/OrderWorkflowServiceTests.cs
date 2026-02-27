@@ -500,5 +500,115 @@ public class OrderWorkflowServiceTests
         var order = await db.SalesOrders.AsNoTracking().FirstAsync(o => o.Id == 601);
         Assert.Null(order.OrderLifecycleStatus);
     }
+
+    [Fact]
+    public async Task ApplyHoldAsync_OnHoldCustomerRequiresReadinessFields()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_OnHoldCustomerRequiresReadinessFields));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 701,
+            SalesOrderNo = "SO-701",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyForPickup,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundLogisticsPlanned,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.ApplyHoldAsync(
+            701,
+            new ApplyHoldDto(
+                OrderStatusCatalog.OnHoldCustomer,
+                "Transportation",
+                "EMP001",
+                "CustomerNotReadyForPickup",
+                "Customer asked us to retry later",
+                null,
+                DateTime.UtcNow,
+                "Receiver")));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApplyHoldAsync_OnHoldCustomerPersistsRequiredFields()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_OnHoldCustomerPersistsRequiredFields));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 702,
+            SalesOrderNo = "SO-702",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyForPickup,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundLogisticsPlanned,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyForPickup)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+        await service.ApplyHoldAsync(
+            702,
+            new ApplyHoldDto(
+                OrderStatusCatalog.OnHoldCustomer,
+                "Transportation",
+                "EMP002",
+                "CustomerNotReadyForPickup",
+                "Retry in two days",
+                DateTime.UtcNow.AddDays(2),
+                DateTime.UtcNow,
+                "Customer Planner"));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 702);
+        Assert.Equal(OrderStatusCatalog.OnHoldCustomer, order.HoldOverlay);
+        Assert.Equal("CustomerNotReadyForPickup", order.StatusReasonCode);
+        Assert.True(order.CustomerReadyRetryUtc.HasValue);
+        Assert.True(order.CustomerReadyLastContactUtc.HasValue);
+    }
+
+    [Fact]
+    public async Task ApplyHoldAsync_OnHoldCustomer_AllowsMissingContactName()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_OnHoldCustomer_AllowsMissingContactName));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 703,
+            SalesOrderNo = "SO-703",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyForPickup,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundLogisticsPlanned,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyForPickup)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+        await service.ApplyHoldAsync(
+            703,
+            new ApplyHoldDto(
+                OrderStatusCatalog.OnHoldCustomer,
+                "Transportation",
+                "EMP003",
+                "CustomerNotReadyForPickup",
+                "Contact not provided by customer switchboard",
+                DateTime.UtcNow.AddHours(4),
+                DateTime.UtcNow,
+                null));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 703);
+        Assert.Equal(OrderStatusCatalog.OnHoldCustomer, order.HoldOverlay);
+        Assert.Null(order.CustomerReadyContactName);
+    }
 }
 

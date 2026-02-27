@@ -21,6 +21,8 @@ import type {
   OrderAttachment,
   CompleteProductionRequest,
   SubmitInvoiceRequest,
+  ApplyHoldRequest,
+  ClearHoldRequest,
   OrderLifecycleMigrationResult,
   WorkCenterQueueItem,
   OrderRouteExecution,
@@ -276,6 +278,12 @@ export const ordersApi = {
   submitInvoice: (id: number, data: SubmitInvoiceRequest) =>
     api.post<OrderDraftDetail>(`/orders/${id}/invoice/submit`, data),
 
+  applyHold: (id: number, data: ApplyHoldRequest) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/hold/apply`, data),
+
+  clearHold: (id: number, data: ClearHoldRequest) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/hold/clear`, data),
+
   migrateLifecycleStatuses: (dryRun: boolean) =>
     api.post<OrderLifecycleMigrationResult>(
       `/orders/migrate-lifecycle-statuses?dryRun=${dryRun ? "true" : "false"}`,
@@ -412,6 +420,12 @@ export const ordersApi = {
 
   reworkClose: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/close`, data),
+
+  reworkCancel: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/cancel`, data),
+
+  reworkScrap: (orderId: number, lineId: number, stepId: number, data: ReworkStateChangeRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/rework/scrap`, data),
 };
 
 export const orderLinesApi = {

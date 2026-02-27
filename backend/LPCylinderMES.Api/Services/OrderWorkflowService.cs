@@ -35,6 +35,99 @@ public class OrderWorkflowService(
         (OrderStatusCatalog.InvoiceReady, OrderStatusCatalog.ProductionCompletePendingApproval),
     };
 
+    public async Task<OrderDraftDetailDto> ApplyHoldAsync(
+        int orderId,
+        ApplyHoldDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+        if (order is null)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+        }
+
+        var holdOverlay = TrimToNull(dto.HoldOverlay);
+        var actingRole = TrimToNull(dto.ActingRole);
+        var reasonCode = TrimToNull(dto.ReasonCode);
+        var note = TrimToNull(dto.Note);
+        var appliedByEmpNo = TrimToNull(dto.AppliedByEmpNo);
+        if (holdOverlay is null || !OrderStatusCatalog.HoldOverlays.Contains(holdOverlay))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Invalid hold overlay.");
+        }
+
+        if (actingRole is null || reasonCode is null || appliedByEmpNo is null)
+        {
+            throw new ServiceException(
+                StatusCodes.Status400BadRequest,
+                "ActingRole, AppliedByEmpNo, and ReasonCode are required.");
+        }
+
+        var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
+            ? OrderStatusCatalog.MapLegacyToLifecycle(order.OrderStatus)
+            : order.OrderLifecycleStatus!;
+        if (string.Equals(lifecycleStatus, OrderStatusCatalog.Invoiced, StringComparison.Ordinal))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "Cannot apply hold overlays to invoiced orders.");
+        }
+
+        if (string.Equals(holdOverlay, OrderStatusCatalog.OnHoldCustomer, StringComparison.Ordinal))
+        {
+            if (!string.Equals(reasonCode, "CustomerNotReadyForPickup", StringComparison.Ordinal))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    "OnHoldCustomer requires ReasonCode 'CustomerNotReadyForPickup'.");
+            }
+
+            if (!string.Equals(actingRole, "Transportation", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    "OnHoldCustomer can only be applied by Transportation role.");
+            }
+
+            if (!dto.CustomerReadyRetryUtc.HasValue || !dto.CustomerReadyLastContactUtc.HasValue)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    "CustomerReadyRetryUtc and CustomerReadyLastContactUtc are required for OnHoldCustomer.");
+            }
+
+            if (string.IsNullOrWhiteSpace(note))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    "Status note is required for OnHoldCustomer.");
+            }
+
+            order.CustomerReadyRetryUtc = dto.CustomerReadyRetryUtc;
+            order.CustomerReadyLastContactUtc = dto.CustomerReadyLastContactUtc;
+            order.CustomerReadyContactName = TrimToNull(dto.CustomerReadyContactName);
+        }
+
+        order.HoldOverlay = holdOverlay;
+        order.StatusReasonCode = reasonCode;
+        order.StatusNote = note;
+        order.StatusOwnerRole = actingRole;
+        order.StatusUpdatedUtc = DateTime.UtcNow;
+        if (string.Equals(holdOverlay, OrderStatusCatalog.Cancelled, StringComparison.Ordinal))
+        {
+            order.HasOpenRework = false;
+            order.ReworkBlockingInvoice = false;
+            order.ReworkState = "Cancelled";
+            order.ReworkDisposition = "Cancelled";
+            order.ReworkLastUpdatedByEmpNo = appliedByEmpNo;
+            order.ReworkClosedUtc = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        var detail = await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken);
+        return detail ?? throw new InvalidOperationException("Failed to load order detail after hold apply.");
+    }
+
     public async Task<OrderDraftDetailDto> AdvanceStatusAsync(
         int orderId,
         string targetStatus,
@@ -91,6 +184,15 @@ public class OrderWorkflowService(
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
                 $"Only '{OrderStatusCatalog.InvoiceReady}' orders can be submitted to invoicing.");
+        }
+
+        if (string.Equals(order.HoldOverlay, OrderStatusCatalog.ReworkOpen, StringComparison.Ordinal) ||
+            (order.HasOpenRework ?? false) ||
+            (order.ReworkBlockingInvoice ?? false))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "Cannot submit invoice while rework overlay is open.");
         }
 
         var hasAttachments = order.OrderAttachments.Count > 0;
@@ -379,7 +481,17 @@ public class OrderWorkflowService(
         var hasBlockingHold = !string.IsNullOrWhiteSpace(order.HoldOverlay) &&
                               !string.Equals(order.HoldOverlay, OrderStatusCatalog.Cancelled, StringComparison.Ordinal);
 
-        if (hasBlockingHold && isForward)
+        if (string.Equals(order.HoldOverlay, OrderStatusCatalog.Cancelled, StringComparison.Ordinal) &&
+            !string.Equals(currentStatus, targetStatus, StringComparison.Ordinal))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "Cancelled orders are terminal and cannot transition.");
+        }
+
+        if (hasBlockingHold &&
+            isForward &&
+            !await IsHoldExceptionAllowedAsync(order, order.HoldOverlay!, currentStatus, targetStatus, cancellationToken))
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
@@ -703,6 +815,31 @@ public class OrderWorkflowService(
             .Select(value => int.TryParse(value, out var parsed) ? parsed : -1)
             .Where(value => value > 0)
             .ToHashSet();
+    }
+
+    private async Task<bool> IsHoldExceptionAllowedAsync(
+        SalesOrder order,
+        string holdOverlay,
+        string fromStatus,
+        string toStatus,
+        CancellationToken cancellationToken)
+    {
+        var configured = await orderPolicyService.GetDecisionValueAsync(
+            OrderPolicyKeys.HoldForwardAllowTransitionsCsv,
+            order.SiteId,
+            order.CustomerId,
+            string.Empty,
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return false;
+        }
+
+        var ruleSet = ParseCsv(configured);
+        return ruleSet.Contains($"{holdOverlay}:{fromStatus}->{toStatus}") ||
+               ruleSet.Contains($"{holdOverlay}:*->{toStatus}") ||
+               ruleSet.Contains($"{holdOverlay}:{fromStatus}->*") ||
+               ruleSet.Contains($"{holdOverlay}:*->*");
     }
 }
 

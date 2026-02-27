@@ -34,6 +34,7 @@ import {
 } from "../services/orders";
 import {
   ORDER_STATUS_METADATA,
+  type HoldOverlayType,
   type OrderAttachment,
   type OrderDraftDetail,
   type OrderWorkspaceAction,
@@ -164,6 +165,17 @@ export function OrderWorkspacePage() {
   const [overrideNote, setOverrideNote] = useState("");
   const [transitionReasonCode, setTransitionReasonCode] = useState("");
   const [transitionNote, setTransitionNote] = useState("");
+  const [holdOverlayType, setHoldOverlayType] = useState<HoldOverlayType>("OnHoldCustomer");
+  const [holdReasonCode, setHoldReasonCode] = useState("");
+  const [holdNote, setHoldNote] = useState("");
+  const [customerReadyRetryUtc, setCustomerReadyRetryUtc] = useState("");
+  const [customerReadyLastContactUtc, setCustomerReadyLastContactUtc] = useState("");
+  const [customerReadyContactName, setCustomerReadyContactName] = useState("");
+  const [reworkLineId, setReworkLineId] = useState("");
+  const [reworkStepId, setReworkStepId] = useState("");
+  const [reworkReasonCode, setReworkReasonCode] = useState("");
+  const [reworkEmpNo, setReworkEmpNo] = useState("UI");
+  const [reworkNotes, setReworkNotes] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<OrderWorkspaceAction | null>(null);
 
@@ -245,10 +257,7 @@ export function OrderWorkspacePage() {
     }
 
     if (action === "applyHold") {
-      setMessage({
-        type: "success",
-        text: "Hold APIs are pending; placeholder action captured for backend backlog.",
-      });
+      await handleApplyHold();
       return;
     }
 
@@ -292,6 +301,112 @@ export function OrderWorkspacePage() {
       return;
     }
     await executeAction(action);
+  };
+
+  const parseIsoInput = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  };
+
+  const handleApplyHold = async () => {
+    if (!order) return;
+    setActionLoading(true);
+    setMessage(null);
+    try {
+      const payload = {
+        holdOverlay: holdOverlayType,
+        actingRole: role,
+        appliedByEmpNo: "UI",
+        reasonCode: holdReasonCode.trim(),
+        note: holdNote.trim() || null,
+        customerReadyRetryUtc: parseIsoInput(customerReadyRetryUtc),
+        customerReadyLastContactUtc: parseIsoInput(customerReadyLastContactUtc),
+        customerReadyContactName: customerReadyContactName.trim() || null,
+      };
+      const updated = await ordersApi.applyHold(order.id, payload);
+      setOrder(updated);
+      setMessage({ type: "success", text: `Applied ${holdOverlayType}.` });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMessage({ type: "error", text: body?.message ?? "Unable to apply hold." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClearHold = async () => {
+    if (!order || !order.holdOverlay) return;
+    setActionLoading(true);
+    setMessage(null);
+    try {
+      const updated = await ordersApi.clearHold(order.id, {
+        actingRole: role,
+        clearedByEmpNo: "UI",
+        note: "Cleared from workspace",
+      });
+      setOrder(updated);
+      setMessage({ type: "success", text: "Hold cleared." });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMessage({ type: "error", text: body?.message ?? "Unable to clear hold." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const executeRework = async (
+    action:
+      | "request"
+      | "approve"
+      | "start"
+      | "submitVerification"
+      | "close"
+      | "cancel"
+      | "scrap"
+  ) => {
+    if (!order) return;
+    const lineId = Number(reworkLineId);
+    const stepId = Number(reworkStepId);
+    if (!Number.isFinite(lineId) || !Number.isFinite(stepId) || lineId <= 0 || stepId <= 0) {
+      setMessage({ type: "error", text: "Rework Line ID and Step ID are required." });
+      return;
+    }
+
+    setActionLoading(true);
+    setMessage(null);
+    try {
+      if (action === "request") {
+        await ordersApi.reworkRequest(order.id, lineId, stepId, {
+          requestedByEmpNo: reworkEmpNo,
+          reasonCode: reworkReasonCode,
+          notes: reworkNotes || null,
+        });
+      } else {
+        const payload = { empNo: reworkEmpNo, notes: reworkNotes || null };
+        if (action === "approve") await ordersApi.reworkApprove(order.id, lineId, stepId, payload);
+        if (action === "start") await ordersApi.reworkStart(order.id, lineId, stepId, payload);
+        if (action === "submitVerification") {
+          await ordersApi.reworkSubmitVerification(order.id, lineId, stepId, payload);
+        }
+        if (action === "close") await ordersApi.reworkClose(order.id, lineId, stepId, payload);
+        if (action === "cancel") await ordersApi.reworkCancel(order.id, lineId, stepId, payload);
+        if (action === "scrap") await ordersApi.reworkScrap(order.id, lineId, stepId, payload);
+      }
+
+      const refreshed = await ordersApi.get(order.id);
+      setOrder(refreshed);
+      setMessage({ type: "success", text: `Rework ${action} completed.` });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMessage({ type: "error", text: body?.message ?? "Unable to update rework state." });
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const suggestedActions = useMemo(
@@ -487,6 +602,60 @@ export function OrderWorkspacePage() {
                 placeholder="Short transition context for audit..."
               />
             </Field>
+            <Field label="Hold Overlay">
+              <Dropdown
+                value={holdOverlayType}
+                selectedOptions={[holdOverlayType]}
+                onOptionSelect={(_, data) =>
+                  setHoldOverlayType((data.optionValue as HoldOverlayType) ?? "OnHoldCustomer")
+                }
+              >
+                <Option value="OnHoldCustomer">OnHoldCustomer</Option>
+                <Option value="OnHoldQuality">OnHoldQuality</Option>
+                <Option value="OnHoldLogistics">OnHoldLogistics</Option>
+                <Option value="ExceptionQuantityMismatch">ExceptionQuantityMismatch</Option>
+                <Option value="ExceptionDocumentation">ExceptionDocumentation</Option>
+                <Option value="Cancelled">Cancelled</Option>
+              </Dropdown>
+            </Field>
+            <Field label="Hold Reason Code">
+              <Input
+                value={holdReasonCode}
+                onChange={(_, data) => setHoldReasonCode(data.value)}
+                placeholder="e.g. CustomerNotReadyForPickup"
+              />
+            </Field>
+            <Field label="Hold Note">
+              <Input
+                value={holdNote}
+                onChange={(_, data) => setHoldNote(data.value)}
+                placeholder="Short hold context..."
+              />
+            </Field>
+            {holdOverlayType === "OnHoldCustomer" ? (
+              <>
+                <Field label="Customer Ready Retry (ISO datetime)">
+                  <Input
+                    value={customerReadyRetryUtc}
+                    onChange={(_, data) => setCustomerReadyRetryUtc(data.value)}
+                    placeholder="2026-03-01T09:00:00Z"
+                  />
+                </Field>
+                <Field label="Customer Last Contact (ISO datetime)">
+                  <Input
+                    value={customerReadyLastContactUtc}
+                    onChange={(_, data) => setCustomerReadyLastContactUtc(data.value)}
+                    placeholder="2026-02-28T14:30:00Z"
+                  />
+                </Field>
+                <Field label="Customer Contact Name">
+                  <Input
+                    value={customerReadyContactName}
+                    onChange={(_, data) => setCustomerReadyContactName(data.value)}
+                  />
+                </Field>
+              </>
+            ) : null}
             {suggestedActions.map((actionKey) => {
               const action = ACTION_LABELS[actionKey];
               const state = getWorkspaceActionState(
@@ -508,6 +677,11 @@ export function OrderWorkspacePage() {
                 </Button>
               );
             })}
+            {order.holdOverlay ? (
+              <Button appearance="secondary" onClick={() => void handleClearHold()} disabled={actionLoading}>
+                Clear Active Hold
+              </Button>
+            ) : null}
             <Field label="Add attachment">
               <input
                 type="file"
@@ -545,9 +719,51 @@ export function OrderWorkspacePage() {
             ))
           )}
         </Card>
+      ) : tab === "rework" ? (
+        <Card>
+          <div className={styles.sectionGrid}>
+            <Field label="Line ID" required>
+              <Input value={reworkLineId} onChange={(_, data) => setReworkLineId(data.value)} />
+            </Field>
+            <Field label="Step ID" required>
+              <Input value={reworkStepId} onChange={(_, data) => setReworkStepId(data.value)} />
+            </Field>
+            <Field label="Actor EmpNo" required>
+              <Input value={reworkEmpNo} onChange={(_, data) => setReworkEmpNo(data.value)} />
+            </Field>
+            <Field label="Reason Code (request only)">
+              <Input value={reworkReasonCode} onChange={(_, data) => setReworkReasonCode(data.value)} />
+            </Field>
+            <Field label="Notes" className={styles.fullWidth}>
+              <Input value={reworkNotes} onChange={(_, data) => setReworkNotes(data.value)} />
+            </Field>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button onClick={() => void executeRework("request")} disabled={actionLoading}>
+              Request
+            </Button>
+            <Button onClick={() => void executeRework("approve")} disabled={actionLoading}>
+              Approve
+            </Button>
+            <Button onClick={() => void executeRework("start")} disabled={actionLoading}>
+              Start
+            </Button>
+            <Button onClick={() => void executeRework("submitVerification")} disabled={actionLoading}>
+              Verification Pending
+            </Button>
+            <Button onClick={() => void executeRework("close")} appearance="primary" disabled={actionLoading}>
+              Close
+            </Button>
+            <Button onClick={() => void executeRework("cancel")} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button onClick={() => void executeRework("scrap")} disabled={actionLoading}>
+              Scrap
+            </Button>
+          </div>
+        </Card>
       ) : (
         <div className={styles.placeholder}>
-          {tab === "rework" && "Rework timeline panel will bind to rework APIs in a backend phase."}
           {tab === "promiseDate" &&
             "Promise-date history is shown as a placeholder until governance APIs are available."}
           {tab === "auditLog" &&

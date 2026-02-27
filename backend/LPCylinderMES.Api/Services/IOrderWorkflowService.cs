@@ -4,6 +4,11 @@ namespace LPCylinderMES.Api.Services;
 
 public interface IOrderWorkflowService
 {
+    Task<OrderDraftDetailDto> ApplyHoldAsync(
+        int orderId,
+        ApplyHoldDto dto,
+        CancellationToken cancellationToken = default);
+
     Task<OrderDraftDetailDto> AdvanceStatusAsync(
         int orderId,
         string targetStatus,
