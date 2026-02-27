@@ -94,7 +94,12 @@ public record OrderDraftUpdateDto(
     int? ReturnScrap,
     int? ReturnBrass);
 
-public record OrderAdvanceStatusDto(string TargetStatus);
+public record OrderAdvanceStatusDto(
+    string TargetStatus,
+    string? ActingRole,
+    string? ReasonCode,
+    string? Note,
+    string? ActingEmpNo);
 
 public record ClearHoldDto(string ActingRole, string ClearedByEmpNo, string? Note);
 

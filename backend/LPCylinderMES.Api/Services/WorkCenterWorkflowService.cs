@@ -27,6 +27,8 @@ public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflo
         if (string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal))
         {
             order.OrderLifecycleStatus = OrderStatusCatalog.InProduction;
+            order.StatusOwnerRole = "Production";
+            order.StatusReasonCode = "ProductionStarted";
             order.StatusUpdatedUtc = DateTime.UtcNow;
         }
 
@@ -243,6 +245,7 @@ public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflo
         order.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
         order.StatusOwnerRole = "Supervisor";
         order.StatusNote = dto.Notes;
+        order.StatusReasonCode = "SupervisorApproved";
         order.StatusUpdatedUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
@@ -255,6 +258,7 @@ public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflo
         order.OrderLifecycleStatus = OrderStatusCatalog.InProduction;
         order.StatusOwnerRole = "Supervisor";
         order.StatusNote = dto.Notes;
+        order.StatusReasonCode = "SupervisorRejected";
         order.StatusUpdatedUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
@@ -285,6 +289,7 @@ public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflo
         order.ReworkBlockingInvoice = order.HasOpenRework;
         order.StatusReasonCode = $"Rework:{reworkState}";
         order.StatusNote = notes;
+        order.StatusOwnerRole = "Quality";
         order.StatusUpdatedUtc = DateTime.UtcNow;
 
         if (!string.Equals(reworkState, "Closed", StringComparison.Ordinal))
@@ -394,6 +399,8 @@ public class WorkCenterWorkflowService(LpcAppsDbContext db) : IWorkCenterWorkflo
         {
             route.SalesOrder.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
             route.SalesOrder.OrderStatus = OrderStatusCatalog.ReadyToShip;
+            route.SalesOrder.StatusOwnerRole = "Production";
+            route.SalesOrder.StatusReasonCode = "ProductionCompleted";
             route.SalesOrder.StatusUpdatedUtc = DateTime.UtcNow;
         }
     }

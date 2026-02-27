@@ -38,6 +38,10 @@ public class OrderWorkflowService(
     public async Task<OrderDraftDetailDto> AdvanceStatusAsync(
         int orderId,
         string targetStatus,
+        string? actingRole = null,
+        string? reasonCode = null,
+        string? note = null,
+        string? actingEmpNo = null,
         CancellationToken cancellationToken = default)
     {
         var order = await db.SalesOrders.FindAsync([orderId], cancellationToken);
@@ -46,7 +50,7 @@ public class OrderWorkflowService(
 
         if (ShouldUseLifecycleFlow(order, targetStatus))
         {
-            await AdvanceLifecycleStatusAsync(order, targetStatus, cancellationToken);
+            await AdvanceLifecycleStatusAsync(order, targetStatus, actingRole, reasonCode, note, actingEmpNo, cancellationToken);
         }
         else
         {
@@ -212,7 +216,7 @@ public class OrderWorkflowService(
         order.InvoiceStagingError = null;
         order.ErpReconcileStatus = "Pending";
 
-        return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken);
+        return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken: cancellationToken);
     }
 
     public async Task<OrderLifecycleMigrationResultDto> BackfillLifecycleStatusesAsync(
@@ -297,6 +301,10 @@ public class OrderWorkflowService(
     private async Task AdvanceLifecycleStatusAsync(
         SalesOrder order,
         string requestedTargetStatus,
+        string? actingRole,
+        string? reasonCode,
+        string? note,
+        string? actingEmpNo,
         CancellationToken cancellationToken)
     {
         var currentStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
@@ -305,12 +313,64 @@ public class OrderWorkflowService(
         var targetStatus = OrderStatusCatalog.IsLifecycleStatus(requestedTargetStatus)
             ? requestedTargetStatus
             : OrderStatusCatalog.MapLegacyToLifecycle(requestedTargetStatus);
+        var normalizedRole = TrimToNull(actingRole);
+        var normalizedReasonCode = TrimToNull(reasonCode);
+        var normalizedNote = TrimToNull(note);
+        var normalizedActingEmpNo = TrimToNull(actingEmpNo);
 
         if (!AllowedLifecycleTransitions.Contains((currentStatus, targetStatus)))
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
                 $"Transition '{currentStatus}' -> '{targetStatus}' is not allowed.");
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.Draft, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.PendingOrderEntryValidation, StringComparison.Ordinal) &&
+            !string.Equals(order.OrderOrigin, "SalesMobile", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "Draft -> PendingOrderEntryValidation requires SalesMobile order origin.");
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.Draft, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal))
+        {
+            if (!string.Equals(order.OrderOrigin, "OfficeEntry", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Draft -> InboundLogisticsPlanned requires OfficeEntry order origin.");
+            }
+
+            if (string.IsNullOrWhiteSpace(order.InboundMode))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Draft -> InboundLogisticsPlanned requires InboundMode to be set.");
+            }
+        }
+
+        var isDirectImmediateDropoffReceive =
+            string.Equals(targetStatus, OrderStatusCatalog.ReceivedPendingReconciliation, StringComparison.Ordinal) &&
+            (string.Equals(currentStatus, OrderStatusCatalog.Draft, StringComparison.Ordinal) ||
+             string.Equals(currentStatus, OrderStatusCatalog.PendingOrderEntryValidation, StringComparison.Ordinal));
+        if (isDirectImmediateDropoffReceive)
+        {
+            if (!string.Equals(order.InboundMode, "CustomerDropoff", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    $"{currentStatus} -> ReceivedPendingReconciliation requires CustomerDropoff inbound mode.");
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedReasonCode) || string.IsNullOrWhiteSpace(normalizedNote))
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    "Immediate customer dropoff receive requires reason code and status note for audit.");
+            }
         }
 
         var currentIdx = Array.IndexOf(OrderStatusCatalog.LifecycleWorkflowSteps, currentStatus);
@@ -350,6 +410,77 @@ public class OrderWorkflowService(
                 throw new ServiceException(
                     StatusCodes.Status409Conflict,
                     "Customer dropoff transition to InboundInTransit requires policy enablement and check-in appointment evidence.");
+            }
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.ReceivedPendingReconciliation, StringComparison.Ordinal) &&
+            !string.Equals(order.InboundMode, "CustomerDropoff", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "InboundLogisticsPlanned -> ReceivedPendingReconciliation is reserved for customer dropoff arrivals.");
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.ReceivedPendingReconciliation, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal))
+        {
+            var hasUnreconciledRequiredLine = await db.SalesOrderDetails
+                .Where(d => d.SalesOrderId == order.Id && d.QuantityAsOrdered > 0)
+                .AnyAsync(d => (d.QuantityAsReceived ?? 0m) <= 0m, cancellationToken);
+            if (hasUnreconciledRequiredLine)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "ReceivedPendingReconciliation -> ReadyForProduction requires reconciliation for all required lines.");
+            }
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.InProduction, StringComparison.Ordinal))
+        {
+            var hasStartedRouteStep = await db.OrderLineRouteStepInstances
+                .AnyAsync(
+                    step => step.OrderLineRouteInstance.SalesOrderId == order.Id &&
+                            (step.ScanInUtc.HasValue ||
+                             step.State == "InProgress" ||
+                             step.State == "Completed"),
+                    cancellationToken);
+            if (!hasStartedRouteStep)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "ReadyForProduction -> InProduction requires at least one route step start event.");
+            }
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.InProduction, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.ProductionComplete, StringComparison.Ordinal))
+        {
+            var hasRoutes = await db.OrderLineRouteInstances.AnyAsync(r => r.SalesOrderId == order.Id, cancellationToken);
+            if (!hasRoutes)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "InProduction -> ProductionComplete requires route instances.");
+            }
+
+            var hasIncompleteRoutes = await db.OrderLineRouteInstances
+                .AnyAsync(r => r.SalesOrderId == order.Id && r.State != "Completed", cancellationToken);
+            if (hasIncompleteRoutes)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "InProduction -> ProductionComplete requires all required routes to be completed.");
+            }
+
+            var hasPendingApprovals = await db.OrderLineRouteInstances
+                .AnyAsync(r => r.SalesOrderId == order.Id && r.SupervisorApprovalRequired && !r.SupervisorApprovedUtc.HasValue, cancellationToken);
+            if (hasPendingApprovals)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "InProduction -> ProductionComplete requires supervisor/quality approvals; use ProductionCompletePendingApproval first.");
             }
         }
 
@@ -448,6 +579,24 @@ public class OrderWorkflowService(
         order.OrderLifecycleStatus = targetStatus;
         order.OrderStatus = OrderStatusCatalog.MapLifecycleToLegacy(targetStatus);
         order.StatusUpdatedUtc = DateTime.UtcNow;
+        order.StatusOwnerRole = ResolveStatusOwnerRole(targetStatus, normalizedRole);
+        if (normalizedReasonCode is not null)
+        {
+            order.StatusReasonCode = normalizedReasonCode;
+        }
+
+        if (normalizedNote is not null)
+        {
+            order.StatusNote = normalizedNote;
+        }
+
+        if (string.Equals(currentStatus, OrderStatusCatalog.PendingOrderEntryValidation, StringComparison.Ordinal) &&
+            string.Equals(targetStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal))
+        {
+            order.ValidatedUtc = DateTime.UtcNow;
+            order.ValidatedByEmpNo = normalizedActingEmpNo;
+        }
+
         ApplyTransitionTimestamp(order, order.OrderStatus);
         if (string.Equals(targetStatus, OrderStatusCatalog.ReadyForProduction, StringComparison.Ordinal))
         {
@@ -511,6 +660,32 @@ public class OrderWorkflowService(
         }
 
         return value.Trim();
+    }
+
+    private static string ResolveStatusOwnerRole(string targetStatus, string? actingRole)
+    {
+        if (!string.IsNullOrWhiteSpace(actingRole))
+        {
+            return actingRole;
+        }
+
+        return targetStatus switch
+        {
+            OrderStatusCatalog.Draft => "Office",
+            OrderStatusCatalog.PendingOrderEntryValidation => "Office",
+            OrderStatusCatalog.InboundLogisticsPlanned => "Transportation",
+            OrderStatusCatalog.InboundInTransit => "Transportation",
+            OrderStatusCatalog.ReceivedPendingReconciliation => "Receiving",
+            OrderStatusCatalog.ReadyForProduction => "Receiving",
+            OrderStatusCatalog.InProduction => "Production",
+            OrderStatusCatalog.ProductionCompletePendingApproval => "Supervisor",
+            OrderStatusCatalog.ProductionComplete => "Production",
+            OrderStatusCatalog.OutboundLogisticsPlanned => "Transportation",
+            OrderStatusCatalog.DispatchedOrPickupReleased => "Transportation",
+            OrderStatusCatalog.InvoiceReady => "Office",
+            OrderStatusCatalog.Invoiced => "Office",
+            _ => "Office",
+        };
     }
 
     private static HashSet<string> ParseCsv(string csv)

@@ -679,6 +679,13 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(500)
                 .IsUnicode(false)
                 .HasColumnName("status_note");
+            entity.Property(e => e.ValidatedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("validated_by_emp_no");
+            entity.Property(e => e.ValidatedUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("validated_utc");
             entity.Property(e => e.StatusOwnerRole)
                 .HasMaxLength(40)
                 .IsUnicode(false)

@@ -39,7 +39,12 @@ import {
   Delete24Regular,
 } from "@fluentui/react-icons";
 import { ApiError } from "../services/api";
-import { ordersApi, orderLookupsApi, orderLinesApi } from "../services/orders";
+import {
+  ordersApi,
+  orderLookupsApi,
+  orderLinesApi,
+  getWorkspaceCurrentStatus,
+} from "../services/orders";
 import { customersApi } from "../services/customers";
 import type {
   AddressLookup,
@@ -47,6 +52,7 @@ import type {
   OrderDraftDetail,
   OrderDraftUpdate,
   OrderLine,
+  OrderWorkspaceRole,
 } from "../types/order";
 import { ORDER_STATUS_KEYS, getOrderStatusDisplayLabel } from "../types/order";
 import type { Lookup, SalesPersonLookup } from "../types/customer";
@@ -113,6 +119,16 @@ const useStyles = makeStyles({
 });
 
 type TabValue = "details" | "lines";
+const TRANSITION_ROLES: OrderWorkspaceRole[] = [
+  "Office",
+  "Transportation",
+  "Receiving",
+  "Production",
+  "Supervisor",
+  "Quality",
+  "PlantManager",
+  "Admin",
+];
 
 const formatCurrency = (value: number | null) =>
   value != null ? `$${value.toFixed(2)}` : "--";
@@ -134,6 +150,9 @@ export function OrderDetailPage() {
   } | null>(null);
   const [advancingStatus, setAdvancingStatus] = useState(false);
   const [pendingAdvanceStatus, setPendingAdvanceStatus] = useState<string | null>(null);
+  const [transitionRole, setTransitionRole] = useState<OrderWorkspaceRole>("Office");
+  const [transitionReasonCode, setTransitionReasonCode] = useState("");
+  const [transitionNote, setTransitionNote] = useState("");
   const [order, setOrder] = useState<OrderDraftDetail | null>(null);
 
   const [customers, setCustomers] = useState<Lookup[]>([]);
@@ -402,7 +421,11 @@ export function OrderDetailPage() {
 
     setAdvancingStatus(true);
     try {
-      const updated = await ordersApi.advanceStatus(order.id, targetStatus);
+      const updated = await ordersApi.advanceStatus(order.id, targetStatus, {
+        actingRole: transitionRole,
+        reasonCode: transitionReasonCode.trim() || undefined,
+        note: transitionNote.trim() || undefined,
+      });
       setOrder(updated);
       populateForm(updated);
       setSaveMsg({
@@ -427,6 +450,25 @@ export function OrderDetailPage() {
 
   const confirmAdvanceStatus = async () => {
     if (!pendingAdvanceStatus) return;
+    const currentLifecycle = getWorkspaceCurrentStatus(
+      order?.orderLifecycleStatus ?? order?.orderStatus
+    );
+    const targetLifecycle = getWorkspaceCurrentStatus(pendingAdvanceStatus);
+    const requiresImmediateReceiveAudit =
+      targetLifecycle === ORDER_STATUS_KEYS.RECEIVED_PENDING_RECONCILIATION &&
+      (currentLifecycle === ORDER_STATUS_KEYS.DRAFT ||
+        currentLifecycle === ORDER_STATUS_KEYS.PENDING_ORDER_ENTRY_VALIDATION);
+    if (
+      requiresImmediateReceiveAudit &&
+      (!transitionReasonCode.trim() || !transitionNote.trim())
+    ) {
+      setSaveMsg({
+        type: "error",
+        text: "Direct Draft/Pending receive requires transition reason code and note.",
+      });
+      return;
+    }
+
     const targetStatus = pendingAdvanceStatus;
     setPendingAdvanceStatus(null);
     await advanceToStatus(targetStatus);
@@ -893,6 +935,38 @@ export function OrderDetailPage() {
                 <strong>{getOrderStatusDisplayLabel(order?.orderStatus ?? ORDER_STATUS_KEYS.NEW)}</strong> to{" "}
                 <strong>{getOrderStatusDisplayLabel(pendingAdvanceStatus ?? "")}</strong>?
               </Body1>
+              <Field label="Acting Role" style={{ marginTop: tokens.spacingVerticalM }}>
+                <Dropdown
+                  value={transitionRole}
+                  selectedOptions={[transitionRole]}
+                  onOptionSelect={(_, data) =>
+                    setTransitionRole((data.optionValue as OrderWorkspaceRole) ?? "Office")
+                  }
+                >
+                  {TRANSITION_ROLES.map((role) => (
+                    <Option key={role} value={role}>
+                      {role}
+                    </Option>
+                  ))}
+                </Dropdown>
+              </Field>
+              <Field
+                label="Transition Reason Code"
+                hint="Required for direct Draft/Pending receive transitions."
+              >
+                <Input
+                  value={transitionReasonCode}
+                  onChange={(_, data) => setTransitionReasonCode(data.value)}
+                  placeholder="e.g. EmergencyManualReceive"
+                />
+              </Field>
+              <Field label="Transition Note">
+                <Input
+                  value={transitionNote}
+                  onChange={(_, data) => setTransitionNote(data.value)}
+                  placeholder="Short transition context for audit..."
+                />
+              </Field>
             </DialogContent>
             <DialogActions>
               <Button

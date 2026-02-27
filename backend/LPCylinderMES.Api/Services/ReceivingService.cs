@@ -91,6 +91,8 @@ public class ReceivingService(
         order.ReceivedDate = dto.ReceivedDate;
         order.OrderStatus = OrderStatusCatalog.Received;
         order.OrderLifecycleStatus = OrderStatusCatalog.ReadyForProduction;
+        order.StatusOwnerRole = "Receiving";
+        order.StatusReasonCode = "ReceivingReconciled";
         order.StatusUpdatedUtc = DateTime.UtcNow;
 
         await RouteInstantiationService.EnsureRoutesForOrderAsync(

@@ -197,6 +197,8 @@ public class ProductionService(
 
         order.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
         order.OrderStatus = OrderStatusCatalog.ReadyToShip;
+        order.StatusOwnerRole = "Production";
+        order.StatusReasonCode = "ProductionCompleted";
         order.StatusUpdatedUtc = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);

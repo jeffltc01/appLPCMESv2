@@ -108,6 +108,8 @@ public class OrderWorkflowServiceTests
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
             OrderStatus = OrderStatusCatalog.New,
             OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            OrderOrigin = "OfficeEntry",
+            InboundMode = "LpcArrangedPickup",
             CustomerId = 1,
             SiteId = 1,
         });
@@ -232,6 +234,65 @@ public class OrderWorkflowServiceTests
         var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.AdvanceStatusAsync(11, OrderStatusCatalog.InboundInTransit));
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdvanceStatusAsync_DraftToReceivedPendingReconciliation_RequiresReasonAndNote()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_DraftToReceivedPendingReconciliation_RequiresReasonAndNote));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 111,
+            SalesOrderNo = "SO-LIFE-111",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            InboundMode = "CustomerDropoff",
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdvanceStatusAsync(111, OrderStatusCatalog.ReceivedPendingReconciliation));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdvanceStatusAsync_DraftToReceivedPendingReconciliation_WithReasonAndNote_Succeeds()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_DraftToReceivedPendingReconciliation_WithReasonAndNote_Succeeds));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 112,
+            SalesOrderNo = "SO-LIFE-112",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            InboundMode = "CustomerDropoff",
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.Received)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+        await service.AdvanceStatusAsync(
+            112,
+            OrderStatusCatalog.ReceivedPendingReconciliation,
+            actingRole: "Receiving",
+            reasonCode: "EmergencyManualReceive",
+            note: "Customer arrived unscheduled with tanks on site.");
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 112);
+        Assert.Equal(OrderStatusCatalog.ReceivedPendingReconciliation, order.OrderLifecycleStatus);
+        Assert.Equal("EmergencyManualReceive", order.StatusReasonCode);
+        Assert.Equal("Receiving", order.StatusOwnerRole);
     }
 
     [Fact]

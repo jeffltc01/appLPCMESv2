@@ -255,8 +255,23 @@ export const ordersApi = {
   update: (id: number, data: OrderDraftUpdate) =>
     api.put<OrderDraftDetail>(`/orders/${id}`, data),
 
-  advanceStatus: (id: number, targetStatus: string) =>
-    api.post<OrderDraftDetail>(`/orders/${id}/advance-status`, { targetStatus }),
+  advanceStatus: (
+    id: number,
+    targetStatus: string,
+    context?: {
+      actingRole?: OrderWorkspaceRole;
+      reasonCode?: string;
+      note?: string;
+      actingEmpNo?: string;
+    }
+  ) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/advance-status`, {
+      targetStatus,
+      actingRole: context?.actingRole,
+      reasonCode: context?.reasonCode,
+      note: context?.note,
+      actingEmpNo: context?.actingEmpNo,
+    }),
 
   submitInvoice: (id: number, data: SubmitInvoiceRequest) =>
     api.post<OrderDraftDetail>(`/orders/${id}/invoice/submit`, data),

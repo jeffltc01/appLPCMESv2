@@ -7,6 +7,10 @@ public interface IOrderWorkflowService
     Task<OrderDraftDetailDto> AdvanceStatusAsync(
         int orderId,
         string targetStatus,
+        string? actingRole = null,
+        string? reasonCode = null,
+        string? note = null,
+        string? actingEmpNo = null,
         CancellationToken cancellationToken = default);
 
     Task<OrderDraftDetailDto> SubmitInvoiceAsync(

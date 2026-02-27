@@ -163,7 +163,13 @@ public class OrdersController(
     {
         try
         {
-            var detail = await orderWorkflowService.AdvanceStatusAsync(id, dto.TargetStatus);
+            var detail = await orderWorkflowService.AdvanceStatusAsync(
+                id,
+                dto.TargetStatus,
+                dto.ActingRole,
+                dto.ReasonCode,
+                dto.Note,
+                dto.ActingEmpNo);
             return Ok(detail);
         }
         catch (ServiceException ex)

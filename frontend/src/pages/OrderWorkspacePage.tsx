@@ -162,6 +162,8 @@ export function OrderWorkspacePage() {
   const [overrideEnabled, setOverrideEnabled] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [overrideNote, setOverrideNote] = useState("");
+  const [transitionReasonCode, setTransitionReasonCode] = useState("");
+  const [transitionNote, setTransitionNote] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<OrderWorkspaceAction | null>(null);
 
@@ -199,6 +201,9 @@ export function OrderWorkspacePage() {
     currentStatus as (typeof LIFECYCLE_SEQUENCE)[number]
   );
   const hasHoldOverlay = Boolean(order?.holdOverlay);
+  const requiresImmediateReceiveAudit = (action: OrderWorkspaceAction) =>
+    action === "markReceived" &&
+    (currentStatus === "Draft" || currentStatus === "PendingOrderEntryValidation");
 
   const executeAction = async (action: OrderWorkspaceAction) => {
     if (!order) return;
@@ -223,6 +228,17 @@ export function OrderWorkspacePage() {
       return;
     }
 
+    if (
+      requiresImmediateReceiveAudit(action) &&
+      (!transitionReasonCode.trim() || !transitionNote.trim())
+    ) {
+      setMessage({
+        type: "error",
+        text: "Direct Draft/Pending receive requires transition reason code and note.",
+      });
+      return;
+    }
+
     if (action === "openInvoiceWizard") {
       navigate(`/invoicing?orderId=${order.id}`);
       return;
@@ -242,12 +258,22 @@ export function OrderWorkspacePage() {
 
     setActionLoading(true);
     try {
-      const updated = await ordersApi.advanceStatus(order.id, actionState.targetStatus);
+      const reasonCode = transitionReasonCode.trim() || overrideReason.trim() || undefined;
+      const note = transitionNote.trim() || overrideNote.trim() || undefined;
+      const updated = await ordersApi.advanceStatus(order.id, actionState.targetStatus, {
+        actingRole: role,
+        reasonCode,
+        note,
+      });
       setOrder(updated);
       setMessage({
         type: "success",
         text: `Order moved to ${updated.orderLifecycleStatus ?? updated.orderStatus}.`,
       });
+      if (requiresImmediateReceiveAudit(action)) {
+        setTransitionReasonCode("");
+        setTransitionNote("");
+      }
     } catch (err) {
       const apiError = err as ApiError;
       const body = apiError.body as { message?: string } | undefined;
@@ -440,6 +466,27 @@ export function OrderWorkspacePage() {
                 </Field>
               </>
             ) : null}
+            <Field
+              label="Transition Reason Code"
+              hint={
+                currentStatus === "Draft" || currentStatus === "PendingOrderEntryValidation"
+                  ? "Required for direct immediate dropoff receive."
+                  : "Optional audit reason for transition."
+              }
+            >
+              <Input
+                value={transitionReasonCode}
+                onChange={(_, data) => setTransitionReasonCode(data.value)}
+                placeholder="e.g. EmergencyManualReceive"
+              />
+            </Field>
+            <Field label="Transition Note">
+              <Input
+                value={transitionNote}
+                onChange={(_, data) => setTransitionNote(data.value)}
+                placeholder="Short transition context for audit..."
+              />
+            </Field>
             {suggestedActions.map((actionKey) => {
               const action = ACTION_LABELS[actionKey];
               const state = getWorkspaceActionState(

@@ -31,6 +31,10 @@ public partial class SalesOrder
 
     public string? StatusNote { get; set; }
 
+    public string? ValidatedByEmpNo { get; set; }
+
+    public DateTime? ValidatedUtc { get; set; }
+
     public string? HoldOverlay { get; set; }
 
     public string? TrailerNo { get; set; }

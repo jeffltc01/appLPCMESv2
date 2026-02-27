@@ -35,6 +35,7 @@ import type {
 import {
   ORDER_STATUS_KEYS,
   getOrderStatusDisplayLabel,
+  type OrderWorkspaceRole,
   type OrderWorkflowStatus,
 } from "../types/order";
 import type { Lookup, PaginatedResponse } from "../types/customer";
@@ -701,6 +702,9 @@ export function TransportationBoardPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [advancingId, setAdvancingId] = useState<number | null>(null);
+  const [transitionRole, setTransitionRole] = useState<OrderWorkspaceRole>("Transportation");
+  const [transitionReasonCode, setTransitionReasonCode] = useState("");
+  const [transitionNote, setTransitionNote] = useState("");
   const [dirtyById, setDirtyById] = useState<Record<number, Partial<TransportBoardUpdate>>>(
     {}
   );
@@ -818,7 +822,11 @@ export function TransportationBoardPage() {
     setAdvancingId(row.id);
     setMsg(null);
     try {
-      await ordersApi.advanceStatus(row.id, action.targetStatus);
+      await ordersApi.advanceStatus(row.id, action.targetStatus, {
+        actingRole: transitionRole,
+        reasonCode: transitionReasonCode.trim() || undefined,
+        note: transitionNote.trim() || undefined,
+      });
       setMsg({
         type: "success",
         text: `Order ${row.salesOrderNo} moved to ${getOrderStatusDisplayLabel(action.targetStatus)}.`,
@@ -1270,6 +1278,38 @@ export function TransportationBoardPage() {
                     <div className={styles.commentsBox}>
                       <Body1 className={styles.infoLine}>{selectedRow.orderComments ?? "--"}</Body1>
                     </div>
+                  </div>
+
+                  <div className={styles.sideSection}>
+                    <Text className={styles.sideSectionTitle}>Transition Context</Text>
+                    <Dropdown
+                      value={transitionRole}
+                      selectedOptions={[transitionRole]}
+                      onOptionSelect={(_, data) =>
+                        setTransitionRole((data.optionValue as OrderWorkspaceRole) ?? "Transportation")
+                      }
+                    >
+                      <Option value="Office">Office</Option>
+                      <Option value="Transportation">Transportation</Option>
+                      <Option value="Receiving">Receiving</Option>
+                      <Option value="Production">Production</Option>
+                      <Option value="Supervisor">Supervisor</Option>
+                      <Option value="Quality">Quality</Option>
+                      <Option value="PlantManager">PlantManager</Option>
+                      <Option value="Admin">Admin</Option>
+                    </Dropdown>
+                    <Input
+                      className={styles.toolbarField}
+                      placeholder="Reason code (optional)"
+                      value={transitionReasonCode}
+                      onChange={(_, data) => setTransitionReasonCode(data.value)}
+                    />
+                    <Input
+                      className={styles.toolbarSearch}
+                      placeholder="Transition note (optional)"
+                      value={transitionNote}
+                      onChange={(_, data) => setTransitionNote(data.value)}
+                    />
                   </div>
 
                   <div className={styles.sideSection}>
