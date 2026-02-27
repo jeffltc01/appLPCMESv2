@@ -25,10 +25,12 @@ public class WorkCenterWorkflowService(
     private readonly IOrderWorkflowService? _orderWorkflowService = orderWorkflowService;
     private readonly IAttachmentStorage? _attachmentStorage = attachmentStorage;
     private readonly IRolePermissionService _rolePermissionService = rolePermissionService ?? new RolePermissionService();
-    private readonly StepCompletionValidationService _stepCompletionValidationService = new(db);
+    private readonly StepCompletionValidationService _stepCompletionValidationService = new(db, rolePermissionService ?? new RolePermissionService());
 
     public async Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "scan in work-center step");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         await EnsurePreviousStepsCompletedAsync(step, cancellationToken);
 
@@ -64,6 +66,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> ScanOutAsync(int orderId, int lineId, long stepId, OperatorScanOutDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "scan out work-center step");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         if (!string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase))
         {
@@ -88,6 +92,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> AddUsageAsync(int orderId, int lineId, long stepId, StepMaterialUsageCreateDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "record material usage");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         db.StepMaterialUsages.Add(new StepMaterialUsage
         {
@@ -106,6 +112,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> AddScrapAsync(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "record scrap");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         db.StepScrapEntries.Add(new StepScrapEntry
         {
@@ -124,6 +132,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> AddSerialAsync(int orderId, int lineId, long stepId, StepSerialCaptureCreateDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "record serial capture");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         db.StepSerialCaptures.Add(new StepSerialCapture
         {
@@ -147,6 +157,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> AddChecklistAsync(int orderId, int lineId, long stepId, StepChecklistResultCreateDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "record checklist");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         db.StepChecklistResults.Add(new StepChecklistResult
         {
@@ -215,6 +227,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> CaptureTrailerAsync(int orderId, int lineId, long stepId, CaptureTrailerDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "capture loading trailer");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         if (string.IsNullOrWhiteSpace(dto.EmpNo))
         {
@@ -242,6 +256,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> VerifySerialLoadAsync(int orderId, int lineId, long stepId, VerifySerialLoadDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "verify serial load");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         if (!step.RequiresSerialLoadVerification)
         {
@@ -287,6 +303,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> GeneratePackingSlipAsync(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "generate packing slip");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         var order = step.OrderLineRouteInstance.SalesOrder;
         if (string.IsNullOrWhiteSpace(dto.EmpNo))
@@ -313,6 +331,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> GenerateBolAsync(int orderId, int lineId, long stepId, GenerateStepDocumentDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "generate bill of lading");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         var order = step.OrderLineRouteInstance.SalesOrder;
         if (string.IsNullOrWhiteSpace(dto.EmpNo))
@@ -339,6 +359,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> CompleteStepAsync(int orderId, int lineId, long stepId, CompleteWorkCenterStepDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "complete work-center step");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         await _stepCompletionValidationService.ValidateAsync(step, dto, cancellationToken);
 
@@ -457,24 +479,42 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> ValidateRouteAsync(int orderId, SupervisorRouteReviewDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureRouteReviewAllowed(dto.ActingRole!, "validate route");
         await UpdateRouteReviewAsync(orderId, dto, "Validated", cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
     public async Task<OrderRouteExecutionDto> AdjustRouteAsync(int orderId, SupervisorRouteReviewDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureRouteReviewAllowed(dto.ActingRole!, "adjust route");
+        if (string.IsNullOrWhiteSpace(dto.Notes))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Route adjustment requires reason notes.");
+        }
+
         await UpdateRouteReviewAsync(orderId, dto, "Adjusted", cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
     public async Task<OrderRouteExecutionDto> ReopenRouteAsync(int orderId, SupervisorRouteReviewDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureRouteReviewAllowed(dto.ActingRole!, "reopen route");
+        if (string.IsNullOrWhiteSpace(dto.Notes))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Route reopen requires reason notes.");
+        }
+
         await UpdateRouteReviewAsync(orderId, dto, "Pending", cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
     public async Task<OrderRouteExecutionDto> ApproveOrderAsync(int orderId, SupervisorDecisionDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureSupervisorGateDecisionAllowed(dto.ActingRole!);
         if (_orderWorkflowService is not null)
         {
             await _orderWorkflowService.AdvanceStatusAsync(
@@ -502,6 +542,8 @@ public class WorkCenterWorkflowService(
 
     public async Task<OrderRouteExecutionDto> RejectOrderAsync(int orderId, SupervisorDecisionDto dto, CancellationToken cancellationToken = default)
     {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureSupervisorGateDecisionAllowed(dto.ActingRole!);
         if (_orderWorkflowService is not null)
         {
             await _orderWorkflowService.AdvanceStatusAsync(
@@ -528,36 +570,40 @@ public class WorkCenterWorkflowService(
     }
 
     public Task<OrderRouteExecutionDto> RequestReworkAsync(int orderId, int lineId, long stepId, ReworkRequestDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.RequestedByEmpNo, "Requested", dto.ReasonCode, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.RequestedByEmpNo, dto.ActingRole!, "Request", "Requested", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> ApproveReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Approved", null, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, dto.ActingRole!, "Approve", "Approved", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> StartReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "InProgress", null, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, dto.ActingRole!, "Start", "InProgress", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> SubmitReworkVerificationAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "VerificationPending", null, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, dto.ActingRole!, "SubmitVerification", "VerificationPending", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> CloseReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Closed", null, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, dto.ActingRole!, "Close", "Closed", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> CancelReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Cancelled", null, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, dto.ActingRole!, "Cancel", "Cancelled", dto.ReasonCode, dto.Notes, cancellationToken);
 
     public Task<OrderRouteExecutionDto> ScrapReworkAsync(int orderId, int lineId, long stepId, ReworkStateChangeDto dto, CancellationToken cancellationToken = default) =>
-        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, "Scrapped", null, dto.Notes, cancellationToken);
+        ApplyReworkStateAsync(orderId, lineId, stepId, dto.EmpNo, dto.ActingRole!, "Scrap", "Scrapped", dto.ReasonCode, dto.Notes, cancellationToken);
 
     private async Task<OrderRouteExecutionDto> ApplyReworkStateAsync(
         int orderId,
         int lineId,
         long stepId,
         string actorEmpNo,
+        string actingRole,
+        string actionName,
         string reworkState,
         string? reasonCode,
         string? notes,
         CancellationToken cancellationToken)
     {
+        EnsureRoleProvided(actingRole);
+        _rolePermissionService.EnsureReworkActionAllowed(actingRole, actionName);
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         var order = step.OrderLineRouteInstance.SalesOrder;
         var currentReworkState = string.IsNullOrWhiteSpace(order.ReworkState) ? null : order.ReworkState.Trim();
@@ -586,6 +632,16 @@ public class WorkCenterWorkflowService(
                     StatusCodes.Status409Conflict,
                     $"Invalid rework transition '{currentReworkState}' -> '{reworkState}'.");
             }
+        }
+
+        var requiresElevatedReason =
+            string.Equals(actionName, "Approve", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(actionName, "Close", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(actionName, "Cancel", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(actionName, "Scrap", StringComparison.OrdinalIgnoreCase);
+        if (requiresElevatedReason && string.IsNullOrWhiteSpace(reasonCode))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"{actionName} rework action requires reason code.");
         }
 
         var isTerminal = string.Equals(reworkState, "Closed", StringComparison.Ordinal) ||
@@ -660,6 +716,14 @@ public class WorkCenterWorkflowService(
         await AddActivityAsync(step, actorEmpNo, $"Rework{reworkState}", null, notes, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    private static void EnsureRoleProvided(string? actingRole)
+    {
+        if (string.IsNullOrWhiteSpace(actingRole))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ActingRole is required.");
+        }
     }
 
     private async Task<OrderLineRouteStepInstance> GetStepAsync(int orderId, int lineId, long stepId, CancellationToken cancellationToken)

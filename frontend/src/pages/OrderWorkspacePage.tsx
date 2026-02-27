@@ -408,9 +408,17 @@ export function OrderWorkspacePage() {
           requestedByEmpNo: reworkEmpNo,
           reasonCode: reworkReasonCode,
           notes: reworkNotes || null,
+          actingRole: role,
         });
       } else {
-        const payload = { empNo: reworkEmpNo, notes: reworkNotes || null };
+        const needsElevatedReason =
+          action === "approve" || action === "close" || action === "cancel" || action === "scrap";
+        const payload = {
+          empNo: reworkEmpNo,
+          notes: reworkNotes || null,
+          actingRole: role,
+          reasonCode: needsElevatedReason ? reworkReasonCode || null : null,
+        };
         if (action === "approve") await ordersApi.reworkApprove(order.id, lineId, stepId, payload);
         if (action === "start") await ordersApi.reworkStart(order.id, lineId, stepId, payload);
         if (action === "submitVerification") {

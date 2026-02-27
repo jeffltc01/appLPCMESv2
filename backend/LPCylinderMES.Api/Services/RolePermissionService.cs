@@ -86,6 +86,46 @@ public class RolePermissionService : IRolePermissionService
         "Admin",
     };
 
+    private static readonly HashSet<string> WorkCenterOperatorRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Production",
+        "Supervisor",
+        "PlantManager",
+        "Admin",
+    };
+
+    private static readonly HashSet<string> SupervisorGateRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Supervisor",
+        "Quality",
+        "PlantManager",
+        "Admin",
+    };
+
+    private static readonly HashSet<string> RouteReviewRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Supervisor",
+        "PlantManager",
+        "Admin",
+    };
+
+    private static readonly HashSet<string> ReworkRequestRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Production",
+        "Supervisor",
+        "Quality",
+        "PlantManager",
+        "Admin",
+    };
+
+    private static readonly HashSet<string> ReworkElevatedRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Supervisor",
+        "Quality",
+        "PlantManager",
+        "Admin",
+    };
+
     public void EnsureStatusTransitionAllowed(string actingRole, string currentStatus, string targetStatus, bool isManualOrEmergency)
     {
         EnsureInSet(actingRole, LifecycleMutatingRoles, "status transition");
@@ -160,6 +200,31 @@ public class RolePermissionService : IRolePermissionService
             StatusCodes.Status403Forbidden,
             $"Duration correction is not allowed for time capture mode '{timeCaptureMode}'.");
     }
+
+    public void EnsureWorkCenterOperationAllowed(string actingRole, string operation) =>
+        EnsureInSet(actingRole, WorkCenterOperatorRoles, operation);
+
+    public void EnsureSupervisorGateDecisionAllowed(string actingRole) =>
+        EnsureInSet(actingRole, SupervisorGateRoles, "approve/reject supervisor gate");
+
+    public void EnsureRouteReviewAllowed(string actingRole, string operation) =>
+        EnsureInSet(actingRole, RouteReviewRoles, operation);
+
+    public void EnsureReworkActionAllowed(string actingRole, string action)
+    {
+        if (string.Equals(action, "Request", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(action, "Start", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(action, "SubmitVerification", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureInSet(actingRole, ReworkRequestRoles, $"perform rework action '{action}'");
+            return;
+        }
+
+        EnsureInSet(actingRole, ReworkElevatedRoles, $"perform elevated rework action '{action}'");
+    }
+
+    public void EnsureChecklistOverrideAllowed(string actingRole) =>
+        EnsureInSet(actingRole, RouteReviewRoles, "perform checklist supervisor override");
 
     private static void EnsureInSet(string actingRole, HashSet<string> allowedRoles, string action)
     {

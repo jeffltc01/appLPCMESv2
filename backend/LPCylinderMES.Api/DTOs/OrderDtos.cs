@@ -515,36 +515,41 @@ public record DeleteOrderAttachmentDto(
     string ActingEmpNo,
     string? ReasonCode);
 
-public record OperatorScanInDto(string EmpNo, string? DeviceId);
+public record OperatorScanInDto(string EmpNo, string? DeviceId, string? ActingRole = null);
 
-public record OperatorScanOutDto(string EmpNo, string? DeviceId);
+public record OperatorScanOutDto(string EmpNo, string? DeviceId, string? ActingRole = null);
 
 public record CompleteWorkCenterStepDto(
     string EmpNo,
     string? Notes,
     string? SupervisorOverrideEmpNo = null,
     string? SupervisorOverrideReason = null,
+    string? SupervisorOverrideActingRole = null,
     bool? SerialLoadVerified = null,
-    List<string>? VerifiedSerialNos = null);
+    List<string>? VerifiedSerialNos = null,
+    string? ActingRole = null);
 
 public record VerifySerialLoadDto(
     string EmpNo,
     List<string> VerifiedSerialNos,
-    string? Notes = null);
+    string? Notes = null,
+    string? ActingRole = null);
 
 public record CaptureTrailerDto(
     string EmpNo,
     string TrailerNo,
-    string? Notes = null);
+    string? Notes = null,
+    string? ActingRole = null);
 
 public record GenerateStepDocumentDto(
     string EmpNo,
     bool Regenerate = false,
-    string? Notes = null);
+    string? Notes = null,
+    string? ActingRole = null);
 
-public record StepMaterialUsageCreateDto(int PartItemId, decimal QuantityUsed, string? Uom, string RecordedByEmpNo);
+public record StepMaterialUsageCreateDto(int PartItemId, decimal QuantityUsed, string? Uom, string RecordedByEmpNo, string? ActingRole = null);
 
-public record StepScrapEntryCreateDto(decimal QuantityScrapped, int ScrapReasonId, string? Notes, string RecordedByEmpNo);
+public record StepScrapEntryCreateDto(decimal QuantityScrapped, int ScrapReasonId, string? Notes, string RecordedByEmpNo, string? ActingRole = null);
 
 public record StepSerialCaptureCreateDto(
     string SerialNo,
@@ -555,7 +560,8 @@ public record StepSerialCaptureCreateDto(
     int? LidSizeId,
     string ConditionStatus,
     int? ScrapReasonId,
-    string RecordedByEmpNo);
+    string RecordedByEmpNo,
+    string? ActingRole = null);
 
 public record StepChecklistResultCreateDto(
     int ChecklistTemplateItemId,
@@ -563,15 +569,16 @@ public record StepChecklistResultCreateDto(
     bool IsRequiredItem,
     string ResultStatus,
     string? ResultNotes,
-    string CompletedByEmpNo);
+    string CompletedByEmpNo,
+    string? ActingRole = null);
 
-public record SupervisorRouteReviewDto(bool IsAdjusted, string? Notes, string ReviewerEmpNo);
+public record SupervisorRouteReviewDto(bool IsAdjusted, string? Notes, string ReviewerEmpNo, string? ActingRole = null);
 
-public record SupervisorDecisionDto(string EmpNo, string? Notes);
+public record SupervisorDecisionDto(string EmpNo, string? Notes, string? ActingRole = null);
 
-public record ReworkRequestDto(string RequestedByEmpNo, string ReasonCode, string? Notes);
+public record ReworkRequestDto(string RequestedByEmpNo, string ReasonCode, string? Notes, string? ActingRole = null);
 
-public record ReworkStateChangeDto(string EmpNo, string? Notes);
+public record ReworkStateChangeDto(string EmpNo, string? Notes, string? ActingRole = null, string? ReasonCode = null);
 
 public record CorrectStepDurationDto(
     decimal? ManualDurationMinutes,

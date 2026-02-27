@@ -106,35 +106,41 @@ export function OperatorWorkCenterConsolePage() {
         await ordersApi.scanIn(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           deviceId: "UI",
+          actingRole: roleToUse,
         });
       } else if (action === "scanOut") {
         await ordersApi.scanOut(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           deviceId: "UI",
+          actingRole: roleToUse,
         });
       } else if (action === "captureTrailer") {
         await ordersApi.captureTrailer(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           trailerNo: trailerNo.trim(),
           notes: "Captured from operator console",
+          actingRole: roleToUse,
         });
       } else if (action === "verifySerials") {
         await ordersApi.verifySerialLoad(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           verifiedSerialNos,
           notes: "Verified from operator console",
+          actingRole: roleToUse,
         });
       } else if (action === "generatePackingSlip") {
         await ordersApi.generatePackingSlip(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           regenerate: false,
           notes: "Generated from operator console",
+          actingRole: roleToUse,
         });
       } else if (action === "generateBol") {
         await ordersApi.generateBol(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           regenerate: false,
           notes: "Generated from operator console",
+          actingRole: roleToUse,
         });
       } else if (action === "correctDuration") {
         const mode = selectedStep?.timeCaptureMode;
@@ -160,8 +166,10 @@ export function OperatorWorkCenterConsolePage() {
         await ordersApi.completeStep(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           notes: "Completed from operator console",
+          actingRole: roleToUse,
           supervisorOverrideEmpNo: supervisorOverrideEmpNo || null,
           supervisorOverrideReason: supervisorOverrideReason || null,
+          supervisorOverrideActingRole: supervisorOverrideEmpNo ? "Supervisor" : null,
           serialLoadVerified,
           verifiedSerialNos: verifiedSerialNos.length > 0 ? verifiedSerialNos : null,
         });

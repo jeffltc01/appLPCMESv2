@@ -6,7 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Services;
 
-internal sealed class StepCompletionValidationService(LpcAppsDbContext db)
+internal sealed class StepCompletionValidationService(
+    LpcAppsDbContext db,
+    IRolePermissionService rolePermissionService)
 {
     public async Task ValidateAsync(
         OrderLineRouteStepInstance step,
@@ -97,12 +99,15 @@ internal sealed class StepCompletionValidationService(LpcAppsDbContext db)
                 if (string.Equals(step.ChecklistFailurePolicy, "AllowWithSupervisorOverride", StringComparison.OrdinalIgnoreCase))
                 {
                     if (string.IsNullOrWhiteSpace(dto.SupervisorOverrideEmpNo) ||
-                        string.IsNullOrWhiteSpace(dto.SupervisorOverrideReason))
+                        string.IsNullOrWhiteSpace(dto.SupervisorOverrideReason) ||
+                        string.IsNullOrWhiteSpace(dto.SupervisorOverrideActingRole))
                     {
                         throw new ServiceException(
                             StatusCodes.Status409Conflict,
-                            "Checklist failed required items and requires supervisor override with reason.");
+                            "Checklist failed required items and requires supervisor override role and reason.");
                     }
+
+                    rolePermissionService.EnsureChecklistOverrideAllowed(dto.SupervisorOverrideActingRole);
                 }
             }
         }

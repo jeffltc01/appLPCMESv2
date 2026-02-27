@@ -886,18 +886,22 @@ export interface OrderRouteExecution {
 export interface OperatorScanInRequest {
   empNo: string;
   deviceId?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface OperatorScanOutRequest {
   empNo: string;
   deviceId?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface CompleteWorkCenterStepRequest {
   empNo: string;
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
   supervisorOverrideEmpNo?: string | null;
   supervisorOverrideReason?: string | null;
+  supervisorOverrideActingRole?: OrderWorkspaceRole | null;
   serialLoadVerified?: boolean | null;
   verifiedSerialNos?: string[] | null;
 }
@@ -906,18 +910,21 @@ export interface VerifySerialLoadRequest {
   empNo: string;
   verifiedSerialNos: string[];
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface CaptureTrailerRequest {
   empNo: string;
   trailerNo: string;
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface GenerateStepDocumentRequest {
   empNo: string;
   regenerate?: boolean;
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface StepMaterialUsageCreateRequest {
@@ -925,6 +932,7 @@ export interface StepMaterialUsageCreateRequest {
   quantityUsed: number;
   uom?: string | null;
   recordedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface StepScrapEntryCreateRequest {
@@ -932,6 +940,7 @@ export interface StepScrapEntryCreateRequest {
   scrapReasonId: number;
   notes?: string | null;
   recordedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface StepSerialCaptureCreateRequest {
@@ -944,6 +953,7 @@ export interface StepSerialCaptureCreateRequest {
   conditionStatus: string;
   scrapReasonId?: number | null;
   recordedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface StepChecklistResultCreateRequest {
@@ -953,28 +963,34 @@ export interface StepChecklistResultCreateRequest {
   resultStatus: string;
   resultNotes?: string | null;
   completedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface SupervisorRouteReviewRequest {
   isAdjusted: boolean;
   notes?: string | null;
   reviewerEmpNo: string;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface SupervisorDecisionRequest {
   empNo: string;
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface ReworkRequest {
   requestedByEmpNo: string;
   reasonCode: string;
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
 }
 
 export interface ReworkStateChangeRequest {
   empNo: string;
   notes?: string | null;
+  actingRole: OrderWorkspaceRole;
+  reasonCode?: string | null;
 }
 
 export interface CorrectStepDurationRequest {

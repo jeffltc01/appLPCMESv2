@@ -18,7 +18,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.ScanInAsync(500, 5001, 5102, new OperatorScanInDto("EMP001", null)));
+            service.ScanInAsync(500, 5001, 5102, new OperatorScanInDto("EMP001", null, "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
@@ -32,7 +32,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(600, 6001, 6102, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(600, 6001, 6102, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
@@ -64,7 +64,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(601, 6011, 6112, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(601, 6011, 6112, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("blocks completion", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -97,7 +97,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(602, 6021, 6122, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(602, 6021, 6122, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("supervisor override", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -137,7 +137,9 @@ public class WorkCenterWorkflowServiceTests
                 "EMP002",
                 null,
                 SupervisorOverrideEmpNo: "SUP001",
-                SupervisorOverrideReason: "Allowed with review"));
+                SupervisorOverrideReason: "Allowed with review",
+                SupervisorOverrideActingRole: "Supervisor",
+                ActingRole: "Production"));
 
         Assert.Equal(603, response.OrderId);
         var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 6132);
@@ -153,7 +155,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(604, 6041, 6142, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(604, 6041, 6142, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("attachment", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -168,7 +170,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(605, 6051, 6152, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(605, 6051, 6152, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("trailer", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -186,8 +188,8 @@ public class WorkCenterWorkflowServiceTests
             6052,
             60521,
             61522,
-            new CaptureTrailerDto("EMP-TRAILER", "TRL-100", "Loaded to outbound trailer"));
-        await service.CompleteStepAsync(6052, 60521, 61522, new CompleteWorkCenterStepDto("EMP002", null));
+                new CaptureTrailerDto("EMP-TRAILER", "TRL-100", "Loaded to outbound trailer", "Production"));
+        await service.CompleteStepAsync(6052, 60521, 61522, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production"));
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 6052);
         Assert.Equal("TRL-100", order.TrailerNo);
@@ -212,7 +214,7 @@ public class WorkCenterWorkflowServiceTests
                 6053,
                 60531,
                 61532,
-                new CaptureTrailerDto("EMP-TRAILER", " ", "missing")));
+                new CaptureTrailerDto("EMP-TRAILER", " ", "missing", "Production")));
 
         Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
         Assert.Contains("TrailerNo", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -238,7 +240,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(606, 6061, 6162, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(606, 6061, 6162, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("scrap reason", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -253,7 +255,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(607, 6071, 6172, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(607, 6071, 6172, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("packing slip", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -268,7 +270,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(608, 6081, 6182, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(608, 6081, 6182, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("bill of lading", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -291,7 +293,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.CompleteStepAsync(609, 6091, 6192, new CompleteWorkCenterStepDto("EMP002", null)));
+            service.CompleteStepAsync(609, 6091, 6192, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("serial load verification", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -322,7 +324,8 @@ public class WorkCenterWorkflowServiceTests
                     "EMP002",
                     null,
                     SerialLoadVerified: true,
-                    VerifiedSerialNos: ["SER-1"])));
+                    VerifiedSerialNos: ["SER-1"],
+                    ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
         Assert.Contains("must match expected", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
@@ -348,9 +351,9 @@ public class WorkCenterWorkflowServiceTests
             6101,
             61011,
             62012,
-            new VerifySerialLoadDto("EMP-LOAD", ["SER-1", "SER-2"], "Loaded trailer check"));
+            new VerifySerialLoadDto("EMP-LOAD", ["SER-1", "SER-2"], "Loaded trailer check", "Production"));
 
-        await service.CompleteStepAsync(6101, 61011, 62012, new CompleteWorkCenterStepDto("EMP002", null));
+        await service.CompleteStepAsync(6101, 61011, 62012, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production"));
         var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 62012);
         Assert.Equal("Completed", step.State);
     }
@@ -375,8 +378,8 @@ public class WorkCenterWorkflowServiceTests
             6102,
             61021,
             62022,
-            new GenerateStepDocumentDto("EMP-DOC", false, "Generate packing slip"));
-        await service.CompleteStepAsync(6102, 61021, 62022, new CompleteWorkCenterStepDto("EMP002", null));
+            new GenerateStepDocumentDto("EMP-DOC", false, "Generate packing slip", "Production"));
+        await service.CompleteStepAsync(6102, 61021, 62022, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production"));
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 6102);
         Assert.Equal("PS-SO-6102", order.PackingSlipNo);
@@ -412,8 +415,8 @@ public class WorkCenterWorkflowServiceTests
             6103,
             61031,
             62032,
-            new GenerateStepDocumentDto("EMP-DOC", false, "Generate BOL"));
-        await service.CompleteStepAsync(6103, 61031, 62032, new CompleteWorkCenterStepDto("EMP002", null));
+            new GenerateStepDocumentDto("EMP-DOC", false, "Generate BOL", "Production"));
+        await service.CompleteStepAsync(6103, 61031, 62032, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production"));
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 6103);
         Assert.Equal("BOL-SO-6103", order.BolNo);
@@ -445,8 +448,8 @@ public class WorkCenterWorkflowServiceTests
 
         var storage = new InMemoryAttachmentStorage();
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), attachmentStorage: storage);
-        await service.GeneratePackingSlipAsync(6104, 61041, 62042, new GenerateStepDocumentDto("EMP-DOC", false, "First print"));
-        await service.GeneratePackingSlipAsync(6104, 61041, 62042, new GenerateStepDocumentDto("EMP-DOC", true, "Regenerate"));
+        await service.GeneratePackingSlipAsync(6104, 61041, 62042, new GenerateStepDocumentDto("EMP-DOC", false, "First print", "Production"));
+        await service.GeneratePackingSlipAsync(6104, 61041, 62042, new GenerateStepDocumentDto("EMP-DOC", true, "Regenerate", "Production"));
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 6104);
         Assert.Equal("PS-SO-6104-R1", order.PackingSlipNo);
@@ -469,7 +472,7 @@ public class WorkCenterWorkflowServiceTests
         await db.SaveChangesAsync();
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
-        await service.CompleteStepAsync(611, 6111, 6212, new CompleteWorkCenterStepDto("EMP002", null));
+        await service.CompleteStepAsync(611, 6111, 6212, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production"));
 
         var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 6212);
         Assert.Equal("Completed", step.State);
@@ -489,7 +492,7 @@ public class WorkCenterWorkflowServiceTests
         await db.SaveChangesAsync();
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
-        await service.CloseReworkAsync(700, 7001, 7102, new ReworkStateChangeDto("EMP003", "Closed verification"));
+        await service.CloseReworkAsync(700, 7001, 7102, new ReworkStateChangeDto("EMP003", "Closed verification", "Supervisor", "VerifiedAndClosed"));
 
         var updated = await db.SalesOrders.FirstAsync(o => o.Id == 700);
         Assert.Null(updated.HoldOverlay);
@@ -505,7 +508,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.StartReworkAsync(710, 7101, 7202, new ReworkStateChangeDto("EMP004", "skip approval")));
+            service.StartReworkAsync(710, 7101, 7202, new ReworkStateChangeDto("EMP004", "skip approval", "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
@@ -529,7 +532,7 @@ public class WorkCenterWorkflowServiceTests
         var workflowService = new OrderWorkflowService(db, queryService, new FakeOrderPolicyService());
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), workflowService);
 
-        await service.ScanInAsync(720, 7201, 7302, new OperatorScanInDto("EMP720", null));
+        await service.ScanInAsync(720, 7201, 7302, new OperatorScanInDto("EMP720", null, "Production"));
 
         var refreshedOrder = await db.SalesOrders.FirstAsync(o => o.Id == 720);
         Assert.Equal(OrderStatusCatalog.InProduction, refreshedOrder.OrderLifecycleStatus);
@@ -661,6 +664,63 @@ public class WorkCenterWorkflowServiceTests
             .FirstAsync(a => a.OrderLineRouteStepInstanceId == 8142);
         Assert.Equal("DurationCorrected", audit.ActionType);
         Assert.Equal("SUP804", audit.OperatorEmpNo);
+    }
+
+    [Fact]
+    public async Task ScanInAsync_WhenRoleForbidden_ThrowsForbidden()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ScanInAsync_WhenRoleForbidden_ThrowsForbidden));
+        SeedRouteWithTwoSteps(db, orderId: 820, lineId: 8201, routeId: 8300, firstStepState: "Completed", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.ScanInAsync(820, 8201, 8302, new OperatorScanInDto("EMP820", null, "Quality")));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdjustRouteAsync_WhenRoleForbidden_ThrowsForbidden()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenRoleForbidden_ThrowsForbidden));
+        SeedRouteWithTwoSteps(db, orderId: 821, lineId: 8211, routeId: 8310, firstStepState: "Completed", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdjustRouteAsync(821, new SupervisorRouteReviewDto(true, "Need reroute", "EMP821", "Production")));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApproveOrderAsync_WhenRoleForbidden_ThrowsForbidden()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApproveOrderAsync_WhenRoleForbidden_ThrowsForbidden));
+        SeedRouteWithTwoSteps(db, orderId: 822, lineId: 8221, routeId: 8320, firstStepState: "Completed", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.ApproveOrderAsync(822, new SupervisorDecisionDto("EMP822", "approve", "Production")));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApproveReworkAsync_WhenElevatedReasonMissing_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApproveReworkAsync_WhenElevatedReasonMissing_ThrowsBadRequest));
+        SeedRouteWithTwoSteps(db, orderId: 823, lineId: 8231, routeId: 8330, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.RequestReworkAsync(823, 8231, 8332, new ReworkRequestDto("EMP823", "Defect", "request", "Production"));
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.ApproveReworkAsync(823, 8231, 8332, new ReworkStateChangeDto("SUP823", "approve", "Supervisor")));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
     }
 
     private static void SeedRouteWithTwoSteps(
