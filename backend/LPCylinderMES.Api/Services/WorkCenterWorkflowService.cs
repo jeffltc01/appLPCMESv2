@@ -2,7 +2,6 @@ using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.DTOs;
 using LPCylinderMES.Api.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Text;
 
 namespace LPCylinderMES.Api.Services;
 
@@ -210,6 +209,33 @@ public class WorkCenterWorkflowService(
 
         var notes = $"mode={mode};oldDuration={oldDuration?.ToString() ?? "null"};newDuration={step.DurationMinutes};oldSource={oldSource};newSource={step.TimeCaptureSource};reason={reason ?? string.Empty};note={dto.Notes ?? string.Empty}";
         await AddActivityAsync(step, dto.ActingEmpNo.Trim(), "DurationCorrected", dto.DeviceId, notes, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<OrderRouteExecutionDto> CaptureTrailerAsync(int orderId, int lineId, long stepId, CaptureTrailerDto dto, CancellationToken cancellationToken = default)
+    {
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        if (string.IsNullOrWhiteSpace(dto.EmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EmpNo is required.");
+        }
+
+        var trailerNo = dto.TrailerNo?.Trim();
+        if (string.IsNullOrWhiteSpace(trailerNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "TrailerNo is required.");
+        }
+
+        var order = step.OrderLineRouteInstance.SalesOrder;
+        order.TrailerNo = trailerNo;
+        await AddActivityAsync(
+            step,
+            dto.EmpNo.Trim(),
+            "CaptureTrailer",
+            null,
+            $"trailerNo={trailerNo};note={dto.Notes ?? string.Empty}",
+            cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
     }
@@ -792,13 +818,12 @@ public class WorkCenterWorkflowService(
                 "Attachment storage is not configured. Document generation is unavailable.");
 
         var utcNow = DateTime.UtcNow;
-        var fileName = $"{documentNo}.txt";
+        var fileName = $"{documentNo}.pdf";
         var blobPath = $"orders/{order.Id}/generated/{Guid.NewGuid():N}-{fileName}";
-        var content = BuildDocumentText(order, lineId, documentNo, category, utcNow, actorEmpNo, notes);
-        var bytes = Encoding.UTF8.GetBytes(content);
+        var bytes = WorkCenterDocumentPdfBuilder.BuildDocument(order, lineId, category, documentNo, utcNow, actorEmpNo, notes);
         await using (var stream = new MemoryStream(bytes))
         {
-            await storage.UploadAsync(blobPath, stream, "text/plain", cancellationToken);
+            await storage.UploadAsync(blobPath, stream, "application/pdf", cancellationToken);
         }
 
         var attachment = new OrderAttachment
@@ -806,7 +831,7 @@ public class WorkCenterWorkflowService(
             OrderId = order.Id,
             FileName = fileName,
             BlobPath = blobPath,
-            ContentType = "text/plain",
+            ContentType = "application/pdf",
             SizeBytes = bytes.LongLength,
             Category = category,
             UploadedByEmpNo = actorEmpNo,
@@ -826,28 +851,5 @@ public class WorkCenterWorkflowService(
         });
 
         return blobPath;
-    }
-
-    private static string BuildDocumentText(
-        SalesOrder order,
-        int lineId,
-        string documentNo,
-        string category,
-        DateTime generatedUtc,
-        string actorEmpNo,
-        string? notes)
-    {
-        return string.Join(
-            Environment.NewLine,
-            $"{category} Document",
-            $"DocumentNo: {documentNo}",
-            $"SalesOrderId: {order.Id}",
-            $"SalesOrderNo: {order.SalesOrderNo}",
-            $"LineId: {lineId}",
-            $"CustomerId: {order.CustomerId}",
-            $"SiteId: {order.SiteId}",
-            $"GeneratedUtc: {generatedUtc:O}",
-            $"GeneratedByEmpNo: {actorEmpNo}",
-            $"Notes: {notes ?? string.Empty}");
     }
 }

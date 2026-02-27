@@ -642,6 +642,19 @@ public class OrdersController(
         }
     }
 
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/loading/trailer")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> CaptureTrailer(int orderId, int lineId, long stepId, CaptureTrailerDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.CaptureTrailerAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/loading/verify-serials")]
     public async Task<ActionResult<OrderRouteExecutionDto>> VerifySerialLoad(int orderId, int lineId, long stepId, VerifySerialLoadDto dto)
     {
@@ -696,6 +709,12 @@ public class OrdersController(
 
     [HttpGet("workcenter/{workCenterId:int}/queue")]
     public async Task<ActionResult<List<WorkCenterQueueItemDto>>> GetWorkCenterQueue(int workCenterId)
+    {
+        return Ok(await workCenterWorkflowService.GetQueueAsync(workCenterId));
+    }
+
+    [HttpGet("/api/workcenter/{workCenterId:int}/queue")]
+    public async Task<ActionResult<List<WorkCenterQueueItemDto>>> GetWorkCenterQueueAlias(int workCenterId)
     {
         return Ok(await workCenterWorkflowService.GetQueueAsync(workCenterId));
     }

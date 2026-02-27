@@ -32,6 +32,7 @@ export function OperatorWorkCenterConsolePage() {
   const [verifiedSerialNosCsv, setVerifiedSerialNosCsv] = useState("");
   const [manualDurationMinutes, setManualDurationMinutes] = useState("");
   const [manualDurationReason, setManualDurationReason] = useState("");
+  const [trailerNo, setTrailerNo] = useState("");
   const [actingRole, setActingRole] = useState<OrderWorkspaceRole>("Production");
   const [actingEmpNo, setActingEmpNo] = useState("OP001");
 
@@ -83,7 +84,15 @@ export function OperatorWorkCenterConsolePage() {
   );
 
   const performAction = async (
-    action: "scanIn" | "scanOut" | "verifySerials" | "generatePackingSlip" | "generateBol" | "complete" | "correctDuration"
+    action:
+      | "scanIn"
+      | "scanOut"
+      | "captureTrailer"
+      | "verifySerials"
+      | "generatePackingSlip"
+      | "generateBol"
+      | "complete"
+      | "correctDuration"
   ) => {
     if (!selected) return;
     try {
@@ -102,6 +111,12 @@ export function OperatorWorkCenterConsolePage() {
         await ordersApi.scanOut(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           deviceId: "UI",
+        });
+      } else if (action === "captureTrailer") {
+        await ordersApi.captureTrailer(selected.orderId, selected.lineId, selected.stepInstanceId, {
+          empNo: empNoToUse,
+          trailerNo: trailerNo.trim(),
+          notes: "Captured from operator console",
         });
       } else if (action === "verifySerials") {
         await ordersApi.verifySerialLoad(selected.orderId, selected.lineId, selected.stepInstanceId, {
@@ -247,6 +262,9 @@ export function OperatorWorkCenterConsolePage() {
                     onChange={(_, data) => setManualDurationReason(data.value)}
                   />
                 </Field>
+                <Field label="Trailer number">
+                  <Input value={trailerNo} onChange={(_, data) => setTrailerNo(data.value)} />
+                </Field>
                 <Field label="Verified serial numbers CSV (optional)">
                   <Input
                     value={verifiedSerialNosCsv}
@@ -262,6 +280,7 @@ export function OperatorWorkCenterConsolePage() {
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <Button onClick={() => performAction("scanIn")}>Scan In</Button>
                   <Button onClick={() => performAction("scanOut")}>Scan Out</Button>
+                  <Button onClick={() => performAction("captureTrailer")}>Capture Trailer</Button>
                   <Button onClick={() => performAction("verifySerials")}>Verify Serials</Button>
                   <Button onClick={() => performAction("generatePackingSlip")}>Generate Packing Slip</Button>
                   <Button onClick={() => performAction("generateBol")}>Generate BOL</Button>

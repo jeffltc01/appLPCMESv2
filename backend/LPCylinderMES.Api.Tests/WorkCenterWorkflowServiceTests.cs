@@ -175,6 +175,50 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
+    public async Task CaptureTrailerAsync_WhenValid_PersistsTrailerAndAllowsCompletion()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CaptureTrailerAsync_WhenValid_PersistsTrailerAndAllowsCompletion));
+        SeedRouteWithTwoSteps(db, orderId: 6052, lineId: 60521, routeId: 61520, firstStepState: "Completed", secondStepState: "InProgress", requiresTrailerForSecond: true);
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.CaptureTrailerAsync(
+            6052,
+            60521,
+            61522,
+            new CaptureTrailerDto("EMP-TRAILER", "TRL-100", "Loaded to outbound trailer"));
+        await service.CompleteStepAsync(6052, 60521, 61522, new CompleteWorkCenterStepDto("EMP002", null));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 6052);
+        Assert.Equal("TRL-100", order.TrailerNo);
+        var activity = await db.OperatorActivityLogs
+            .OrderByDescending(a => a.Id)
+            .FirstAsync(a =>
+                a.OrderLineRouteStepInstanceId == 61522 &&
+                a.ActionType == "CaptureTrailer");
+        Assert.Equal("CaptureTrailer", activity.ActionType);
+    }
+
+    [Fact]
+    public async Task CaptureTrailerAsync_WhenTrailerMissing_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CaptureTrailerAsync_WhenTrailerMissing_ThrowsBadRequest));
+        SeedRouteWithTwoSteps(db, orderId: 6053, lineId: 60531, routeId: 61530, firstStepState: "Completed", secondStepState: "InProgress", requiresTrailerForSecond: true);
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CaptureTrailerAsync(
+                6053,
+                60531,
+                61532,
+                new CaptureTrailerDto("EMP-TRAILER", " ", "missing")));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+        Assert.Contains("TrailerNo", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CompleteStepAsync_WhenSerialMarkedBadWithoutScrapReason_ThrowsConflict()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenSerialMarkedBadWithoutScrapReason_ThrowsConflict));
@@ -336,10 +380,16 @@ public class WorkCenterWorkflowServiceTests
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 6102);
         Assert.Equal("PS-SO-6102", order.PackingSlipNo);
+        Assert.NotNull(order.PackingSlipGeneratedUtc);
+        Assert.False(string.IsNullOrWhiteSpace(order.PackingSlipDocumentUri));
         var attachment = await db.OrderAttachments.FirstAsync(a => a.OrderId == 6102 && a.Category == "PackingSlip");
-        Assert.EndsWith(".txt", attachment.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(".pdf", attachment.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("application/pdf", attachment.ContentType);
         var stored = await storage.OpenReadAsync(attachment.BlobPath);
         Assert.NotNull(stored);
+        using var reader = new BinaryReader(stored!);
+        var header = reader.ReadBytes(4);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(header));
     }
 
     [Fact]
@@ -367,10 +417,39 @@ public class WorkCenterWorkflowServiceTests
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 6103);
         Assert.Equal("BOL-SO-6103", order.BolNo);
+        Assert.NotNull(order.BolGeneratedUtc);
+        Assert.False(string.IsNullOrWhiteSpace(order.BolDocumentUri));
         var attachment = await db.OrderAttachments.FirstAsync(a => a.OrderId == 6103 && a.Category == "BillOfLading");
-        Assert.EndsWith(".txt", attachment.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(".pdf", attachment.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("application/pdf", attachment.ContentType);
         var stored = await storage.OpenReadAsync(attachment.BlobPath);
         Assert.NotNull(stored);
+        using var reader = new BinaryReader(stored!);
+        var header = reader.ReadBytes(4);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(header));
+    }
+
+    [Fact]
+    public async Task GeneratePackingSlipAsync_WhenRegenerated_AppendsRevisionSuffix()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GeneratePackingSlipAsync_WhenRegenerated_AppendsRevisionSuffix));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 6104,
+            lineId: 61041,
+            routeId: 62040,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            requiresPackingSlipForSecond: true);
+        await db.SaveChangesAsync();
+
+        var storage = new InMemoryAttachmentStorage();
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), attachmentStorage: storage);
+        await service.GeneratePackingSlipAsync(6104, 61041, 62042, new GenerateStepDocumentDto("EMP-DOC", false, "First print"));
+        await service.GeneratePackingSlipAsync(6104, 61041, 62042, new GenerateStepDocumentDto("EMP-DOC", true, "Regenerate"));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 6104);
+        Assert.Equal("PS-SO-6104-R1", order.PackingSlipNo);
     }
 
     [Fact]

@@ -532,6 +532,11 @@ public record VerifySerialLoadDto(
     List<string> VerifiedSerialNos,
     string? Notes = null);
 
+public record CaptureTrailerDto(
+    string EmpNo,
+    string TrailerNo,
+    string? Notes = null);
+
 public record GenerateStepDocumentDto(
     string EmpNo,
     bool Regenerate = false,

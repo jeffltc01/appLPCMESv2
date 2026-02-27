@@ -7,6 +7,7 @@ const ordersApiMock = vi.hoisted(() => ({
   orderWorkCenterActivityLog: vi.fn(),
   scanIn: vi.fn(),
   scanOut: vi.fn(),
+  captureTrailer: vi.fn(),
   correctStepDuration: vi.fn(),
   completeStep: vi.fn(),
 }));
@@ -86,6 +87,23 @@ describe("OperatorWorkCenterConsolePage", () => {
     fireEvent.change(screen.getByLabelText("Manual duration minutes"), { target: { value: "14.5" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply Duration" }));
     await waitFor(() => expect(ordersApiMock.correctStepDuration).toHaveBeenCalled());
+  });
+
+  it("captures trailer number for loading step", async () => {
+    setupBaseMocks("Manual");
+    ordersApiMock.captureTrailer.mockResolvedValue({});
+
+    render(<OperatorWorkCenterConsolePage />);
+    await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
+    fireEvent.change(screen.getByLabelText("Trailer number"), { target: { value: "TRL-77" } });
+    fireEvent.click(screen.getByRole("button", { name: "Capture Trailer" }));
+
+    await waitFor(() => expect(ordersApiMock.captureTrailer).toHaveBeenCalled());
+    expect(ordersApiMock.captureTrailer).toHaveBeenCalledWith(100, 200, 501, {
+      empNo: "OP001",
+      trailerNo: "TRL-77",
+      notes: "Captured from operator console",
+    });
   });
 
   it("blocks hybrid correction when reason is missing", async () => {

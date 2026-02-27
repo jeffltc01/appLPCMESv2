@@ -35,6 +35,7 @@ import type {
   OperatorScanInRequest,
   OperatorScanOutRequest,
   CompleteWorkCenterStepRequest,
+  CaptureTrailerRequest,
   VerifySerialLoadRequest,
   GenerateStepDocumentRequest,
   StepMaterialUsageCreateRequest,
@@ -448,7 +449,7 @@ export const ordersApi = {
     `/api/orders/${id}/attachments/${attachmentId}?actingRole=${encodeURIComponent(actingRole)}&actingEmpNo=${encodeURIComponent(actingEmpNo)}`,
 
   workCenterQueue: (workCenterId: number) =>
-    api.get<WorkCenterQueueItem[]>(`/orders/workcenter/${workCenterId}/queue`),
+    api.get<WorkCenterQueueItem[]>(`/workcenter/${workCenterId}/queue`),
 
   orderRouteExecution: (orderId: number) =>
     api.get<OrderRouteExecution>(`/orders/${orderId}/route-execution`),
@@ -479,6 +480,9 @@ export const ordersApi = {
 
   correctStepDuration: (orderId: number, lineId: number, stepId: number, data: CorrectStepDurationRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/duration-correction`, data),
+
+  captureTrailer: (orderId: number, lineId: number, stepId: number, data: CaptureTrailerRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/loading/trailer`, data),
 
   verifySerialLoad: (orderId: number, lineId: number, stepId: number, data: VerifySerialLoadRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/loading/verify-serials`, data),

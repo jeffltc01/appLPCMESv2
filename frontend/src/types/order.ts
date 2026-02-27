@@ -908,6 +908,12 @@ export interface VerifySerialLoadRequest {
   notes?: string | null;
 }
 
+export interface CaptureTrailerRequest {
+  empNo: string;
+  trailerNo: string;
+  notes?: string | null;
+}
+
 export interface GenerateStepDocumentRequest {
   empNo: string;
   regenerate?: boolean;
