@@ -10,7 +10,8 @@ public class WorkCenterWorkflowService(
     LpcAppsDbContext db,
     IOrderPolicyService orderPolicyService,
     IOrderWorkflowService? orderWorkflowService = null,
-    IAttachmentStorage? attachmentStorage = null) : IWorkCenterWorkflowService
+    IAttachmentStorage? attachmentStorage = null,
+    IRolePermissionService? rolePermissionService = null) : IWorkCenterWorkflowService
 {
     private static readonly Dictionary<string, string[]> ReworkStateTransitions = new(StringComparer.Ordinal)
     {
@@ -24,6 +25,7 @@ public class WorkCenterWorkflowService(
     };
     private readonly IOrderWorkflowService? _orderWorkflowService = orderWorkflowService;
     private readonly IAttachmentStorage? _attachmentStorage = attachmentStorage;
+    private readonly IRolePermissionService _rolePermissionService = rolePermissionService ?? new RolePermissionService();
     private readonly StepCompletionValidationService _stepCompletionValidationService = new(db);
 
     public async Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default)
@@ -74,6 +76,10 @@ public class WorkCenterWorkflowService(
         if (step.ScanInUtc.HasValue && now >= step.ScanInUtc.Value)
         {
             step.DurationMinutes = (decimal)(now - step.ScanInUtc.Value).TotalMinutes;
+            if (!string.Equals(step.TimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase))
+            {
+                step.TimeCaptureSource = "SystemScan";
+            }
         }
 
         await AddActivityAsync(step, dto.EmpNo, "ScanOut", dto.DeviceId, null, cancellationToken);
@@ -155,6 +161,55 @@ public class WorkCenterWorkflowService(
             CompletedUtc = DateTime.UtcNow,
         });
 
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<OrderRouteExecutionDto> CorrectDurationAsync(int orderId, int lineId, long stepId, CorrectStepDurationDto dto, CancellationToken cancellationToken = default)
+    {
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        var mode = (step.TimeCaptureMode ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Step time capture mode is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.ActingRole) || string.IsNullOrWhiteSpace(dto.ActingEmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ActingRole and ActingEmpNo are required.");
+        }
+
+        if (string.Equals(mode, "Automated", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Duration correction is not allowed for automated time capture.");
+        }
+
+        _rolePermissionService.EnsureDurationCorrectionAllowed(dto.ActingRole, mode);
+
+        if (!dto.ManualDurationMinutes.HasValue || dto.ManualDurationMinutes.Value <= 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ManualDurationMinutes must be greater than zero.");
+        }
+
+        var reason = string.IsNullOrWhiteSpace(dto.ManualDurationReason)
+            ? null
+            : dto.ManualDurationReason.Trim();
+        if (string.Equals(mode, "Hybrid", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ManualDurationReason is required for hybrid override.");
+        }
+
+        var oldDuration = step.DurationMinutes;
+        var oldSource = step.TimeCaptureSource;
+        step.ManualDurationMinutes = dto.ManualDurationMinutes.Value;
+        step.ManualDurationReason = reason;
+        step.DurationMinutes = dto.ManualDurationMinutes.Value;
+        step.TimeCaptureSource = string.Equals(mode, "Manual", StringComparison.OrdinalIgnoreCase)
+            ? "ManualEntry"
+            : "ManualOverride";
+
+        var notes = $"mode={mode};oldDuration={oldDuration?.ToString() ?? "null"};newDuration={step.DurationMinutes};oldSource={oldSource};newSource={step.TimeCaptureSource};reason={reason ?? string.Empty};note={dto.Notes ?? string.Empty}";
+        await AddActivityAsync(step, dto.ActingEmpNo.Trim(), "DurationCorrected", dto.DeviceId, notes, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
     }
@@ -328,9 +383,14 @@ public class WorkCenterWorkflowService(
                         s.StepCode,
                         s.StepName,
                         s.State,
+                        s.TimeCaptureMode,
                         s.ScanInUtc,
                         s.ScanOutUtc,
-                        s.CompletedUtc))
+                        s.CompletedUtc,
+                        s.DurationMinutes,
+                        s.ManualDurationMinutes,
+                        s.ManualDurationReason,
+                        s.TimeCaptureSource))
                     .ToList()))
             .ToListAsync(cancellationToken);
 
@@ -339,6 +399,34 @@ public class WorkCenterWorkflowService(
             order.OrderLifecycleStatus,
             order.HasOpenRework ?? false,
             routes);
+    }
+
+    public async Task<List<OperatorActivityLogDto>> GetOrderActivityLogAsync(int orderId, CancellationToken cancellationToken = default)
+    {
+        var orderExists = await db.SalesOrders.AnyAsync(o => o.Id == orderId, cancellationToken);
+        if (!orderExists)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+        }
+
+        return await db.OperatorActivityLogs
+            .AsNoTracking()
+            .Where(l => l.SalesOrderId == orderId)
+            .OrderByDescending(l => l.ActionUtc)
+            .ThenByDescending(l => l.Id)
+            .Take(250)
+            .Select(l => new OperatorActivityLogDto(
+                l.Id,
+                l.SalesOrderId,
+                l.SalesOrderDetailId,
+                l.OrderLineRouteStepInstanceId,
+                l.WorkCenterId,
+                l.OperatorEmpNo,
+                l.ActionType,
+                l.ActionUtc,
+                l.DeviceId,
+                l.Notes))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<OrderRouteExecutionDto> ValidateRouteAsync(int orderId, SupervisorRouteReviewDto dto, CancellationToken cancellationToken = default)

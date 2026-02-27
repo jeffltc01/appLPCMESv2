@@ -4,8 +4,10 @@ import { OperatorWorkCenterConsolePage } from "./OperatorWorkCenterConsolePage";
 const ordersApiMock = vi.hoisted(() => ({
   workCenterQueue: vi.fn(),
   lineRouteExecution: vi.fn(),
+  orderWorkCenterActivityLog: vi.fn(),
   scanIn: vi.fn(),
   scanOut: vi.fn(),
+  correctStepDuration: vi.fn(),
   completeStep: vi.fn(),
 }));
 
@@ -18,7 +20,7 @@ describe("OperatorWorkCenterConsolePage", () => {
     vi.clearAllMocks();
   });
 
-  it("loads queue and executes scan in action", async () => {
+  const setupBaseMocks = (timeCaptureMode: "Automated" | "Manual" | "Hybrid") => {
     ordersApiMock.workCenterQueue.mockResolvedValue([
       {
         stepInstanceId: 501,
@@ -48,19 +50,54 @@ describe("OperatorWorkCenterConsolePage", () => {
               stepCode: "PREP",
               stepName: "Prep",
               state: "Pending",
+              timeCaptureMode,
               scanInUtc: null,
               scanOutUtc: null,
               completedUtc: null,
+              durationMinutes: null,
+              manualDurationMinutes: null,
+              manualDurationReason: null,
+              timeCaptureSource: "SystemScan",
             },
           ],
         },
       ],
     });
+    ordersApiMock.orderWorkCenterActivityLog.mockResolvedValue([]);
+  };
+
+  it("loads queue and executes scan in action", async () => {
+    setupBaseMocks("Automated");
     ordersApiMock.scanIn.mockResolvedValue({});
 
     render(<OperatorWorkCenterConsolePage />);
     await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: "Scan In" }));
     await waitFor(() => expect(ordersApiMock.scanIn).toHaveBeenCalled());
+  });
+
+  it("submits manual duration correction", async () => {
+    setupBaseMocks("Manual");
+    ordersApiMock.correctStepDuration.mockResolvedValue({});
+
+    render(<OperatorWorkCenterConsolePage />);
+    await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/Time Capture Mode: Manual/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Manual duration minutes"), { target: { value: "14.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply Duration" }));
+    await waitFor(() => expect(ordersApiMock.correctStepDuration).toHaveBeenCalled());
+  });
+
+  it("blocks hybrid correction when reason is missing", async () => {
+    setupBaseMocks("Hybrid");
+    ordersApiMock.correctStepDuration.mockResolvedValue({});
+
+    render(<OperatorWorkCenterConsolePage />);
+    await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/Time Capture Mode: Hybrid/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Manual duration minutes"), { target: { value: "14.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply Duration" }));
+
+    await waitFor(() => expect(ordersApiMock.correctStepDuration).not.toHaveBeenCalled());
   });
 });

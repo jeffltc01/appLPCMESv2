@@ -142,6 +142,25 @@ public class RolePermissionService : IRolePermissionService
     public void EnsureAttachmentDownloadAllowed(string actingRole) =>
         EnsureInSet(actingRole, AttachmentReadRoles, "download attachments");
 
+    public void EnsureDurationCorrectionAllowed(string actingRole, string timeCaptureMode)
+    {
+        if (string.Equals(timeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureInSet(actingRole, LifecycleMutatingRoles, "correct manual duration");
+            return;
+        }
+
+        if (string.Equals(timeCaptureMode, "Hybrid", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureInSet(actingRole, PrivilegedRoles, "correct hybrid duration");
+            return;
+        }
+
+        throw new ServiceException(
+            StatusCodes.Status403Forbidden,
+            $"Duration correction is not allowed for time capture mode '{timeCaptureMode}'.");
+    }
+
     private static void EnsureInSet(string actingRole, HashSet<string> allowedRoles, string action)
     {
         if (string.IsNullOrWhiteSpace(actingRole) || !allowedRoles.Contains(actingRole))

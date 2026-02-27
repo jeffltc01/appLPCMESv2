@@ -11,11 +11,17 @@ import {
   Title1,
 } from "@fluentui/react-components";
 import { ordersApi } from "../services/orders";
-import type { OrderRouteExecution, WorkCenterQueueItem } from "../types/order";
+import type {
+  OperatorActivityLogItem,
+  OrderRouteExecution,
+  OrderWorkspaceRole,
+  WorkCenterQueueItem,
+} from "../types/order";
 
 export function OperatorWorkCenterConsolePage() {
   const [workCenterId, setWorkCenterId] = useState("1");
   const [queue, setQueue] = useState<WorkCenterQueueItem[]>([]);
+  const [activityLog, setActivityLog] = useState<OperatorActivityLogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<WorkCenterQueueItem | null>(null);
   const [routeExecution, setRouteExecution] = useState<OrderRouteExecution | null>(null);
@@ -24,6 +30,10 @@ export function OperatorWorkCenterConsolePage() {
   const [supervisorOverrideReason, setSupervisorOverrideReason] = useState("");
   const [serialLoadVerified, setSerialLoadVerified] = useState(false);
   const [verifiedSerialNosCsv, setVerifiedSerialNosCsv] = useState("");
+  const [manualDurationMinutes, setManualDurationMinutes] = useState("");
+  const [manualDurationReason, setManualDurationReason] = useState("");
+  const [actingRole, setActingRole] = useState<OrderWorkspaceRole>("Production");
+  const [actingEmpNo, setActingEmpNo] = useState("OP001");
 
   const loadQueue = useCallback(async () => {
     const id = Number(workCenterId);
@@ -48,11 +58,17 @@ export function OperatorWorkCenterConsolePage() {
   useEffect(() => {
     if (!selected) {
       setRouteExecution(null);
+      setActivityLog([]);
       return;
     }
-    void ordersApi
-      .lineRouteExecution(selected.orderId, selected.lineId)
-      .then(setRouteExecution)
+    void Promise.all([
+      ordersApi.lineRouteExecution(selected.orderId, selected.lineId),
+      ordersApi.orderWorkCenterActivityLog(selected.orderId),
+    ])
+      .then(([route, logs]) => {
+        setRouteExecution(route);
+        setActivityLog(logs);
+      })
       .catch(() => setMessage({ type: "error", text: "Unable to load route execution details." }));
   }, [selected]);
 
@@ -66,44 +82,68 @@ export function OperatorWorkCenterConsolePage() {
     [routeExecution, selected]
   );
 
-  const performAction = async (action: "scanIn" | "scanOut" | "verifySerials" | "generatePackingSlip" | "generateBol" | "complete") => {
+  const performAction = async (
+    action: "scanIn" | "scanOut" | "verifySerials" | "generatePackingSlip" | "generateBol" | "complete" | "correctDuration"
+  ) => {
     if (!selected) return;
     try {
       const verifiedSerialNos = verifiedSerialNosCsv
         .split(",")
         .map((value) => value.trim())
         .filter((value) => value.length > 0);
+      const roleToUse = actingRole;
+      const empNoToUse = actingEmpNo.trim() || "OP001";
       if (action === "scanIn") {
         await ordersApi.scanIn(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: "OP001",
+          empNo: empNoToUse,
           deviceId: "UI",
         });
       } else if (action === "scanOut") {
         await ordersApi.scanOut(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: "OP001",
+          empNo: empNoToUse,
           deviceId: "UI",
         });
       } else if (action === "verifySerials") {
         await ordersApi.verifySerialLoad(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: "OP001",
+          empNo: empNoToUse,
           verifiedSerialNos,
           notes: "Verified from operator console",
         });
       } else if (action === "generatePackingSlip") {
         await ordersApi.generatePackingSlip(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: "OP001",
+          empNo: empNoToUse,
           regenerate: false,
           notes: "Generated from operator console",
         });
       } else if (action === "generateBol") {
         await ordersApi.generateBol(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: "OP001",
+          empNo: empNoToUse,
           regenerate: false,
           notes: "Generated from operator console",
         });
+      } else if (action === "correctDuration") {
+        const mode = selectedStep?.timeCaptureMode;
+        if (!mode) {
+          throw new Error("Step details are still loading. Please retry.");
+        }
+        const parsedDuration = Number(manualDurationMinutes);
+        if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+          throw new Error("Manual duration minutes must be greater than zero.");
+        }
+        if (mode === "Hybrid" && !manualDurationReason.trim()) {
+          throw new Error("Hybrid override requires a reason.");
+        }
+        await ordersApi.correctStepDuration(selected.orderId, selected.lineId, selected.stepInstanceId, {
+          manualDurationMinutes: parsedDuration,
+          manualDurationReason: manualDurationReason.trim() || null,
+          actingRole: roleToUse,
+          actingEmpNo: empNoToUse,
+          notes: "Corrected from operator console",
+          deviceId: "UI",
+        });
       } else {
         await ordersApi.completeStep(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: "OP001",
+          empNo: empNoToUse,
           notes: "Completed from operator console",
           supervisorOverrideEmpNo: supervisorOverrideEmpNo || null,
           supervisorOverrideReason: supervisorOverrideReason || null,
@@ -114,7 +154,12 @@ export function OperatorWorkCenterConsolePage() {
 
       setMessage({ type: "success", text: `Step action ${action} completed.` });
       await loadQueue();
-      setRouteExecution(await ordersApi.lineRouteExecution(selected.orderId, selected.lineId));
+      const [route, logs] = await Promise.all([
+        ordersApi.lineRouteExecution(selected.orderId, selected.lineId),
+        ordersApi.orderWorkCenterActivityLog(selected.orderId),
+      ]);
+      setRouteExecution(route);
+      setActivityLog(logs);
     } catch (error) {
       const text = error instanceof Error ? error.message : "Step action failed.";
       setMessage({ type: "error", text });
@@ -164,6 +209,20 @@ export function OperatorWorkCenterConsolePage() {
                 <Body1>Order: {selected.salesOrderNo}</Body1>
                 <Body1>Step: {selected.stepCode} - {selected.stepName}</Body1>
                 <Body1>Current State: {selectedStep?.state ?? selected.stepState}</Body1>
+                <Body1>Time Capture Mode: {selectedStep?.timeCaptureMode ?? "Unknown"}</Body1>
+                <Body1>Current Duration (min): {selectedStep?.durationMinutes ?? "n/a"}</Body1>
+                <Body1>Manual Duration (min): {selectedStep?.manualDurationMinutes ?? "n/a"}</Body1>
+                <Body1>Capture Source: {selectedStep?.timeCaptureSource ?? "n/a"}</Body1>
+                <Body1>Manual Reason: {selectedStep?.manualDurationReason ?? "n/a"}</Body1>
+                <Field label="Acting role">
+                  <Input
+                    value={actingRole}
+                    onChange={(_, data) => setActingRole((data.value as OrderWorkspaceRole) || "Production")}
+                  />
+                </Field>
+                <Field label="Acting emp no">
+                  <Input value={actingEmpNo} onChange={(_, data) => setActingEmpNo(data.value)} />
+                </Field>
                 <Field label="Supervisor override emp no (optional)">
                   <Input
                     value={supervisorOverrideEmpNo}
@@ -174,6 +233,18 @@ export function OperatorWorkCenterConsolePage() {
                   <Input
                     value={supervisorOverrideReason}
                     onChange={(_, data) => setSupervisorOverrideReason(data.value)}
+                  />
+                </Field>
+                <Field label="Manual duration minutes">
+                  <Input
+                    value={manualDurationMinutes}
+                    onChange={(_, data) => setManualDurationMinutes(data.value)}
+                  />
+                </Field>
+                <Field label="Manual duration reason (required for hybrid override)">
+                  <Input
+                    value={manualDurationReason}
+                    onChange={(_, data) => setManualDurationReason(data.value)}
                   />
                 </Field>
                 <Field label="Verified serial numbers CSV (optional)">
@@ -194,6 +265,7 @@ export function OperatorWorkCenterConsolePage() {
                   <Button onClick={() => performAction("verifySerials")}>Verify Serials</Button>
                   <Button onClick={() => performAction("generatePackingSlip")}>Generate Packing Slip</Button>
                   <Button onClick={() => performAction("generateBol")}>Generate BOL</Button>
+                  <Button onClick={() => performAction("correctDuration")}>Apply Duration</Button>
                   <Button appearance="primary" onClick={() => performAction("complete")}>
                     Complete
                   </Button>
@@ -201,6 +273,18 @@ export function OperatorWorkCenterConsolePage() {
               </>
             ) : (
               <Body1>Select a queue row to execute actions.</Body1>
+            )}
+          </Card>
+          <Card>
+            <Body1 style={{ fontWeight: 700, marginBottom: 8 }}>Order Activity Log</Body1>
+            {activityLog.length === 0 ? (
+              <Body1>No activity records found for this order.</Body1>
+            ) : (
+              activityLog.slice(0, 12).map((entry) => (
+                <Body1 key={entry.id}>
+                  {new Date(entry.actionUtc).toLocaleString()} - {entry.actionType} - {entry.operatorEmpNo}
+                </Body1>
+              ))
             )}
           </Card>
         </div>

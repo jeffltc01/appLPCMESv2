@@ -45,6 +45,8 @@ import type {
   SupervisorDecisionRequest,
   ReworkRequest,
   ReworkStateChangeRequest,
+  CorrectStepDurationRequest,
+  OperatorActivityLogItem,
   OrderWorkspaceAction,
   OrderWorkspaceRole,
   OrderWorkflowStatus,
@@ -454,6 +456,9 @@ export const ordersApi = {
   lineRouteExecution: (orderId: number, lineId: number) =>
     api.get<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/route-execution`),
 
+  orderWorkCenterActivityLog: (orderId: number) =>
+    api.get<OperatorActivityLogItem[]>(`/orders/${orderId}/workcenter/activity-log`),
+
   scanIn: (orderId: number, lineId: number, stepId: number, data: OperatorScanInRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/scan-in`, data),
 
@@ -471,6 +476,9 @@ export const ordersApi = {
 
   addStepChecklist: (orderId: number, lineId: number, stepId: number, data: StepChecklistResultCreateRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/checklist`, data),
+
+  correctStepDuration: (orderId: number, lineId: number, stepId: number, data: CorrectStepDurationRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/duration-correction`, data),
 
   verifySerialLoad: (orderId: number, lineId: number, stepId: number, data: VerifySerialLoadRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/loading/verify-serials`, data),

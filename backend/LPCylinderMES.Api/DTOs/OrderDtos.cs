@@ -568,6 +568,26 @@ public record ReworkRequestDto(string RequestedByEmpNo, string ReasonCode, strin
 
 public record ReworkStateChangeDto(string EmpNo, string? Notes);
 
+public record CorrectStepDurationDto(
+    decimal? ManualDurationMinutes,
+    string? ManualDurationReason,
+    string ActingRole,
+    string ActingEmpNo,
+    string? Notes = null,
+    string? DeviceId = null);
+
+public record OperatorActivityLogDto(
+    long Id,
+    int SalesOrderId,
+    int SalesOrderDetailId,
+    long OrderLineRouteStepInstanceId,
+    int WorkCenterId,
+    string OperatorEmpNo,
+    string ActionType,
+    DateTime ActionUtc,
+    string? DeviceId,
+    string? Notes);
+
 public record WorkCenterQueueItemDto(
     long StepInstanceId,
     int OrderId,
@@ -585,9 +605,14 @@ public record RouteStepExecutionDto(
     string StepCode,
     string StepName,
     string State,
+    string TimeCaptureMode,
     DateTime? ScanInUtc,
     DateTime? ScanOutUtc,
-    DateTime? CompletedUtc);
+    DateTime? CompletedUtc,
+    decimal? DurationMinutes,
+    decimal? ManualDurationMinutes,
+    string? ManualDurationReason,
+    string TimeCaptureSource);
 
 public record LineRouteExecutionDto(
     long RouteInstanceId,

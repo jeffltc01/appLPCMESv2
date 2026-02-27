@@ -629,6 +629,19 @@ public class OrdersController(
         }
     }
 
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/duration-correction")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> CorrectStepDuration(int orderId, int lineId, long stepId, CorrectStepDurationDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.CorrectDurationAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/loading/verify-serials")]
     public async Task<ActionResult<OrderRouteExecutionDto>> VerifySerialLoad(int orderId, int lineId, long stepId, VerifySerialLoadDto dto)
     {
@@ -693,6 +706,19 @@ public class OrdersController(
         try
         {
             return Ok(await workCenterWorkflowService.GetOrderRouteExecutionAsync(orderId));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("{orderId:int}/workcenter/activity-log")]
+    public async Task<ActionResult<List<OperatorActivityLogDto>>> GetOrderWorkCenterActivityLog(int orderId)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.GetOrderActivityLogAsync(orderId));
         }
         catch (ServiceException ex)
         {

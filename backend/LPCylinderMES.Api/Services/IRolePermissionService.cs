@@ -9,4 +9,5 @@ public interface IRolePermissionService
     void EnsureAttachmentCategoryUpdateAllowed(string actingRole);
     void EnsureAttachmentDeleteAllowed(string actingRole);
     void EnsureAttachmentDownloadAllowed(string actingRole);
+    void EnsureDurationCorrectionAllowed(string actingRole, string timeCaptureMode);
 }

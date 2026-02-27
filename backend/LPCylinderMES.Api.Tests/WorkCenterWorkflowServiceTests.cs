@@ -461,6 +461,129 @@ public class WorkCenterWorkflowServiceTests
         Assert.Equal("ProductionStarted", lifecycleEvent.ReasonCode);
     }
 
+    [Fact]
+    public async Task CorrectDurationAsync_WhenManualMode_PersistsManualEntryFields()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CorrectDurationAsync_WhenManualMode_PersistsManualEntryFields));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 800,
+            lineId: 8001,
+            routeId: 8100,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            secondStepTimeCaptureMode: "Manual");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.CorrectDurationAsync(
+            800,
+            8001,
+            8102,
+            new CorrectStepDurationDto(12.5m, null, "Production", "EMP800", "manual entry", "UI"));
+
+        var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 8102);
+        Assert.Equal(12.5m, step.DurationMinutes);
+        Assert.Equal(12.5m, step.ManualDurationMinutes);
+        Assert.Null(step.ManualDurationReason);
+        Assert.Equal("ManualEntry", step.TimeCaptureSource);
+    }
+
+    [Fact]
+    public async Task CorrectDurationAsync_WhenManualMinutesInvalid_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CorrectDurationAsync_WhenManualMinutesInvalid_ThrowsBadRequest));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 801,
+            lineId: 8011,
+            routeId: 8110,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            secondStepTimeCaptureMode: "Manual");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CorrectDurationAsync(801, 8011, 8112, new CorrectStepDurationDto(0m, null, "Production", "EMP801")));
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CorrectDurationAsync_WhenHybridMissingReason_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CorrectDurationAsync_WhenHybridMissingReason_ThrowsBadRequest));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 802,
+            lineId: 8021,
+            routeId: 8120,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            secondStepTimeCaptureMode: "Hybrid");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CorrectDurationAsync(802, 8021, 8122, new CorrectStepDurationDto(9m, null, "Supervisor", "EMP802")));
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CorrectDurationAsync_WhenHybridByNonPrivilegedRole_ThrowsForbidden()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CorrectDurationAsync_WhenHybridByNonPrivilegedRole_ThrowsForbidden));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 803,
+            lineId: 8031,
+            routeId: 8130,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            secondStepTimeCaptureMode: "Hybrid");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CorrectDurationAsync(803, 8031, 8132, new CorrectStepDurationDto(9m, "reason", "Production", "EMP803")));
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CorrectDurationAsync_WhenHybridBySupervisor_WritesActivityAndReturnsRouteFields()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CorrectDurationAsync_WhenHybridBySupervisor_WritesActivityAndReturnsRouteFields));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 804,
+            lineId: 8041,
+            routeId: 8140,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            secondStepTimeCaptureMode: "Hybrid");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var response = await service.CorrectDurationAsync(
+            804,
+            8041,
+            8142,
+            new CorrectStepDurationDto(17m, "Quality adjustment", "Supervisor", "SUP804"));
+
+        var step = response.Routes.Single().Steps.Single(s => s.StepInstanceId == 8142);
+        Assert.Equal(17m, step.DurationMinutes);
+        Assert.Equal(17m, step.ManualDurationMinutes);
+        Assert.Equal("Quality adjustment", step.ManualDurationReason);
+        Assert.Equal("ManualOverride", step.TimeCaptureSource);
+        Assert.Equal("Hybrid", step.TimeCaptureMode);
+
+        var audit = await db.OperatorActivityLogs
+            .OrderByDescending(a => a.Id)
+            .FirstAsync(a => a.OrderLineRouteStepInstanceId == 8142);
+        Assert.Equal("DurationCorrected", audit.ActionType);
+        Assert.Equal("SUP804", audit.OperatorEmpNo);
+    }
+
     private static void SeedRouteWithTwoSteps(
         LpcAppsDbContext db,
         int orderId,
@@ -477,6 +600,7 @@ public class WorkCenterWorkflowServiceTests
         bool requiresSerialLoadVerificationForSecond = false,
         bool requiresPackingSlipForSecond = false,
         bool requiresBolForSecond = false,
+        string secondStepTimeCaptureMode = "Automated",
         string dataCaptureModeForSecond = "ElectronicRequired",
         IEnumerable<string>? withLineSerials = null)
     {
@@ -580,6 +704,7 @@ public class WorkCenterWorkflowServiceTests
                 RequiresSerialLoadVerification = requiresSerialLoadVerificationForSecond,
                 GeneratePackingSlipOnComplete = requiresPackingSlipForSecond,
                 GenerateBolOnComplete = requiresBolForSecond,
+                TimeCaptureMode = secondStepTimeCaptureMode,
                 DataCaptureMode = dataCaptureModeForSecond,
             });
     }

@@ -77,4 +77,23 @@ public class RolePermissionServiceTests
             OrderStatusCatalog.OnHoldQuality,
             "Quality");
     }
+
+    [Fact]
+    public void EnsureDurationCorrectionAllowed_ManualByProduction_Allows()
+    {
+        _service.EnsureDurationCorrectionAllowed("Production", "Manual");
+    }
+
+    [Fact]
+    public void EnsureDurationCorrectionAllowed_HybridByProduction_ThrowsForbidden()
+    {
+        var ex = Assert.Throws<ServiceException>(() => _service.EnsureDurationCorrectionAllowed("Production", "Hybrid"));
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public void EnsureDurationCorrectionAllowed_HybridBySupervisor_Allows()
+    {
+        _service.EnsureDurationCorrectionAllowed("Supervisor", "Hybrid");
+    }
 }

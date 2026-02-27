@@ -859,9 +859,14 @@ export interface RouteStepExecution {
   stepCode: string;
   stepName: string;
   state: string;
+  timeCaptureMode: string;
   scanInUtc: string | null;
   scanOutUtc: string | null;
   completedUtc: string | null;
+  durationMinutes: number | null;
+  manualDurationMinutes: number | null;
+  manualDurationReason: string | null;
+  timeCaptureSource: string;
 }
 
 export interface LineRouteExecution {
@@ -964,4 +969,26 @@ export interface ReworkRequest {
 export interface ReworkStateChangeRequest {
   empNo: string;
   notes?: string | null;
+}
+
+export interface CorrectStepDurationRequest {
+  manualDurationMinutes?: number | null;
+  manualDurationReason?: string | null;
+  actingRole: OrderWorkspaceRole;
+  actingEmpNo: string;
+  notes?: string | null;
+  deviceId?: string | null;
+}
+
+export interface OperatorActivityLogItem {
+  id: number;
+  salesOrderId: number;
+  salesOrderDetailId: number;
+  orderLineRouteStepInstanceId: number;
+  workCenterId: number;
+  operatorEmpNo: string;
+  actionType: string;
+  actionUtc: string;
+  deviceId: string | null;
+  notes: string | null;
 }
