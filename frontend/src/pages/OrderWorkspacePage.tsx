@@ -37,6 +37,7 @@ import {
   type HoldOverlayType,
   type OrderAttachment,
   type OrderDraftDetail,
+  type OrderPromiseChangeEvent,
   type OrderWorkspaceAction,
   type OrderWorkspaceRole,
 } from "../types/order";
@@ -178,6 +179,19 @@ export function OrderWorkspacePage() {
   const [reworkNotes, setReworkNotes] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<OrderWorkspaceAction | null>(null);
+  const [promiseHistory, setPromiseHistory] = useState<OrderPromiseChangeEvent[]>([]);
+  const [requestedDateInput, setRequestedDateInput] = useState("");
+  const [newCommittedDateInput, setNewCommittedDateInput] = useState("");
+  const [promiseReasonCode, setPromiseReasonCode] = useState("");
+  const [promiseReasonNote, setPromiseReasonNote] = useState("");
+  const [promiseNotificationStatus, setPromiseNotificationStatus] = useState<
+    "Notified" | "DeferredNotification" | "InternalOnly" | ""
+  >("");
+  const [promiseNotificationChannel, setPromiseNotificationChannel] = useState("");
+  const [recordNotificationReasonCode, setRecordNotificationReasonCode] = useState("");
+  const [recordNotificationNote, setRecordNotificationNote] = useState("");
+  const [missReasonCode, setMissReasonCode] = useState("");
+  const [missReasonNote, setMissReasonNote] = useState("");
 
   const loadWorkspace = useCallback(async () => {
     if (!Number.isFinite(orderId) || orderId <= 0) {
@@ -187,12 +201,16 @@ export function OrderWorkspacePage() {
     }
     setLoading(true);
     try {
-      const [nextOrder, nextAttachments] = await Promise.all([
+      const [nextOrder, nextAttachments, nextPromiseHistory] = await Promise.all([
         ordersApi.get(orderId),
         ordersApi.attachments(orderId),
+        ordersApi.promiseHistory(orderId),
       ]);
       setOrder(nextOrder);
       setAttachments(nextAttachments);
+      setPromiseHistory(nextPromiseHistory);
+      setRequestedDateInput(nextOrder.requestedDateUtc ?? "");
+      setNewCommittedDateInput(nextOrder.currentCommittedDateUtc ?? "");
     } catch {
       setMessage({ type: "error", text: "Unable to load order workspace." });
     } finally {
@@ -404,6 +422,104 @@ export function OrderWorkspacePage() {
       const apiError = err as ApiError;
       const body = apiError.body as { message?: string } | undefined;
       setMessage({ type: "error", text: body?.message ?? "Unable to update rework state." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSavePromiseCommitment = async () => {
+    if (!order) return;
+    const committed = parseIsoInput(newCommittedDateInput);
+    const requested = parseIsoInput(requestedDateInput);
+    if (!committed) {
+      setMessage({ type: "error", text: "New committed date is required and must be valid ISO datetime." });
+      return;
+    }
+
+    setActionLoading(true);
+    setMessage(null);
+    try {
+      const updated = await ordersApi.upsertPromiseCommitment(order.id, {
+        requestedDateUtc: requested,
+        newCommittedDateUtc: committed,
+        actingRole: role,
+        changedByEmpNo: "UI",
+        promiseChangeReasonCode: promiseReasonCode.trim() || null,
+        promiseChangeReasonNote: promiseReasonNote.trim() || null,
+        customerNotificationStatus: promiseNotificationStatus || null,
+        customerNotificationChannel: promiseNotificationChannel.trim() || null,
+      });
+      setOrder(updated);
+      setPromiseHistory(await ordersApi.promiseHistory(order.id));
+      setMessage({ type: "success", text: "Promise commitment saved." });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMessage({ type: "error", text: body?.message ?? "Unable to save promise commitment." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClassifyMiss = async () => {
+    if (!order) return;
+    if (!missReasonCode.trim()) {
+      setMessage({ type: "error", text: "Miss reason code is required." });
+      return;
+    }
+
+    setActionLoading(true);
+    setMessage(null);
+    try {
+      const updated = await ordersApi.classifyPromiseMiss(order.id, {
+        missReasonCode: missReasonCode.trim(),
+        actingRole: role,
+        changedByEmpNo: "UI",
+        note: missReasonNote.trim() || null,
+        customerNotificationStatus: promiseNotificationStatus || null,
+        customerNotificationChannel: promiseNotificationChannel.trim() || null,
+      });
+      setOrder(updated);
+      setPromiseHistory(await ordersApi.promiseHistory(order.id));
+      setMessage({ type: "success", text: "Promise miss classification saved." });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMessage({ type: "error", text: body?.message ?? "Unable to classify promise miss." });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRecordPromiseNotification = async () => {
+    if (!order) return;
+    if (!recordNotificationReasonCode.trim()) {
+      setMessage({ type: "error", text: "Notification reason code is required." });
+      return;
+    }
+    if (!promiseNotificationStatus) {
+      setMessage({ type: "error", text: "Notification status is required." });
+      return;
+    }
+
+    setActionLoading(true);
+    setMessage(null);
+    try {
+      const updated = await ordersApi.recordPromiseNotification(order.id, {
+        promiseChangeReasonCode: recordNotificationReasonCode.trim(),
+        actingRole: role,
+        changedByEmpNo: "UI",
+        customerNotificationStatus: promiseNotificationStatus,
+        customerNotificationChannel: promiseNotificationChannel.trim() || null,
+        note: recordNotificationNote.trim() || null,
+      });
+      setOrder(updated);
+      setPromiseHistory(await ordersApi.promiseHistory(order.id));
+      setMessage({ type: "success", text: "Customer commitment notification recorded." });
+    } catch (err) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { message?: string } | undefined;
+      setMessage({ type: "error", text: body?.message ?? "Unable to record promise notification." });
     } finally {
       setActionLoading(false);
     }
@@ -815,10 +931,122 @@ export function OrderWorkspacePage() {
             </Button>
           </div>
         </Card>
+      ) : tab === "promiseDate" ? (
+        <Card>
+          <div className={styles.sectionGrid}>
+            <Field label="Requested Date (ISO datetime)">
+              <Input
+                value={requestedDateInput}
+                onChange={(_, data) => setRequestedDateInput(data.value)}
+                placeholder="2026-03-01T00:00:00Z"
+              />
+            </Field>
+            <Field label="New Current Committed Date (ISO datetime)" required>
+              <Input
+                value={newCommittedDateInput}
+                onChange={(_, data) => setNewCommittedDateInput(data.value)}
+                placeholder="2026-03-05T00:00:00Z"
+              />
+            </Field>
+            <Field label="Promise Change Reason Code">
+              <Input
+                value={promiseReasonCode}
+                onChange={(_, data) => setPromiseReasonCode(data.value)}
+                placeholder="Capacity | Logistics | CustomerChange..."
+              />
+            </Field>
+            <Field label="Promise Change Note">
+              <Input
+                value={promiseReasonNote}
+                onChange={(_, data) => setPromiseReasonNote(data.value)}
+                placeholder="Optional detail note"
+              />
+            </Field>
+            <Field label="Customer Notification Status">
+              <Dropdown
+                selectedOptions={promiseNotificationStatus ? [promiseNotificationStatus] : []}
+                value={promiseNotificationStatus || "Select"}
+                onOptionSelect={(_, data) =>
+                  setPromiseNotificationStatus(
+                    (data.optionValue as "Notified" | "DeferredNotification" | "InternalOnly" | undefined) ?? ""
+                  )
+                }
+              >
+                <Option value="Notified">Notified</Option>
+                <Option value="DeferredNotification">DeferredNotification</Option>
+                <Option value="InternalOnly">InternalOnly</Option>
+              </Dropdown>
+            </Field>
+            <Field label="Notification Channel">
+              <Input
+                value={promiseNotificationChannel}
+                onChange={(_, data) => setPromiseNotificationChannel(data.value)}
+                placeholder="Email | Phone | Portal"
+              />
+            </Field>
+            <Field label="Notification Reason Code">
+              <Input
+                value={recordNotificationReasonCode}
+                onChange={(_, data) => setRecordNotificationReasonCode(data.value)}
+                placeholder="Capacity | Logistics | CustomerChange..."
+              />
+            </Field>
+            <Field label="Notification Note">
+              <Input
+                value={recordNotificationNote}
+                onChange={(_, data) => setRecordNotificationNote(data.value)}
+                placeholder="Optional customer communication context"
+              />
+            </Field>
+            <Field label="Miss Reason Code" className={styles.fullWidth}>
+              <Input
+                value={missReasonCode}
+                onChange={(_, data) => setMissReasonCode(data.value)}
+                placeholder="Capacity | Material | Quality | Logistics..."
+              />
+            </Field>
+            <Field label="Miss Classification Note" className={styles.fullWidth}>
+              <Input
+                value={missReasonNote}
+                onChange={(_, data) => setMissReasonNote(data.value)}
+                placeholder="Optional miss context"
+              />
+            </Field>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <Button appearance="primary" onClick={() => void handleSavePromiseCommitment()} disabled={actionLoading}>
+              Save Commitment
+            </Button>
+            <Button onClick={() => void handleClassifyMiss()} disabled={actionLoading}>
+              Classify Miss
+            </Button>
+            <Button onClick={() => void handleRecordPromiseNotification()} disabled={actionLoading}>
+              Record Notification
+            </Button>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <Body1>
+              <strong>Promise History</strong>
+            </Body1>
+            {promiseHistory.length === 0 ? (
+              <Body1>No promise history events recorded yet.</Body1>
+            ) : (
+              promiseHistory.map((event) => (
+                <div key={event.id} className={styles.attachmentRow}>
+                  <Body1>{event.eventType}</Body1>
+                  <Body1>{event.promiseChangeReasonCode ?? event.missReasonCode ?? "--"}</Body1>
+                  <Body1>{new Date(event.occurredUtc).toLocaleString()}</Body1>
+                  <Body1>
+                    {event.oldCommittedDateUtc ?? "--"} → {event.newCommittedDateUtc ?? "--"}
+                  </Body1>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
       ) : (
         <div className={styles.placeholder}>
-          {tab === "promiseDate" &&
-            "Promise-date history is shown as a placeholder until governance APIs are available."}
           {tab === "auditLog" &&
             "Audit log placeholder. UI contract will map to /api/orders/{id}/audit-events later."}
           {tab === "integrationEvents" &&

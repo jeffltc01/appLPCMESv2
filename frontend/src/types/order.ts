@@ -302,6 +302,10 @@ export interface OrderDraftDetail {
   requestedDateUtc?: string | null;
   promisedDateUtc?: string | null;
   currentCommittedDateUtc?: string | null;
+  promiseRevisionCount?: number | null;
+  promiseDateLastChangedUtc?: string | null;
+  promiseDateLastChangedByEmpNo?: string | null;
+  promiseMissReasonCode?: string | null;
   hasOpenRework?: boolean;
   reworkBlockingInvoice?: boolean;
 }
@@ -619,6 +623,58 @@ export interface ClearHoldRequest {
   actingRole: string;
   clearedByEmpNo: string;
   note?: string | null;
+}
+
+export interface UpsertPromiseCommitmentRequest {
+  requestedDateUtc?: string | null;
+  newCommittedDateUtc: string;
+  actingRole: string;
+  changedByEmpNo: string;
+  promiseChangeReasonCode?: string | null;
+  promiseChangeReasonNote?: string | null;
+  customerNotificationStatus?: "Notified" | "DeferredNotification" | "InternalOnly" | null;
+  customerNotificationChannel?: string | null;
+  customerNotificationUtc?: string | null;
+  customerNotificationByEmpNo?: string | null;
+}
+
+export interface ClassifyPromiseMissRequest {
+  missReasonCode: string;
+  actingRole: string;
+  changedByEmpNo: string;
+  note?: string | null;
+  customerNotificationStatus?: "Notified" | "DeferredNotification" | "InternalOnly" | null;
+  customerNotificationChannel?: string | null;
+  customerNotificationUtc?: string | null;
+  customerNotificationByEmpNo?: string | null;
+}
+
+export interface RecordPromiseNotificationRequest {
+  promiseChangeReasonCode: string;
+  actingRole: string;
+  changedByEmpNo: string;
+  customerNotificationStatus: "Notified" | "DeferredNotification" | "InternalOnly";
+  customerNotificationChannel?: string | null;
+  customerNotificationUtc?: string | null;
+  customerNotificationByEmpNo?: string | null;
+  note?: string | null;
+}
+
+export interface OrderPromiseChangeEvent {
+  id: number;
+  orderId: number;
+  eventType: string;
+  oldCommittedDateUtc?: string | null;
+  newCommittedDateUtc?: string | null;
+  promiseChangeReasonCode?: string | null;
+  promiseChangeReasonNote?: string | null;
+  changedByEmpNo?: string | null;
+  occurredUtc: string;
+  customerNotificationStatus?: string | null;
+  customerNotificationChannel?: string | null;
+  customerNotificationUtc?: string | null;
+  customerNotificationByEmpNo?: string | null;
+  missReasonCode?: string | null;
 }
 
 export interface OrderLifecycleMigrationResult {

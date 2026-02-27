@@ -178,6 +178,58 @@ public class OrdersController(
         }
     }
 
+    [HttpPost("{id:int}/promise-commitment")]
+    public async Task<ActionResult<OrderDraftDetailDto>> UpsertPromiseCommitment(int id, UpsertPromiseCommitmentDto dto)
+    {
+        try
+        {
+            return Ok(await orderWorkflowService.UpsertPromiseCommitmentAsync(id, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{id:int}/promise-miss-classification")]
+    public async Task<ActionResult<OrderDraftDetailDto>> ClassifyPromiseMiss(int id, ClassifyPromiseMissDto dto)
+    {
+        try
+        {
+            return Ok(await orderWorkflowService.ClassifyPromiseMissAsync(id, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("{id:int}/promise-notification")]
+    public async Task<ActionResult<OrderDraftDetailDto>> RecordPromiseNotification(int id, RecordPromiseNotificationDto dto)
+    {
+        try
+        {
+            return Ok(await orderWorkflowService.RecordPromiseNotificationAsync(id, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("{id:int}/promise-history")]
+    public async Task<ActionResult<List<OrderPromiseChangeEventDto>>> GetPromiseHistory(int id)
+    {
+        try
+        {
+            return Ok(await orderWorkflowService.GetPromiseHistoryAsync(id));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpPost("{id:int}/hold/clear")]
     public async Task<ActionResult<OrderDraftDetailDto>> ClearHold(int id, ClearHoldDto dto)
     {

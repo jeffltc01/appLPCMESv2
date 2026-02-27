@@ -33,6 +33,7 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
     public virtual DbSet<OrderAttachmentAudit> OrderAttachmentAudits { get; set; }
     public virtual DbSet<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; }
+    public virtual DbSet<OrderPromiseChangeEvent> OrderPromiseChangeEvents { get; set; }
 
     public virtual DbSet<BusinessDecisionPolicy> BusinessDecisionPolicies { get; set; }
 
@@ -491,6 +492,68 @@ public partial class LpcAppsDbContext : DbContext
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_order_invoice_submission_audits_sales_orders");
+        });
+
+        modelBuilder.Entity<OrderPromiseChangeEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_promise_change_events");
+
+            entity.ToTable("order_promise_change_events");
+
+            entity.HasIndex(e => e.OrderId, "ix_order_promise_change_events_order_id");
+            entity.HasIndex(e => e.OccurredUtc, "ix_order_promise_change_events_occurred_utc");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.EventType)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("event_type");
+            entity.Property(e => e.OldCommittedDateUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("old_committed_date_utc");
+            entity.Property(e => e.NewCommittedDateUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("new_committed_date_utc");
+            entity.Property(e => e.PromiseChangeReasonCode)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("promise_change_reason_code");
+            entity.Property(e => e.PromiseChangeReasonNote)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("promise_change_reason_note");
+            entity.Property(e => e.ChangedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("changed_by_emp_no");
+            entity.Property(e => e.OccurredUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("occurred_utc");
+            entity.Property(e => e.CustomerNotificationStatus)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("customer_notification_status");
+            entity.Property(e => e.CustomerNotificationChannel)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("customer_notification_channel");
+            entity.Property(e => e.CustomerNotificationUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("customer_notification_utc");
+            entity.Property(e => e.CustomerNotificationByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("customer_notification_by_emp_no");
+            entity.Property(e => e.MissReasonCode)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("miss_reason_code");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderPromiseChangeEvents)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_order_promise_change_events_sales_orders");
         });
 
         modelBuilder.Entity<ItemSize>(entity =>

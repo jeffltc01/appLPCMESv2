@@ -59,7 +59,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 o.Contact,
                 o.SalesOrderDetails.Count(),
                 o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered),
-                o.OrderLifecycleStatus))
+                o.OrderLifecycleStatus,
+                o.RequestedDateUtc,
+                o.PromisedDateUtc,
+                o.CurrentCommittedDateUtc))
             .ToListAsync(cancellationToken);
 
         return new PaginatedResponse<OrderDraftListDto>(items, totalCount, page, pageSize);
@@ -127,7 +130,18 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             lines,
             order.OrderLifecycleStatus,
             order.HoldOverlay,
-            order.StatusOwnerRole);
+            order.StatusOwnerRole,
+            order.StatusReasonCode,
+            order.StatusNote,
+            order.RequestedDateUtc,
+            order.PromisedDateUtc,
+            order.CurrentCommittedDateUtc,
+            order.PromiseRevisionCount,
+            order.PromiseDateLastChangedUtc,
+            order.PromiseDateLastChangedByEmpNo,
+            order.PromiseMissReasonCode,
+            order.HasOpenRework,
+            order.ReworkBlockingInvoice);
     }
 
     public async Task<PaginatedResponse<TransportBoardItemDto>> GetTransportBoardAsync(

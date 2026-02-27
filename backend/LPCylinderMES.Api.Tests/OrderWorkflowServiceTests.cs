@@ -9,6 +9,144 @@ namespace LPCylinderMES.Api.Tests;
 public class OrderWorkflowServiceTests
 {
     [Fact]
+    public async Task UpsertPromiseCommitmentAsync_FirstCommit_SetsCanonicalDatesAndAppendsEvent()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpsertPromiseCommitmentAsync_FirstCommit_SetsCanonicalDatesAndAppendsEvent));
+        db.PromiseReasonPolicies.Add(new PromiseReasonPolicy
+        {
+            ReasonCode = "Capacity",
+            Description = "Capacity issue",
+            OwnerRole = "Office",
+            AllowedNotificationPolicies = "Notified,DeferredNotification,InternalOnly",
+            IsActive = true,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 901,
+            SalesOrderNo = "SO-PROM-901",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.New)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+        var requestedUtc = DateTime.UtcNow.Date.AddDays(5);
+        var committedUtc = DateTime.UtcNow.Date.AddDays(7);
+
+        await service.UpsertPromiseCommitmentAsync(901, new UpsertPromiseCommitmentDto(
+            requestedUtc,
+            committedUtc,
+            "Office",
+            "EMP901",
+            "Capacity",
+            "Initial commitment to customer.",
+            null,
+            null,
+            null,
+            null));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 901);
+        Assert.Equal(requestedUtc, order.RequestedDateUtc);
+        Assert.Equal(committedUtc, order.PromisedDateUtc);
+        Assert.Equal(committedUtc, order.CurrentCommittedDateUtc);
+        Assert.Equal(0, order.PromiseRevisionCount);
+        var events = await db.OrderPromiseChangeEvents.Where(e => e.OrderId == 901).ToListAsync();
+        Assert.Single(events);
+        Assert.Equal("PromiseDateCommitted", events[0].EventType);
+    }
+
+    [Fact]
+    public async Task UpsertPromiseCommitmentAsync_RevisionWithoutReason_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpsertPromiseCommitmentAsync_RevisionWithoutReason_ThrowsBadRequest));
+        db.PromiseReasonPolicies.Add(new PromiseReasonPolicy
+        {
+            ReasonCode = "Capacity",
+            Description = "Capacity issue",
+            OwnerRole = "Office",
+            AllowedNotificationPolicies = "Notified,DeferredNotification,InternalOnly",
+            IsActive = true,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 902,
+            SalesOrderNo = "SO-PROM-902",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToShip,
+            OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete,
+            PromisedDateUtc = DateTime.UtcNow.Date.AddDays(2),
+            CurrentCommittedDateUtc = DateTime.UtcNow.Date.AddDays(2),
+            PromiseRevisionCount = 0,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.UpsertPromiseCommitmentAsync(902, new UpsertPromiseCommitmentDto(
+            null,
+            DateTime.UtcNow.Date.AddDays(3),
+            "Office",
+            "EMP902",
+            null,
+            "Slip by one day",
+            "DeferredNotification",
+            "Email",
+            null,
+            null)));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ClassifyPromiseMissAsync_SetsMissReasonAndAppendsEvent()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ClassifyPromiseMissAsync_SetsMissReasonAndAppendsEvent));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 903,
+            SalesOrderNo = "SO-PROM-903",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.DispatchedOrPickupReleased,
+            CurrentCommittedDateUtc = DateTime.UtcNow.AddDays(-1),
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+        await service.ClassifyPromiseMissAsync(903, new ClassifyPromiseMissDto(
+            "Logistics",
+            "Office",
+            "EMP903",
+            "Carrier delay",
+            "Notified",
+            "Phone",
+            DateTime.UtcNow,
+            "EMP903"));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 903);
+        Assert.Equal("Logistics", order.PromiseMissReasonCode);
+        var events = await db.OrderPromiseChangeEvents.Where(e => e.OrderId == 903).ToListAsync();
+        Assert.Contains(events, e => e.EventType == "PromiseMissClassified");
+        Assert.Contains(events, e => e.EventType == "CustomerCommitmentNotificationRecorded");
+    }
+
+    [Fact]
     public async Task SubmitInvoiceAsync_WithAttachmentSkipReason_TransitionsToInvoiced()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(SubmitInvoiceAsync_WithAttachmentSkipReason_TransitionsToInvoiced));

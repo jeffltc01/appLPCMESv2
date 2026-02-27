@@ -13,7 +13,10 @@ public record OrderDraftListDto(
     string? Contact,
     int LineCount,
     decimal TotalOrderedQuantity,
-    string? OrderLifecycleStatus);
+    string? OrderLifecycleStatus,
+    DateTime? RequestedDateUtc = null,
+    DateTime? PromisedDateUtc = null,
+    DateTime? CurrentCommittedDateUtc = null);
 
 public record OrderDraftDetailDto(
     int Id,
@@ -48,7 +51,18 @@ public record OrderDraftDetailDto(
     List<OrderLineDto> Lines,
     string? OrderLifecycleStatus,
     string? HoldOverlay,
-    string? StatusOwnerRole);
+    string? StatusOwnerRole,
+    string? StatusReasonCode = null,
+    string? StatusNote = null,
+    DateTime? RequestedDateUtc = null,
+    DateTime? PromisedDateUtc = null,
+    DateTime? CurrentCommittedDateUtc = null,
+    int? PromiseRevisionCount = null,
+    DateTime? PromiseDateLastChangedUtc = null,
+    string? PromiseDateLastChangedByEmpNo = null,
+    string? PromiseMissReasonCode = null,
+    bool? HasOpenRework = null,
+    bool? ReworkBlockingInvoice = null);
 
 public record OrderLifecycleMigrationResultDto(
     int TotalOrdersScanned,
@@ -100,6 +114,54 @@ public record OrderAdvanceStatusDto(
     string? ReasonCode,
     string? Note,
     string? ActingEmpNo);
+
+public record UpsertPromiseCommitmentDto(
+    DateTime? RequestedDateUtc,
+    DateTime NewCommittedDateUtc,
+    string ActingRole,
+    string ChangedByEmpNo,
+    string? PromiseChangeReasonCode,
+    string? PromiseChangeReasonNote,
+    string? CustomerNotificationStatus,
+    string? CustomerNotificationChannel,
+    DateTime? CustomerNotificationUtc,
+    string? CustomerNotificationByEmpNo);
+
+public record ClassifyPromiseMissDto(
+    string MissReasonCode,
+    string ActingRole,
+    string ChangedByEmpNo,
+    string? Note,
+    string? CustomerNotificationStatus,
+    string? CustomerNotificationChannel,
+    DateTime? CustomerNotificationUtc,
+    string? CustomerNotificationByEmpNo);
+
+public record RecordPromiseNotificationDto(
+    string PromiseChangeReasonCode,
+    string ActingRole,
+    string ChangedByEmpNo,
+    string CustomerNotificationStatus,
+    string? CustomerNotificationChannel,
+    DateTime? CustomerNotificationUtc,
+    string? CustomerNotificationByEmpNo,
+    string? Note);
+
+public record OrderPromiseChangeEventDto(
+    long Id,
+    int OrderId,
+    string EventType,
+    DateTime? OldCommittedDateUtc,
+    DateTime? NewCommittedDateUtc,
+    string? PromiseChangeReasonCode,
+    string? PromiseChangeReasonNote,
+    string? ChangedByEmpNo,
+    DateTime OccurredUtc,
+    string? CustomerNotificationStatus,
+    string? CustomerNotificationChannel,
+    DateTime? CustomerNotificationUtc,
+    string? CustomerNotificationByEmpNo,
+    string? MissReasonCode);
 
 public record ApplyHoldDto(
     string HoldOverlay,

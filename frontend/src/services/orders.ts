@@ -23,6 +23,10 @@ import type {
   SubmitInvoiceRequest,
   ApplyHoldRequest,
   ClearHoldRequest,
+  UpsertPromiseCommitmentRequest,
+  ClassifyPromiseMissRequest,
+  RecordPromiseNotificationRequest,
+  OrderPromiseChangeEvent,
   OrderLifecycleMigrationResult,
   WorkCenterQueueItem,
   OrderRouteExecution,
@@ -283,6 +287,18 @@ export const ordersApi = {
 
   clearHold: (id: number, data: ClearHoldRequest) =>
     api.post<OrderDraftDetail>(`/orders/${id}/hold/clear`, data),
+
+  upsertPromiseCommitment: (id: number, data: UpsertPromiseCommitmentRequest) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/promise-commitment`, data),
+
+  classifyPromiseMiss: (id: number, data: ClassifyPromiseMissRequest) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/promise-miss-classification`, data),
+
+  recordPromiseNotification: (id: number, data: RecordPromiseNotificationRequest) =>
+    api.post<OrderDraftDetail>(`/orders/${id}/promise-notification`, data),
+
+  promiseHistory: (id: number) =>
+    api.get<OrderPromiseChangeEvent[]>(`/orders/${id}/promise-history`),
 
   migrateLifecycleStatuses: (dryRun: boolean) =>
     api.post<OrderLifecycleMigrationResult>(

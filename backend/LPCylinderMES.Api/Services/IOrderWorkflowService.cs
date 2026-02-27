@@ -23,6 +23,25 @@ public interface IOrderWorkflowService
         SubmitInvoiceDto dto,
         CancellationToken cancellationToken = default);
 
+    Task<OrderDraftDetailDto> UpsertPromiseCommitmentAsync(
+        int orderId,
+        UpsertPromiseCommitmentDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderDraftDetailDto> ClassifyPromiseMissAsync(
+        int orderId,
+        ClassifyPromiseMissDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<OrderDraftDetailDto> RecordPromiseNotificationAsync(
+        int orderId,
+        RecordPromiseNotificationDto dto,
+        CancellationToken cancellationToken = default);
+
+    Task<List<OrderPromiseChangeEventDto>> GetPromiseHistoryAsync(
+        int orderId,
+        CancellationToken cancellationToken = default);
+
     Task<OrderLifecycleMigrationResultDto> BackfillLifecycleStatusesAsync(
         bool dryRun = false,
         CancellationToken cancellationToken = default);
