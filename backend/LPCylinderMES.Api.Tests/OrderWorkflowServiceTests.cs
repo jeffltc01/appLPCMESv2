@@ -40,15 +40,19 @@ public class OrderWorkflowServiceTests
         {
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
         };
-        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService(), new FakeInvoiceStagingService());
 
         await service.SubmitInvoiceAsync(20, new SubmitInvoiceDto(
+            true,
+            true,
+            true,
             true,
             false,
             null,
             null,
             "Customer requested no email",
             "corr-test-20",
+            "EMP001",
             "EMP001"));
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 20);
@@ -84,17 +88,107 @@ public class OrderWorkflowServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService(), new FakeInvoiceStagingService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.SubmitInvoiceAsync(21, new SubmitInvoiceDto(
+            true,
+            true,
+            true,
             true,
             false,
             null,
             null,
             null,
             null,
+            "EMP001",
             "EMP001")));
 
         Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task SubmitInvoiceAsync_WhenStagingFails_RemainsInvoiceReadyAndPersistsAudit()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(SubmitInvoiceAsync_WhenStagingFails_RemainsInvoiceReadyAndPersistsAudit));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 22,
+            SalesOrderNo = "SO-INV-3",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(
+            db,
+            new FakeOrderQueryService(),
+            new FakeOrderPolicyService(),
+            new FakeInvoiceStagingService
+            {
+                SubmitHandler = (_, _, _) => new InvoiceStagingSubmissionResult(false, "Failed", null, "SP timeout"),
+            });
+
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.SubmitInvoiceAsync(22, new SubmitInvoiceDto(
+            true,
+            true,
+            true,
+            true,
+            false,
+            null,
+            null,
+            "No attachments available",
+            "corr-test-22",
+            "EMP001",
+            "EMP001")));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 22);
+        Assert.Equal(OrderStatusCatalog.InvoiceReady, order.OrderLifecycleStatus);
+        Assert.Equal("Failed", order.InvoiceStagingResult);
+        var audit = await db.OrderInvoiceSubmissionAudits.SingleAsync(a => a.OrderId == 22);
+        Assert.False(audit.IsSuccessHandoff);
+        Assert.Equal("corr-test-22", audit.InvoiceSubmissionCorrelationId);
+    }
+
+    [Fact]
+    public async Task SubmitInvoiceAsync_NoAttachments_AutoSkipsAttachmentStep()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(SubmitInvoiceAsync_NoAttachments_AutoSkipsAttachmentStep));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 23,
+            SalesOrderNo = "SO-INV-4",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService(), new FakeInvoiceStagingService());
+        await service.SubmitInvoiceAsync(23, new SubmitInvoiceDto(
+            true,
+            true,
+            true,
+            true,
+            false,
+            null,
+            null,
+            null,
+            "corr-test-23",
+            "EMP001",
+            "EMP001"));
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 23);
+        Assert.Equal(OrderStatusCatalog.Invoiced, order.OrderLifecycleStatus);
+        Assert.Equal("NoAttachmentsAvailable", order.AttachmentEmailSkipReason);
     }
 
     [Fact]

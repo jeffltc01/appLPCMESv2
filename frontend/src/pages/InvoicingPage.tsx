@@ -83,6 +83,9 @@ export function InvoicingPage() {
       .then((items) => {
         setAttachments(items);
         setSelectedAttachmentIds(items.map((item) => item.id));
+        setSendAttachmentEmail(items.length > 0);
+        setSkipReason(items.length > 0 ? "" : "NoAttachmentsAvailable");
+        setCorrelationId(null);
       })
       .catch(() => setMessage({ type: "error", text: "Unable to load attachments for selected order." }));
   }, [selectedOrder]);
@@ -91,25 +94,33 @@ export function InvoicingPage() {
     reviewPaperworkConfirmed && reviewPricingConfirmed && reviewBillingConfirmed;
 
   const canProceedFromAttachments = useMemo(() => {
+    if (attachments.length === 0) {
+      return true;
+    }
+
     if (sendAttachmentEmail) {
       return Boolean(recipientSummary.trim()) && selectedAttachmentIds.length > 0;
     }
     return Boolean(skipReason.trim());
-  }, [recipientSummary, selectedAttachmentIds, sendAttachmentEmail, skipReason]);
+  }, [attachments.length, recipientSummary, selectedAttachmentIds, sendAttachmentEmail, skipReason]);
 
   const submitInvoice = async () => {
     if (!selectedOrder) return;
     setSaving(true);
     try {
-      const generatedCorrelationId = generateCorrelationId();
+      const generatedCorrelationId = correlationId ?? generateCorrelationId();
       await ordersApi.submitInvoice(selectedOrder.id, {
         finalReviewConfirmed,
+        reviewPaperworkConfirmed,
+        reviewPricingConfirmed,
+        reviewBillingConfirmed,
         sendAttachmentEmail,
         selectedAttachmentIds: sendAttachmentEmail ? selectedAttachmentIds : null,
         attachmentRecipientSummary: sendAttachmentEmail ? recipientSummary : null,
-        attachmentSkipReason: sendAttachmentEmail ? null : skipReason,
+        attachmentSkipReason: attachments.length === 0 ? "NoAttachmentsAvailable" : sendAttachmentEmail ? null : skipReason,
         correlationId: generatedCorrelationId,
         submittedByEmpNo: "UI",
+        reviewCompletedByEmpNo: "UI",
       });
       setCorrelationId(generatedCorrelationId);
       setMessage({ type: "success", text: `Invoice submitted for ${selectedOrder.salesOrderNo}.` });
@@ -141,13 +152,18 @@ export function InvoicingPage() {
     if (!canProceedFromAttachments) {
       setMessage({
         type: "error",
-        text: sendAttachmentEmail
+        text: attachments.length === 0
+          ? "No attachments found. Step will be auto-skipped."
+          : sendAttachmentEmail
           ? "Pick at least one attachment and provide recipient details."
           : "Provide a reason when skipping attachment email.",
       });
       return;
     }
     setMessage(null);
+    if (!correlationId) {
+      setCorrelationId(generateCorrelationId());
+    }
     setStep("submit");
   };
 
@@ -200,7 +216,26 @@ export function InvoicingPage() {
             </Body1>
             <TabList
               selectedValue={step}
-              onTabSelect={(_, data) => setStep(data.value as WizardStep)}
+              onTabSelect={(_, data) => {
+                const nextStep = data.value as WizardStep;
+                if (nextStep === "attachments" && !finalReviewConfirmed) {
+                  setMessage({ type: "error", text: "Complete all review confirmations to continue." });
+                  return;
+                }
+
+                if (nextStep === "submit" && !canProceedFromAttachments) {
+                  setMessage({
+                    type: "error",
+                    text: sendAttachmentEmail
+                      ? "Pick at least one attachment and provide recipient details."
+                      : "Provide a reason when skipping attachment email.",
+                  });
+                  return;
+                }
+
+                setMessage(null);
+                setStep(nextStep);
+              }}
             >
               <Tab value="review">1. Review</Tab>
               <Tab value="attachments">2. Attachments</Tab>
@@ -237,9 +272,13 @@ export function InvoicingPage() {
                 <Checkbox
                   label="Send attachment email"
                   checked={sendAttachmentEmail}
+                  disabled={attachments.length === 0}
                   onChange={(_, data) => setSendAttachmentEmail(Boolean(data.checked))}
                 />
                 <Body1>Attachments available: {attachments.length}</Body1>
+                {attachments.length === 0 ? (
+                  <Body1>Attachment step auto-skipped because no attachments are on this order.</Body1>
+                ) : null}
                 {attachments.map((attachment) => (
                   <Checkbox
                     key={attachment.id}
@@ -266,6 +305,7 @@ export function InvoicingPage() {
                   <Field label="Skip reason" required>
                     <Input
                       value={skipReason}
+                      disabled={attachments.length === 0}
                       onChange={(_, data) => setSkipReason(data.value)}
                     />
                   </Field>

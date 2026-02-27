@@ -117,12 +117,16 @@ public record ErpReconcileFailureDto(string ErrorMessage, string? CorrelationId,
 
 public record SubmitInvoiceDto(
     bool FinalReviewConfirmed,
+    bool ReviewPaperworkConfirmed,
+    bool ReviewPricingConfirmed,
+    bool ReviewBillingConfirmed,
     bool SendAttachmentEmail,
     List<int>? SelectedAttachmentIds,
     string? AttachmentRecipientSummary,
     string? AttachmentSkipReason,
     string? CorrelationId,
-    string? SubmittedByEmpNo);
+    string? SubmittedByEmpNo,
+    string? ReviewCompletedByEmpNo);
 
 public record TransportBoardItemDto(
     int Id,

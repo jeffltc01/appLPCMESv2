@@ -131,3 +131,19 @@ internal sealed class FakeOrderPolicyService : IOrderPolicyService
         throw new NotImplementedException();
 }
 
+internal sealed class FakeInvoiceStagingService : IInvoiceStagingService
+{
+    public Func<SalesOrder, string, string?, InvoiceStagingSubmissionResult>? SubmitHandler { get; set; }
+
+    public Task<InvoiceStagingSubmissionResult> SubmitToStagingAsync(
+        SalesOrder order,
+        string correlationId,
+        string? submittedByEmpNo,
+        CancellationToken cancellationToken = default)
+    {
+        var result = SubmitHandler?.Invoke(order, correlationId, submittedByEmpNo) ??
+                     new InvoiceStagingSubmissionResult(true, "PendingAck", null, null);
+        return Task.FromResult(result);
+    }
+}
+

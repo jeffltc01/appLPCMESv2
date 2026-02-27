@@ -8,7 +8,8 @@ namespace LPCylinderMES.Api.Services;
 public class OrderWorkflowService(
     LpcAppsDbContext db,
     IOrderQueryService orderQueryService,
-    IOrderPolicyService orderPolicyService) : IOrderWorkflowService
+    IOrderPolicyService orderPolicyService,
+    IInvoiceStagingService? invoiceStagingService = null) : IOrderWorkflowService
 {
     private static readonly HashSet<(string From, string To)> AllowedLifecycleTransitions = new()
     {
@@ -161,11 +162,15 @@ public class OrderWorkflowService(
         SubmitInvoiceDto dto,
         CancellationToken cancellationToken = default)
     {
-        if (!dto.FinalReviewConfirmed)
+        var finalReviewConfirmed = dto.FinalReviewConfirmed &&
+                                   dto.ReviewPaperworkConfirmed &&
+                                   dto.ReviewPricingConfirmed &&
+                                   dto.ReviewBillingConfirmed;
+        if (!finalReviewConfirmed)
         {
             throw new ServiceException(
                 StatusCodes.Status400BadRequest,
-                "Final review confirmation is required before invoice submission.");
+                "All final review confirmations are required before invoice submission.");
         }
 
         var order = await db.SalesOrders
@@ -186,6 +191,10 @@ public class OrderWorkflowService(
                 $"Only '{OrderStatusCatalog.InvoiceReady}' orders can be submitted to invoicing.");
         }
 
+        var normalizedCorrelationId = string.IsNullOrWhiteSpace(dto.CorrelationId)
+            ? Guid.NewGuid().ToString("N")
+            : dto.CorrelationId.Trim();
+
         if (string.Equals(order.HoldOverlay, OrderStatusCatalog.ReworkOpen, StringComparison.Ordinal) ||
             (order.HasOpenRework ?? false) ||
             (order.ReworkBlockingInvoice ?? false))
@@ -193,6 +202,28 @@ public class OrderWorkflowService(
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
                 "Cannot submit invoice while rework overlay is open.");
+        }
+
+        var existingSuccessfulAttempt = await db.OrderInvoiceSubmissionAudits
+            .AsNoTracking()
+            .Where(a => a.OrderId == orderId && a.InvoiceSubmissionCorrelationId == normalizedCorrelationId && a.IsSuccessHandoff)
+            .OrderByDescending(a => a.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (existingSuccessfulAttempt is not null)
+        {
+            if (!string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.Invoiced, StringComparison.Ordinal))
+            {
+                order.InvoiceSubmissionCorrelationId = existingSuccessfulAttempt.InvoiceSubmissionCorrelationId;
+                order.InvoiceStagingResult = existingSuccessfulAttempt.InvoiceStagingResult;
+                order.InvoiceStagingError = existingSuccessfulAttempt.InvoiceStagingError;
+                order.ErpInvoiceReference = existingSuccessfulAttempt.ErpInvoiceReference;
+                order.InvoiceSubmissionChannel = existingSuccessfulAttempt.InvoiceSubmissionChannel ?? "PowerAutomateSqlSp";
+                await db.SaveChangesAsync(cancellationToken);
+                return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken: cancellationToken);
+            }
+
+            var alreadySubmitted = await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken);
+            return alreadySubmitted ?? throw new InvalidOperationException("Failed to load order detail after idempotent invoice submit.");
         }
 
         var hasAttachments = order.OrderAttachments.Count > 0;
@@ -303,21 +334,68 @@ public class OrderWorkflowService(
 
             order.AttachmentEmailPrompted = false;
             order.AttachmentEmailSent = false;
+            order.AttachmentEmailSkipReason = "NoAttachmentsAvailable";
+            order.AttachmentEmailRecipientSummary = null;
         }
 
         var now = DateTime.UtcNow;
         order.InvoiceReviewCompletedUtc = now;
-        order.InvoiceReviewCompletedByEmpNo = TrimToNull(dto.SubmittedByEmpNo);
+        order.InvoiceReviewCompletedByEmpNo = TrimToNull(dto.ReviewCompletedByEmpNo) ?? TrimToNull(dto.SubmittedByEmpNo);
         order.InvoiceSubmissionRequestedUtc = now;
         order.InvoiceSubmissionRequestedByEmpNo = TrimToNull(dto.SubmittedByEmpNo);
         order.InvoiceSubmissionChannel = "PowerAutomateSqlSp";
-        order.InvoiceSubmissionCorrelationId = string.IsNullOrWhiteSpace(dto.CorrelationId)
-            ? Guid.NewGuid().ToString("N")
-            : dto.CorrelationId.Trim();
-        order.InvoiceStagingResult = "Success";
-        order.InvoiceStagingError = null;
-        order.ErpReconcileStatus = "Pending";
+        order.InvoiceSubmissionCorrelationId = normalizedCorrelationId;
 
+        var stagingService = invoiceStagingService;
+        if (stagingService is null)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Invoice staging service is unavailable.");
+        }
+
+        var stagingResult = await stagingService.SubmitToStagingAsync(
+            order,
+            normalizedCorrelationId,
+            dto.SubmittedByEmpNo,
+            cancellationToken);
+        order.InvoiceStagingResult = stagingResult.StagingResult;
+        order.InvoiceStagingError = TrimToNull(stagingResult.ErrorMessage);
+        order.ErpInvoiceReference = TrimToNull(stagingResult.ErpInvoiceReference);
+        order.ErpReconcileStatus = stagingResult.IsSuccessHandoff ? "Pending" : "Failed";
+
+        db.OrderInvoiceSubmissionAudits.Add(new OrderInvoiceSubmissionAudit
+        {
+            OrderId = order.Id,
+            AttemptUtc = now,
+            ReviewCompletedByEmpNo = order.InvoiceReviewCompletedByEmpNo,
+            SubmissionActorEmpNo = TrimToNull(dto.SubmittedByEmpNo),
+            FinalReviewConfirmed = dto.FinalReviewConfirmed,
+            ReviewPaperworkConfirmed = dto.ReviewPaperworkConfirmed,
+            ReviewPricingConfirmed = dto.ReviewPricingConfirmed,
+            ReviewBillingConfirmed = dto.ReviewBillingConfirmed,
+            AttachmentEmailPrompted = order.AttachmentEmailPrompted ?? false,
+            AttachmentEmailSent = order.AttachmentEmailSent ?? false,
+            AttachmentRecipientSummary = TrimToNull(order.AttachmentEmailRecipientSummary),
+            AttachmentSkipReason = TrimToNull(order.AttachmentEmailSkipReason),
+            SelectedAttachmentIdsCsv = dto.SelectedAttachmentIds is null || dto.SelectedAttachmentIds.Count == 0
+                ? null
+                : string.Join(",", dto.SelectedAttachmentIds.Distinct().OrderBy(id => id)),
+            InvoiceSubmissionChannel = order.InvoiceSubmissionChannel,
+            InvoiceSubmissionCorrelationId = normalizedCorrelationId,
+            InvoiceStagingResult = stagingResult.StagingResult,
+            InvoiceStagingError = TrimToNull(stagingResult.ErrorMessage),
+            ErpInvoiceReference = TrimToNull(stagingResult.ErpInvoiceReference),
+            IsSuccessHandoff = stagingResult.IsSuccessHandoff,
+        });
+
+        if (!stagingResult.IsSuccessHandoff)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                $"ERP staging handoff failed. CorrelationId={normalizedCorrelationId}; TimestampUtc={now:O}; Error={order.InvoiceStagingError ?? "Unknown"}");
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
         return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken: cancellationToken);
     }
 

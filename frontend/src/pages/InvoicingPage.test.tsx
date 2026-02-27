@@ -47,6 +47,7 @@ describe("InvoicingPage", () => {
         contentType: "application/pdf",
         sizeBytes: 32,
         createdAtUtc: "2026-02-27T12:00:00Z",
+        category: "PackingSlip",
       },
     ]);
     ordersApiMock.submitInvoice.mockResolvedValue({});
@@ -63,6 +64,8 @@ describe("InvoicingPage", () => {
     fireEvent.click(screen.getByLabelText("Customer and billing details reviewed"));
     fireEvent.click(screen.getByRole("button", { name: "Continue to Attachments" }));
 
+    await waitFor(() => expect(screen.getByText("Attachments available: 1")).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText("Send attachment email"));
     fireEvent.change(screen.getByRole("textbox", { name: "Skip reason" }), {
       target: { value: "No attachments required by customer" },
     });

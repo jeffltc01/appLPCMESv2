@@ -31,6 +31,7 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<OperatorActivityLog> OperatorActivityLogs { get; set; }
 
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
+    public virtual DbSet<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; }
 
     public virtual DbSet<BusinessDecisionPolicy> BusinessDecisionPolicies { get; set; }
 
@@ -371,6 +372,74 @@ public partial class LpcAppsDbContext : DbContext
                 .HasForeignKey(d => d.OrderId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK_order_attachments_sales_orders");
+        });
+
+        modelBuilder.Entity<OrderInvoiceSubmissionAudit>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_invoice_submission_audits");
+
+            entity.ToTable("order_invoice_submission_audits");
+
+            entity.HasIndex(e => e.OrderId, "ix_order_invoice_submission_audits_order_id");
+            entity.HasIndex(e => e.InvoiceSubmissionCorrelationId, "ix_order_invoice_submission_audits_correlation_id");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.AttemptUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("attempt_utc");
+            entity.Property(e => e.ReviewCompletedByEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("review_completed_by_emp_no");
+            entity.Property(e => e.SubmissionActorEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("submission_actor_emp_no");
+            entity.Property(e => e.FinalReviewConfirmed).HasColumnName("final_review_confirmed");
+            entity.Property(e => e.ReviewPaperworkConfirmed).HasColumnName("review_paperwork_confirmed");
+            entity.Property(e => e.ReviewPricingConfirmed).HasColumnName("review_pricing_confirmed");
+            entity.Property(e => e.ReviewBillingConfirmed).HasColumnName("review_billing_confirmed");
+            entity.Property(e => e.AttachmentEmailPrompted).HasColumnName("attachment_email_prompted");
+            entity.Property(e => e.AttachmentEmailSent).HasColumnName("attachment_email_sent");
+            entity.Property(e => e.AttachmentRecipientSummary)
+                .HasMaxLength(300)
+                .IsUnicode(false)
+                .HasColumnName("attachment_recipient_summary");
+            entity.Property(e => e.AttachmentSkipReason)
+                .HasMaxLength(200)
+                .IsUnicode(false)
+                .HasColumnName("attachment_skip_reason");
+            entity.Property(e => e.SelectedAttachmentIdsCsv)
+                .HasMaxLength(300)
+                .IsUnicode(false)
+                .HasColumnName("selected_attachment_ids_csv");
+            entity.Property(e => e.InvoiceSubmissionChannel)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("invoice_submission_channel");
+            entity.Property(e => e.InvoiceSubmissionCorrelationId)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasColumnName("invoice_submission_correlation_id");
+            entity.Property(e => e.InvoiceStagingResult)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("invoice_staging_result");
+            entity.Property(e => e.InvoiceStagingError)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("invoice_staging_error");
+            entity.Property(e => e.ErpInvoiceReference)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("erp_invoice_reference");
+            entity.Property(e => e.IsSuccessHandoff).HasColumnName("is_success_handoff");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderInvoiceSubmissionAudits)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_order_invoice_submission_audits_sales_orders");
         });
 
         modelBuilder.Entity<ItemSize>(entity =>

@@ -590,12 +590,16 @@ export interface OrderItemLookup {
 
 export interface SubmitInvoiceRequest {
   finalReviewConfirmed: boolean;
+  reviewPaperworkConfirmed: boolean;
+  reviewPricingConfirmed: boolean;
+  reviewBillingConfirmed: boolean;
   sendAttachmentEmail: boolean;
   selectedAttachmentIds?: number[] | null;
   attachmentRecipientSummary?: string | null;
   attachmentSkipReason?: string | null;
   correlationId?: string | null;
   submittedByEmpNo?: string | null;
+  reviewCompletedByEmpNo?: string | null;
 }
 
 export interface ApplyHoldRequest {
