@@ -13,7 +13,7 @@ This document defines the **standard stack, architecture, and Azure resources** 
   - **Bundler/Meta-framework**: Vite or Next.js (per app; Next.js preferred when SSR or API routes are useful)
   - **UI library**: Fluent UI
 - **Backend**
-  - **Platform**: ASP.NET Core Web API, .NET 8 LTS
+  - **Platform**: ASP.NET Core Web API, .NET 9LTS
   - **ORM**: Entity Framework Core
 - **Data**
   - **Primary database**: Azure SQL Database
@@ -47,7 +47,7 @@ Get UI styling information from https://ltcorp-inc.com/.
   - Handles token acquisition via MSAL (for Entra ID/External ID)
 
 - **API layer (backend)**
-  - ASP.NET Core Web API (.NET 8)
+  - ASP.NET Core Web API (.NET 9)
   - Controllers or minimal APIs for feature endpoints
   - Application services layer for business logic
   - Data access via EF Core, repository/specification or similar patterns as needed
@@ -284,7 +284,7 @@ When generating designs, code, or deployment plans for these apps, AI assistants
 
 - **Default to this stack** for new LOB apps unless explicitly instructed otherwise.
 - Use **React + TypeScript** on the frontend, with Fluent UI or MUI.
-- Use **ASP.NET Core Web API (.NET 8)** with **EF Core** and **Azure SQL**.
+- Use **ASP.NET Core Web API (.NET 9)** with **EF Core** and **Azure SQL**.
 - Integrate authentication and authorization using **Entra ID** and **Entra External ID/B2C**, plus database-backed RBAC.
 - Target **Azure App Service and Azure Static Web Apps** for hosting, with **GitHub Actions** for CI/CD.
 - Keep solutions **simple and maintainable**, suitable for a small team managing multiple standalone apps.

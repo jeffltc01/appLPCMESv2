@@ -1,0 +1,60 @@
+---
+description: Enforces a structured development workflow — plan first, review design input, keep Azure-ready, be thorough, and maintain tests
+alwaysApply: true
+---
+
+# Development Workflow
+
+Follow these steps **in order** for every development request.
+
+## 1. Plan Before Coding
+
+Before writing or editing any code:
+
+1. Restate the goal in your own words so the user can confirm understanding.
+2. Identify which layers are affected (model, DTO, service, controller, frontend type, component, test).
+3. Outline the implementation steps and present the plan to the user for approval.
+4. Call out risks, trade-offs, or open questions — don't bury them.
+
+## 2. Review Design Input
+
+Before implementing, read the relevant files in `designInput/`:
+
+- `REFERENCE_ARCHITECTURE.md` — stack, auth, Azure resources, conventions.
+- `SPEC_DATA_REFERENCE.md` — canonical data model and field definitions.
+- `GENERAL_DESIGN_INPUT.md` — overarching requirements and constraints.
+- Any `SPEC_WC_*.md` or `SPEC_*.md` files related to the feature being built.
+- `SECURITY_ROLES.md` — role/permission requirements.
+- `QSC_STYLE_GUIDE.md` — UI styling rules.
+- Avoid logic in the controller class as much as possible.
+
+Do **not** skip this step. Design input files are the source of truth — cross-check your plan against them to avoid missed requirements, incorrect field names, or wrong business logic.
+
+## 3. Keep Azure-Ready
+
+This app deploys to **Azure App Service** (backend) and **Azure Static Web Apps** (frontend).
+
+- **No hardcoded file paths** — use `Path.Combine`, environment variables, or configuration for any file/directory reference.
+- **No hardcoded URLs or ports** — use `appsettings.json`, environment variables, or the Vite proxy config.
+- **No hardcoded connection strings** — use configuration providers (`IConfiguration`, Azure App Settings, Key Vault).
+- **No `localhost`-only assumptions** — anything that works locally must also work behind Azure's reverse proxy and HTTPS termination.
+- **Use `ILogger<T>`** — never `Console.WriteLine` for diagnostics.
+
+## 4. Be Thorough — Don't Assume
+
+- Read existing code before modifying it; understand the current patterns.
+- Trace changes across **all** layers (see `post-change-verification` rule).
+- If a spec or design doc is ambiguous, **ask the user** instead of guessing.
+- Handle edge cases: null/empty inputs, concurrent access, auth failures.
+- Validate that new API endpoints return the correct shape expected by the frontend types.
+
+## 5. Create or Update Unit Tests
+
+Every code change must include corresponding test updates:
+
+- **New feature** → create new test file(s) covering the happy path and key edge cases.
+- **Bug fix** → add a regression test that reproduces the bug before verifying the fix.
+- **Refactor** → update existing tests to match new signatures/structure; confirm they pass.
+- Backend tests go in the `backend/` test project (xUnit + Moq conventions).
+- Frontend tests use Vitest and React Testing Library.
+- Run tests after changes and fix any failures before declaring work complete.

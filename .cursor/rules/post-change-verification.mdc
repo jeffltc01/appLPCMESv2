@@ -1,0 +1,41 @@
+---
+description: Post-change verification checklist — ensures schema changes, config consistency, and end-to-end validation are handled before declaring work complete
+alwaysApply: true
+---
+
+# Post-Change Verification
+
+After making code changes, verify the full chain works before telling the user you're done.
+
+## Schema / Model Changes
+
+When adding, renaming, or removing a column/property on any EF Core model:
+
+1. **This project uses EF Core Migrations** with SQL Server. Schema changes require a new migration.
+2. **Scaffold a migration**: Run `dotnet ef migrations add <DescriptiveName>` from the `backend/MESv2.Api` directory.
+3. **Review the generated migration** in `backend/MESv2.Api/Migrations/` to verify the `Up()` and `Down()` methods are correct.
+4. **Restart the app** — `Database.Migrate()` at startup applies pending migrations automatically.
+5. **Existing dev data is preserved** — migrations apply only the schema delta, not a full recreate.
+
+## Config & Port Consistency
+
+When starting the backend and frontend together:
+
+1. **Read `vite.config.ts`** and confirm the proxy target port matches the port the backend is actually running on.
+2. **Read `Program.cs`** or `launchSettings.json` to confirm what port the backend listens on.
+3. Fix any mismatch before telling the user the app is ready.
+
+## End-to-End Smoke Test
+
+After starting servers, verify at least one API call works:
+
+1. Use `curl` or similar to hit a basic endpoint (e.g., `GET /api/sites` or `GET /api/users/login-config?empNo=EMP001`).
+2. If it fails, diagnose before telling the user the app is ready.
+
+## Cross-Layer Changes
+
+When a change touches multiple layers (model → DTO → API → frontend type → UI), trace the full path:
+
+1. **Backend model** → **DB seed data** → **DTO** → **Controller/Service** → **API response**
+2. **Frontend types** (`domain.ts`, `api.ts`) → **AuthContext** → **Components** → **Test mocks**
+3. Don't stop at "it compiles" — verify the data actually flows end-to-end.
