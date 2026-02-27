@@ -30,6 +30,7 @@ import type {
   OrderLifecycleMigrationResult,
   OrderKpiSummary,
   OrderKpiDiagnostics,
+  WorkCenterKpiSummary,
   WorkCenterQueueItem,
   OrderRouteExecution,
   OperatorScanInRequest,
@@ -345,6 +346,15 @@ export const ordersApi = {
     if (params?.issueType && params.issueType !== "all") qs.set("issueType", params.issueType);
     const query = qs.toString();
     return api.get<OrderKpiDiagnostics>(`/orders/kpi-diagnostics${query ? `?${query}` : ""}`);
+  },
+
+  kpiWorkCenterSummary: (params?: { fromUtc?: string; toUtc?: string; siteId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.fromUtc) qs.set("fromUtc", params.fromUtc);
+    if (params?.toUtc) qs.set("toUtc", params.toUtc);
+    if (params?.siteId) qs.set("siteId", String(params.siteId));
+    const query = qs.toString();
+    return api.get<WorkCenterKpiSummary>(`/orders/kpi-workcenter-summary${query ? `?${query}` : ""}`);
   },
 
   transportBoard: (params: TransportBoardParams = {}) => {

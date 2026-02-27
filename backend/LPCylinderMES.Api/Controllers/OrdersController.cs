@@ -251,6 +251,16 @@ public class OrdersController(
         return Ok(await orderKpiService.GetDiagnosticsAsync(fromUtc, toUtc, siteId, issueType, cancellationToken));
     }
 
+    [HttpGet("kpi-workcenter-summary")]
+    public async Task<ActionResult<WorkCenterKpiSummaryDto>> GetWorkCenterKpiSummary(
+        [FromQuery] DateTime? fromUtc = null,
+        [FromQuery] DateTime? toUtc = null,
+        [FromQuery] int? siteId = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await orderKpiService.GetWorkCenterSummaryAsync(fromUtc, toUtc, siteId, cancellationToken));
+    }
+
     [HttpPost("{id:int}/hold/clear")]
     public async Task<ActionResult<OrderDraftDetailDto>> ClearHold(int id, ClearHoldDto dto)
     {

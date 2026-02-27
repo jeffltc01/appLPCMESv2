@@ -29,6 +29,7 @@ const modules = [
   { label: "Customers", path: "/customers", icon: <People24Regular /> },
   { label: "Order Board", path: "/orderboard", icon: <Board24Regular /> },
   { label: "KPI Diagnostics", path: "/orderboard/kpi-diagnostics", icon: <Board24Regular /> },
+  { label: "Work Center KPIs", path: "/kpi/workcenter", icon: <Board24Regular /> },
   { label: "Setup", path: "/setup", icon: <Settings24Regular /> },
 ];
 

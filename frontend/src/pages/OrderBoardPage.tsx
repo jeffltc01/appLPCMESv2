@@ -22,7 +22,12 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
-import type { OrderDraftListItem, OrderKpiSummary, OrderWorkspaceRole } from "../types/order";
+import type {
+  OrderDraftListItem,
+  OrderKpiSummary,
+  OrderWorkspaceRole,
+  WorkCenterKpiSummary,
+} from "../types/order";
 
 const ROLE_FILTER_MAP: Record<OrderWorkspaceRole, string[]> = {
   Office: ["Draft", "PendingOrderEntryValidation", "InvoiceReady"],
@@ -78,16 +83,19 @@ export function OrderBoardPage() {
   } | null>(null);
   const [rows, setRows] = useState<OrderDraftListItem[]>([]);
   const [kpiSummary, setKpiSummary] = useState<OrderKpiSummary | null>(null);
+  const [workCenterKpiSummary, setWorkCenterKpiSummary] = useState<WorkCenterKpiSummary | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [result, kpi] = await Promise.all([
+      const [result, kpi, workCenterKpi] = await Promise.all([
         ordersApi.list({ page: 1, pageSize: 300, search: search || undefined }),
         ordersApi.kpiSummary(),
+        ordersApi.kpiWorkCenterSummary(),
       ]);
       setRows(result.items);
       setKpiSummary(kpi);
+      setWorkCenterKpiSummary(workCenterKpi);
     } finally {
       setLoading(false);
     }
@@ -174,9 +182,14 @@ export function OrderBoardPage() {
           <Button onClick={() => void load()}>Refresh</Button>
         </div>
         <div style={{ marginTop: 10 }}>
-          <Button appearance="secondary" onClick={() => navigate("/orderboard/kpi-diagnostics")}>
-            Open KPI Diagnostics
-          </Button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button appearance="secondary" onClick={() => navigate("/orderboard/kpi-diagnostics")}>
+              Open KPI Diagnostics
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/kpi/workcenter")}>
+              Open Work Center KPI Dashboard
+            </Button>
+          </div>
         </div>
       </Card>
       <Card>
@@ -236,6 +249,122 @@ export function OrderBoardPage() {
             </Body1>
           </div>
         ) : null}
+      </Card>
+
+      <Card>
+        <Title2>Phase 9 Work-Center KPIs</Title2>
+        {!workCenterKpiSummary ? (
+          <Body1>No work-center KPI data yet.</Body1>
+        ) : (
+          <div style={{ display: "grid", gap: 12, marginTop: 8 }}>
+            <Body1>
+              Generated {new Date(workCenterKpiSummary.generatedUtc).toLocaleString()} • Work centers:{" "}
+              {workCenterKpiSummary.totalWorkCentersEvaluated}
+            </Body1>
+
+            <Body1>
+              Supervisor hold time: closed {workCenterKpiSummary.supervisorHoldTime.closedCount}, active{" "}
+              {workCenterKpiSummary.supervisorHoldTime.activeCount}, avg closed{" "}
+              {workCenterKpiSummary.supervisorHoldTime.averageClosedHours != null
+                ? `${workCenterKpiSummary.supervisorHoldTime.averageClosedHours.toFixed(1)}h`
+                : "--"}, avg active{" "}
+              {workCenterKpiSummary.supervisorHoldTime.averageActiveAgeHours != null
+                ? `${workCenterKpiSummary.supervisorHoldTime.averageActiveAgeHours.toFixed(1)}h`
+                : "--"}, oldest active{" "}
+              {workCenterKpiSummary.supervisorHoldTime.oldestActiveAgeHours != null
+                ? `${workCenterKpiSummary.supervisorHoldTime.oldestActiveAgeHours.toFixed(1)}h`
+                : "--"}
+            </Body1>
+
+            <Body1>
+              Traceability completeness: {workCenterKpiSummary.traceabilityCompleteness.stepsWithUsageRecordedCount}/
+              {workCenterKpiSummary.traceabilityCompleteness.requiredUsageStepCount} (
+              {workCenterKpiSummary.traceabilityCompleteness.completenessPercent != null
+                ? `${workCenterKpiSummary.traceabilityCompleteness.completenessPercent.toFixed(1)}%`
+                : "--"}) • {workCenterKpiSummary.traceabilityCompleteness.measurementBasis}
+            </Body1>
+
+            <Body1>
+              <strong>Step cycle time by work center</strong>
+            </Body1>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHeaderCell>Work Center</TableHeaderCell>
+                  <TableHeaderCell>Steps</TableHeaderCell>
+                  <TableHeaderCell>Avg Min</TableHeaderCell>
+                  <TableHeaderCell>P50 Min</TableHeaderCell>
+                  <TableHeaderCell>P90 Min</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workCenterKpiSummary.stepCycleTimeByWorkCenter.map((row) => (
+                  <TableRow key={`cycle-${row.workCenterId}`}>
+                    <TableCell>{row.workCenterName}</TableCell>
+                    <TableCell>{row.stepCount}</TableCell>
+                    <TableCell>{row.avgMinutes != null ? row.avgMinutes.toFixed(1) : "--"}</TableCell>
+                    <TableCell>{row.p50Minutes != null ? row.p50Minutes.toFixed(1) : "--"}</TableCell>
+                    <TableCell>{row.p90Minutes != null ? row.p90Minutes.toFixed(1) : "--"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            <Body1>
+              <strong>Queue aging by work center</strong>
+            </Body1>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHeaderCell>Work Center</TableHeaderCell>
+                  <TableHeaderCell>Pending</TableHeaderCell>
+                  <TableHeaderCell>In Progress</TableHeaderCell>
+                  <TableHeaderCell>Avg Age Min</TableHeaderCell>
+                  <TableHeaderCell>Oldest Min</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workCenterKpiSummary.queueAgingByWorkCenter.map((row) => (
+                  <TableRow key={`queue-${row.workCenterId}`}>
+                    <TableCell>{row.workCenterName}</TableCell>
+                    <TableCell>{row.pendingCount}</TableCell>
+                    <TableCell>{row.inProgressCount}</TableCell>
+                    <TableCell>
+                      {row.averageAgeMinutes != null ? row.averageAgeMinutes.toFixed(1) : "--"}
+                    </TableCell>
+                    <TableCell>{row.oldestAgeMinutes != null ? row.oldestAgeMinutes.toFixed(1) : "--"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            <Body1>
+              <strong>Scrap by reason / work center / item</strong>
+            </Body1>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHeaderCell>Work Center</TableHeaderCell>
+                  <TableHeaderCell>Reason</TableHeaderCell>
+                  <TableHeaderCell>Item</TableHeaderCell>
+                  <TableHeaderCell>Qty Scrapped</TableHeaderCell>
+                  <TableHeaderCell>Entries</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {workCenterKpiSummary.scrapByReasonWorkCenterItem.map((row) => (
+                  <TableRow key={`scrap-${row.workCenterId}-${row.scrapReasonId}-${row.itemId}`}>
+                    <TableCell>{row.workCenterName}</TableCell>
+                    <TableCell>{row.scrapReason}</TableCell>
+                    <TableCell>{row.itemNo}</TableCell>
+                    <TableCell>{row.quantityScrapped}</TableCell>
+                    <TableCell>{row.entryCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </Card>
 
       {role === "Admin" ? (

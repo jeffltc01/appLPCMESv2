@@ -263,6 +263,221 @@ public sealed class OrderKpiService(LpcAppsDbContext db) : IOrderKpiService
             diagnostics);
     }
 
+    public async Task<WorkCenterKpiSummaryDto> GetWorkCenterSummaryAsync(
+        DateTime? fromUtc = null,
+        DateTime? toUtc = null,
+        int? siteId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var nowUtc = DateTime.UtcNow;
+
+        var completedStepRows = await (
+            from step in db.OrderLineRouteStepInstances.AsNoTracking()
+            join workCenter in db.WorkCenters.AsNoTracking() on step.WorkCenterId equals workCenter.Id
+            join route in db.OrderLineRouteInstances.AsNoTracking() on step.OrderLineRouteInstanceId equals route.Id
+            join order in db.SalesOrders.AsNoTracking() on route.SalesOrderId equals order.Id
+            where step.CompletedUtc.HasValue &&
+                  (step.ManualDurationMinutes.HasValue || step.DurationMinutes.HasValue) &&
+                  (!siteId.HasValue || order.SiteId == siteId.Value) &&
+                  (!fromUtc.HasValue || step.CompletedUtc.Value >= fromUtc.Value) &&
+                  (!toUtc.HasValue || step.CompletedUtc.Value <= toUtc.Value)
+            select new
+            {
+                workCenter.Id,
+                workCenter.WorkCenterCode,
+                workCenter.WorkCenterName,
+                Duration = (double?)(step.ManualDurationMinutes ?? step.DurationMinutes),
+            })
+            .ToListAsync(cancellationToken);
+
+        var stepCycleTimeByWorkCenter = completedStepRows
+            .GroupBy(x => new { x.Id, x.WorkCenterCode, x.WorkCenterName })
+            .Select(group =>
+            {
+                var values = group.Select(x => x.Duration ?? 0d).OrderBy(x => x).ToList();
+                return new WorkCenterCycleTimeMetricDto(
+                    group.Key.Id,
+                    group.Key.WorkCenterCode,
+                    group.Key.WorkCenterName,
+                    values.Count,
+                    values.Count == 0 ? null : values.Average(),
+                    Percentile(values, 0.50),
+                    Percentile(values, 0.90));
+            })
+            .OrderBy(x => x.WorkCenterName)
+            .ToList();
+
+        var queueRows = await (
+            from step in db.OrderLineRouteStepInstances.AsNoTracking()
+            join workCenter in db.WorkCenters.AsNoTracking() on step.WorkCenterId equals workCenter.Id
+            join route in db.OrderLineRouteInstances.AsNoTracking() on step.OrderLineRouteInstanceId equals route.Id
+            join order in db.SalesOrders.AsNoTracking() on route.SalesOrderId equals order.Id
+            let ageAnchorUtc = (DateTime?)(step.ScanInUtc ?? route.StartedUtc)
+            where step.CompletedUtc == null &&
+                  (step.State == "Pending" || step.State == "InProgress") &&
+                  ageAnchorUtc.HasValue &&
+                  (!siteId.HasValue || order.SiteId == siteId.Value) &&
+                  (!fromUtc.HasValue || ageAnchorUtc.Value >= fromUtc.Value) &&
+                  (!toUtc.HasValue || ageAnchorUtc.Value <= toUtc.Value)
+            select new
+            {
+                workCenter.Id,
+                workCenter.WorkCenterCode,
+                workCenter.WorkCenterName,
+                step.State,
+                AgeAnchorUtc = ageAnchorUtc.Value,
+            })
+            .ToListAsync(cancellationToken);
+
+        var queueAgingByWorkCenter = queueRows
+            .GroupBy(x => new { x.Id, x.WorkCenterCode, x.WorkCenterName })
+            .Select(group =>
+            {
+                var ages = group
+                    .Select(x => Math.Max(0d, (nowUtc - x.AgeAnchorUtc).TotalMinutes))
+                    .ToList();
+                return new WorkCenterQueueAgingMetricDto(
+                    group.Key.Id,
+                    group.Key.WorkCenterCode,
+                    group.Key.WorkCenterName,
+                    group.Count(x => string.Equals(x.State, "Pending", StringComparison.Ordinal)),
+                    group.Count(x => string.Equals(x.State, "InProgress", StringComparison.Ordinal)),
+                    ages.Count == 0 ? null : ages.Average(),
+                    ages.Count == 0 ? null : ages.Max());
+            })
+            .OrderBy(x => x.WorkCenterName)
+            .ToList();
+
+        var scrapRows = await (
+            from scrap in db.StepScrapEntries.AsNoTracking()
+            join step in db.OrderLineRouteStepInstances.AsNoTracking() on scrap.OrderLineRouteStepInstanceId equals step.Id
+            join workCenter in db.WorkCenters.AsNoTracking() on step.WorkCenterId equals workCenter.Id
+            join detail in db.SalesOrderDetails.AsNoTracking() on scrap.SalesOrderDetailId equals detail.Id
+            join item in db.Items.AsNoTracking() on detail.ItemId equals item.Id
+            join reason in db.ScrapReasons.AsNoTracking() on scrap.ScrapReasonId equals reason.Id
+            join order in db.SalesOrders.AsNoTracking() on detail.SalesOrderId equals order.Id
+            where (!siteId.HasValue || order.SiteId == siteId.Value) &&
+                  (!fromUtc.HasValue || scrap.RecordedUtc >= fromUtc.Value) &&
+                  (!toUtc.HasValue || scrap.RecordedUtc <= toUtc.Value)
+            group scrap by new
+            {
+                WorkCenterId = workCenter.Id,
+                workCenter.WorkCenterCode,
+                workCenter.WorkCenterName,
+                ScrapReasonId = reason.Id,
+                ScrapReasonName = reason.Name,
+                ItemId = item.Id,
+                item.ItemNo,
+                item.ItemDescription,
+            }
+            into grouped
+            orderby grouped.Sum(x => x.QuantityScrapped) descending
+            select new WorkCenterScrapMetricDto(
+                grouped.Key.WorkCenterId,
+                grouped.Key.WorkCenterCode,
+                grouped.Key.WorkCenterName,
+                grouped.Key.ScrapReasonId,
+                grouped.Key.ScrapReasonName,
+                grouped.Key.ItemId,
+                grouped.Key.ItemNo,
+                grouped.Key.ItemDescription ?? string.Empty,
+                grouped.Sum(x => x.QuantityScrapped),
+                grouped.Count()))
+            .ToListAsync(cancellationToken);
+
+        var supervisorRows = await db.SalesOrders
+            .AsNoTracking()
+            .Where(order =>
+                order.PendingSupervisorReviewUtc.HasValue &&
+                (!siteId.HasValue || order.SiteId == siteId.Value) &&
+                (!fromUtc.HasValue || order.PendingSupervisorReviewUtc.Value >= fromUtc.Value) &&
+                (!toUtc.HasValue || order.PendingSupervisorReviewUtc.Value <= toUtc.Value))
+            .Select(order => new
+            {
+                order.PendingSupervisorReviewUtc,
+                order.SupervisorReviewedUtc,
+            })
+            .ToListAsync(cancellationToken);
+
+        var closedHoldHours = new List<double>();
+        var activeHoldHours = new List<double>();
+        foreach (var row in supervisorRows)
+        {
+            if (!row.PendingSupervisorReviewUtc.HasValue)
+            {
+                continue;
+            }
+
+            if (row.SupervisorReviewedUtc.HasValue && row.SupervisorReviewedUtc.Value >= row.PendingSupervisorReviewUtc.Value)
+            {
+                closedHoldHours.Add((row.SupervisorReviewedUtc.Value - row.PendingSupervisorReviewUtc.Value).TotalHours);
+                continue;
+            }
+
+            activeHoldHours.Add((nowUtc - row.PendingSupervisorReviewUtc.Value).TotalHours);
+        }
+
+        var supervisorHoldTime = new SupervisorHoldTimeMetricDto(
+            closedHoldHours.Count,
+            activeHoldHours.Count,
+            closedHoldHours.Count == 0 ? null : closedHoldHours.Average(),
+            activeHoldHours.Count == 0 ? null : activeHoldHours.Average(),
+            activeHoldHours.Count == 0 ? null : activeHoldHours.Max());
+
+        var requiredUsageStepRows = await (
+            from step in db.OrderLineRouteStepInstances.AsNoTracking()
+            join route in db.OrderLineRouteInstances.AsNoTracking() on step.OrderLineRouteInstanceId equals route.Id
+            join order in db.SalesOrders.AsNoTracking() on route.SalesOrderId equals order.Id
+            let anchorUtc = (DateTime?)(step.CompletedUtc ?? step.ScanOutUtc ?? step.ScanInUtc ?? route.StartedUtc)
+            where step.RequiresUsageEntry &&
+                  (!siteId.HasValue || order.SiteId == siteId.Value) &&
+                  (!fromUtc.HasValue || (anchorUtc.HasValue && anchorUtc.Value >= fromUtc.Value)) &&
+                  (!toUtc.HasValue || (anchorUtc.HasValue && anchorUtc.Value <= toUtc.Value))
+            select step.Id)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var usageRecordedStepRows = await (
+            from usage in db.StepMaterialUsages.AsNoTracking()
+            join step in db.OrderLineRouteStepInstances.AsNoTracking() on usage.OrderLineRouteStepInstanceId equals step.Id
+            join route in db.OrderLineRouteInstances.AsNoTracking() on step.OrderLineRouteInstanceId equals route.Id
+            join order in db.SalesOrders.AsNoTracking() on route.SalesOrderId equals order.Id
+            where step.RequiresUsageEntry &&
+                  (!siteId.HasValue || order.SiteId == siteId.Value) &&
+                  (!fromUtc.HasValue || usage.RecordedUtc >= fromUtc.Value) &&
+                  (!toUtc.HasValue || usage.RecordedUtc <= toUtc.Value)
+            select usage.OrderLineRouteStepInstanceId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var requiredSet = requiredUsageStepRows.ToHashSet();
+        var usageCoveredCount = usageRecordedStepRows.Count(requiredSet.Contains);
+        var traceabilityCompleteness = new TraceabilityCompletenessMetricDto(
+            requiredSet.Count,
+            usageCoveredCount,
+            requiredSet.Count == 0 ? null : (usageCoveredCount * 100.0) / requiredSet.Count,
+            "Proxy: required usage-capture steps with at least one recorded usage row.");
+
+        var allWorkCenterIds = new HashSet<int>(stepCycleTimeByWorkCenter.Select(x => x.WorkCenterId));
+        foreach (var metric in queueAgingByWorkCenter)
+        {
+            allWorkCenterIds.Add(metric.WorkCenterId);
+        }
+        foreach (var metric in scrapRows)
+        {
+            allWorkCenterIds.Add(metric.WorkCenterId);
+        }
+
+        return new WorkCenterKpiSummaryDto(
+            nowUtc,
+            allWorkCenterIds.Count,
+            stepCycleTimeByWorkCenter,
+            queueAgingByWorkCenter,
+            scrapRows,
+            supervisorHoldTime,
+            traceabilityCompleteness);
+    }
+
     private static KpiLeadTimeMetricDto BuildLeadMetric(
         string metricKey,
         string label,

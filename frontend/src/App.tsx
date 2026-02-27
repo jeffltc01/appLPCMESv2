@@ -22,6 +22,7 @@ import { OrderWorkspacePage } from "./pages/OrderWorkspacePage";
 import { OrderBoardPage } from "./pages/OrderBoardPage";
 import { OrderPolicyPage } from "./pages/OrderPolicyPage";
 import { KpiDiagnosticsPage } from "./pages/KpiDiagnosticsPage";
+import { WorkCenterKpiPage } from "./pages/WorkCenterKpiPage";
 import { SupervisorRouteReviewPage } from "./pages/SupervisorRouteReviewPage";
 import { SetupHomePage } from "./pages/SetupHomePage";
 import { SetupWorkCentersPage } from "./pages/SetupWorkCentersPage";
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="items/:id" element={<ItemDetailPage />} />
             <Route path="orderboard" element={<OrderBoardPage />} />
             <Route path="orderboard/kpi-diagnostics" element={<KpiDiagnosticsPage />} />
+            <Route path="kpi/workcenter" element={<WorkCenterKpiPage />} />
             <Route path="operator-console" element={<OperatorWorkCenterConsolePage />} />
             <Route path="supervisor/review" element={<SupervisorRouteReviewPage />} />
             <Route path="contacts/*" element={<PlaceholderPage title="Contacts" />} />

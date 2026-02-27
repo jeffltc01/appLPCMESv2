@@ -213,6 +213,58 @@ public record OrderKpiDiagnosticsItemDto(
     int MissingOwnershipCount,
     int InvalidOrderingCount);
 
+public record WorkCenterKpiSummaryDto(
+    DateTime GeneratedUtc,
+    int TotalWorkCentersEvaluated,
+    List<WorkCenterCycleTimeMetricDto> StepCycleTimeByWorkCenter,
+    List<WorkCenterQueueAgingMetricDto> QueueAgingByWorkCenter,
+    List<WorkCenterScrapMetricDto> ScrapByReasonWorkCenterItem,
+    SupervisorHoldTimeMetricDto SupervisorHoldTime,
+    TraceabilityCompletenessMetricDto TraceabilityCompleteness);
+
+public record WorkCenterCycleTimeMetricDto(
+    int WorkCenterId,
+    string WorkCenterCode,
+    string WorkCenterName,
+    int StepCount,
+    double? AvgMinutes,
+    double? P50Minutes,
+    double? P90Minutes);
+
+public record WorkCenterQueueAgingMetricDto(
+    int WorkCenterId,
+    string WorkCenterCode,
+    string WorkCenterName,
+    int PendingCount,
+    int InProgressCount,
+    double? AverageAgeMinutes,
+    double? OldestAgeMinutes);
+
+public record WorkCenterScrapMetricDto(
+    int WorkCenterId,
+    string WorkCenterCode,
+    string WorkCenterName,
+    int ScrapReasonId,
+    string ScrapReason,
+    int ItemId,
+    string ItemNo,
+    string ItemDescription,
+    decimal QuantityScrapped,
+    int EntryCount);
+
+public record SupervisorHoldTimeMetricDto(
+    int ClosedCount,
+    int ActiveCount,
+    double? AverageClosedHours,
+    double? AverageActiveAgeHours,
+    double? OldestActiveAgeHours);
+
+public record TraceabilityCompletenessMetricDto(
+    int RequiredUsageStepCount,
+    int StepsWithUsageRecordedCount,
+    double? CompletenessPercent,
+    string MeasurementBasis);
+
 public record OrderDraftCreateDto(
     int CustomerId,
     int SiteId,

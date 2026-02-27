@@ -841,6 +841,64 @@ export interface OrderKpiDiagnostics {
   items: OrderKpiDiagnosticsItem[];
 }
 
+export interface WorkCenterCycleTimeMetric {
+  workCenterId: number;
+  workCenterCode: string;
+  workCenterName: string;
+  stepCount: number;
+  avgMinutes?: number | null;
+  p50Minutes?: number | null;
+  p90Minutes?: number | null;
+}
+
+export interface WorkCenterQueueAgingMetric {
+  workCenterId: number;
+  workCenterCode: string;
+  workCenterName: string;
+  pendingCount: number;
+  inProgressCount: number;
+  averageAgeMinutes?: number | null;
+  oldestAgeMinutes?: number | null;
+}
+
+export interface WorkCenterScrapMetric {
+  workCenterId: number;
+  workCenterCode: string;
+  workCenterName: string;
+  scrapReasonId: number;
+  scrapReason: string;
+  itemId: number;
+  itemNo: string;
+  itemDescription: string;
+  quantityScrapped: number;
+  entryCount: number;
+}
+
+export interface SupervisorHoldTimeMetric {
+  closedCount: number;
+  activeCount: number;
+  averageClosedHours?: number | null;
+  averageActiveAgeHours?: number | null;
+  oldestActiveAgeHours?: number | null;
+}
+
+export interface TraceabilityCompletenessMetric {
+  requiredUsageStepCount: number;
+  stepsWithUsageRecordedCount: number;
+  completenessPercent?: number | null;
+  measurementBasis: string;
+}
+
+export interface WorkCenterKpiSummary {
+  generatedUtc: string;
+  totalWorkCentersEvaluated: number;
+  stepCycleTimeByWorkCenter: WorkCenterCycleTimeMetric[];
+  queueAgingByWorkCenter: WorkCenterQueueAgingMetric[];
+  scrapByReasonWorkCenterItem: WorkCenterScrapMetric[];
+  supervisorHoldTime: SupervisorHoldTimeMetric;
+  traceabilityCompleteness: TraceabilityCompletenessMetric;
+}
+
 export interface WorkCenterQueueItem {
   stepInstanceId: number;
   orderId: number;
