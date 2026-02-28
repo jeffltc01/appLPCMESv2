@@ -52,6 +52,9 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<PromiseReasonPolicy> PromiseReasonPolicies { get; set; }
     public virtual DbSet<StatusReasonCode> StatusReasonCodes { get; set; }
     public virtual DbSet<ProductionLine> ProductionLines { get; set; }
+    public virtual DbSet<FeatureFlagConfig> FeatureFlagConfigs { get; set; }
+    public virtual DbSet<SitePolicyConfig> SitePolicyConfigs { get; set; }
+    public virtual DbSet<SetupConfigAudit> SetupConfigAudits { get; set; }
 
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
 
@@ -1772,6 +1775,71 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
             entity.HasIndex(e => e.Code).IsUnique();
             entity.HasIndex(e => e.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<FeatureFlagConfig>(entity =>
+        {
+            entity.ToTable("feature_flag_configs");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.FlagKey).HasMaxLength(120).IsUnicode(false).HasColumnName("flag_key");
+            entity.Property(e => e.DisplayName).HasMaxLength(240).IsUnicode(false).HasColumnName("display_name");
+            entity.Property(e => e.Category).HasMaxLength(80).IsUnicode(false).HasColumnName("category");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.CurrentValue).HasColumnName("current_value");
+            entity.Property(e => e.EffectiveFromUtc).HasColumnType("datetime").HasColumnName("effective_from_utc");
+            entity.Property(e => e.RollbackPlan).HasMaxLength(1000).IsUnicode(false).HasColumnName("rollback_plan");
+            entity.Property(e => e.LastReasonCode).HasMaxLength(80).IsUnicode(false).HasColumnName("last_reason_code");
+            entity.Property(e => e.LastChangeNote).HasMaxLength(500).IsUnicode(false).HasColumnName("last_change_note");
+            entity.Property(e => e.LastChangedUtc).HasColumnType("datetime").HasColumnName("last_changed_utc");
+            entity.Property(e => e.LastChangedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("last_changed_by_emp_no");
+
+            entity.HasIndex(e => new { e.FlagKey, e.SiteId }).IsUnique().HasFilter("[site_id] IS NOT NULL");
+            entity.HasIndex(e => e.FlagKey).IsUnique().HasFilter("[site_id] IS NULL");
+            entity.HasIndex(e => new { e.SiteId, e.Category });
+            entity.HasOne(e => e.Site).WithMany().HasForeignKey(e => e.SiteId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SitePolicyConfig>(entity =>
+        {
+            entity.ToTable("site_policy_configs");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.PolicyKey).HasMaxLength(120).IsUnicode(false).HasColumnName("policy_key");
+            entity.Property(e => e.DisplayName).HasMaxLength(240).IsUnicode(false).HasColumnName("display_name");
+            entity.Property(e => e.Category).HasMaxLength(80).IsUnicode(false).HasColumnName("category");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.PolicyValue).HasMaxLength(240).IsUnicode(false).HasColumnName("policy_value");
+            entity.Property(e => e.EffectiveFromUtc).HasColumnType("datetime").HasColumnName("effective_from_utc");
+            entity.Property(e => e.RollbackPlan).HasMaxLength(1000).IsUnicode(false).HasColumnName("rollback_plan");
+            entity.Property(e => e.LastReasonCode).HasMaxLength(80).IsUnicode(false).HasColumnName("last_reason_code");
+            entity.Property(e => e.LastChangeNote).HasMaxLength(500).IsUnicode(false).HasColumnName("last_change_note");
+            entity.Property(e => e.LastChangedUtc).HasColumnType("datetime").HasColumnName("last_changed_utc");
+            entity.Property(e => e.LastChangedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("last_changed_by_emp_no");
+
+            entity.HasIndex(e => new { e.PolicyKey, e.SiteId }).IsUnique().HasFilter("[site_id] IS NOT NULL");
+            entity.HasIndex(e => e.PolicyKey).IsUnique().HasFilter("[site_id] IS NULL");
+            entity.HasIndex(e => new { e.SiteId, e.Category });
+            entity.HasOne(e => e.Site).WithMany().HasForeignKey(e => e.SiteId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SetupConfigAudit>(entity =>
+        {
+            entity.ToTable("setup_config_audits");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.ConfigType).HasMaxLength(30).IsUnicode(false).HasColumnName("config_type");
+            entity.Property(e => e.ConfigKey).HasMaxLength(120).IsUnicode(false).HasColumnName("config_key");
+            entity.Property(e => e.Action).HasMaxLength(30).IsUnicode(false).HasColumnName("action");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.ChangedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("changed_by_emp_no");
+            entity.Property(e => e.ChangedUtc).HasColumnType("datetime").HasColumnName("changed_utc");
+            entity.Property(e => e.PreviousValue).HasMaxLength(500).IsUnicode(false).HasColumnName("previous_value");
+            entity.Property(e => e.NewValue).HasMaxLength(500).IsUnicode(false).HasColumnName("new_value");
+            entity.Property(e => e.ReasonCode).HasMaxLength(80).IsUnicode(false).HasColumnName("reason_code");
+            entity.Property(e => e.ChangeNote).HasMaxLength(500).IsUnicode(false).HasColumnName("change_note");
+            entity.Property(e => e.CorrelationId).HasMaxLength(120).IsUnicode(false).HasColumnName("correlation_id");
+
+            entity.HasIndex(e => e.ChangedUtc);
+            entity.HasIndex(e => new { e.ConfigType, e.ConfigKey, e.ChangedUtc });
+            entity.HasOne(e => e.Site).WithMany().HasForeignKey(e => e.SiteId).OnDelete(DeleteBehavior.SetNull);
         });
 
         OnModelCreatingPartial(modelBuilder);

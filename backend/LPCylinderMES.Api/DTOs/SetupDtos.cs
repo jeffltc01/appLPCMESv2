@@ -212,3 +212,58 @@ public record RouteRuleSimulationResponseDto(
     string? MatchTierLabel,
     RouteTemplateAssignmentDto? Assignment,
     RouteTemplateDetailDto? RouteTemplate);
+
+public record FeatureFlagConfigDto(
+    int Id,
+    string FlagKey,
+    string DisplayName,
+    string Category,
+    int? SiteId,
+    string? SiteName,
+    bool CurrentValue,
+    DateTime? EffectiveFromUtc,
+    DateTime LastChangedUtc,
+    string LastChangedByEmpNo,
+    string Status);
+
+public record FeatureFlagConfigUpsertDto(
+    string DisplayName,
+    int? SiteId,
+    bool CurrentValue,
+    DateTime? EffectiveFromUtc,
+    string? RollbackPlan,
+    string ReasonCode,
+    string? ChangeNote);
+
+public record SitePolicyConfigDto(
+    int Id,
+    string PolicyKey,
+    string DisplayName,
+    string Category,
+    int? SiteId,
+    string? SiteName,
+    string PolicyValue,
+    DateTime? EffectiveFromUtc,
+    DateTime LastChangedUtc,
+    string LastChangedByEmpNo,
+    string Status);
+
+public record SitePolicyConfigUpsertDto(
+    string DisplayName,
+    int? SiteId,
+    string PolicyValue,
+    DateTime? EffectiveFromUtc,
+    string? RollbackPlan,
+    string ReasonCode,
+    string? ChangeNote);
+
+public record SetupConfigAuditDto(
+    int Id,
+    string ConfigType,
+    string ConfigKey,
+    string Action,
+    string ChangedByEmpNo,
+    DateTime ChangedUtc,
+    string? PreviousValue,
+    string? NewValue,
+    string CorrelationId);

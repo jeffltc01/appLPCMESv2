@@ -235,3 +235,65 @@ export interface RouteRuleSimulationResponse {
   assignment: RouteTemplateAssignment | null;
   routeTemplate: RouteTemplateDetail | null;
 }
+
+export type SetupConfigStatus = "Active" | "Scheduled";
+
+export interface FeatureFlagConfig {
+  id: number;
+  flagKey: string;
+  displayName: string;
+  category: string;
+  siteId: number | null;
+  siteName: string | null;
+  currentValue: boolean;
+  effectiveFromUtc: string | null;
+  lastChangedUtc: string;
+  lastChangedByEmpNo: string;
+  status: SetupConfigStatus;
+}
+
+export interface FeatureFlagConfigUpsert {
+  displayName: string;
+  siteId?: number | null;
+  currentValue: boolean;
+  effectiveFromUtc?: string | null;
+  rollbackPlan?: string | null;
+  reasonCode: string;
+  changeNote?: string | null;
+}
+
+export interface SitePolicyConfig {
+  id: number;
+  policyKey: string;
+  displayName: string;
+  category: string;
+  siteId: number | null;
+  siteName: string | null;
+  policyValue: string;
+  effectiveFromUtc: string | null;
+  lastChangedUtc: string;
+  lastChangedByEmpNo: string;
+  status: SetupConfigStatus;
+}
+
+export interface SitePolicyConfigUpsert {
+  displayName: string;
+  siteId?: number | null;
+  policyValue: string;
+  effectiveFromUtc?: string | null;
+  rollbackPlan?: string | null;
+  reasonCode: string;
+  changeNote?: string | null;
+}
+
+export interface SetupConfigAuditEntry {
+  id: number;
+  configType: "FeatureFlag" | "SitePolicy";
+  configKey: string;
+  action: "Created" | "Updated" | "Scheduled" | "Approved";
+  changedByEmpNo: string;
+  changedUtc: string;
+  previousValue: string;
+  newValue: string;
+  correlationId: string;
+}

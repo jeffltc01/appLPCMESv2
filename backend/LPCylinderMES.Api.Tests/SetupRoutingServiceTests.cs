@@ -305,6 +305,112 @@ public class SetupRoutingServiceTests
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task GetFeatureFlagsAsync_ReturnsRowsWithStatusProjection()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GetFeatureFlagsAsync_ReturnsRowsWithStatusProjection));
+        SeedCommonLookups(db);
+        db.FeatureFlagConfigs.AddRange(
+            new FeatureFlagConfig
+            {
+                Id = 1,
+                FlagKey = "EnablePromiseDateGate",
+                DisplayName = "Enable Promise Date Gate",
+                Category = "Order Flow",
+                SiteId = 1,
+                CurrentValue = true,
+                LastChangedUtc = DateTime.UtcNow.AddDays(-1),
+                LastChangedByEmpNo = "EMP100",
+            },
+            new FeatureFlagConfig
+            {
+                Id = 2,
+                FlagKey = "RequireInvoiceEvidence",
+                DisplayName = "Require invoice evidence",
+                Category = "Invoice",
+                SiteId = null,
+                CurrentValue = false,
+                EffectiveFromUtc = DateTime.UtcNow.AddDays(2),
+                LastChangedUtc = DateTime.UtcNow.AddDays(-2),
+                LastChangedByEmpNo = "EMP101",
+            });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var rows = await service.GetFeatureFlagsAsync();
+
+        Assert.Equal(2, rows.Count);
+        Assert.Contains(rows, r => r.FlagKey == "EnablePromiseDateGate" && r.Status == "Active");
+        Assert.Contains(rows, r => r.FlagKey == "RequireInvoiceEvidence" && r.Status == "Scheduled");
+    }
+
+    [Fact]
+    public async Task UpdateFeatureFlagAsync_MissingReasonCode_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateFeatureFlagAsync_MissingReasonCode_ThrowsBadRequest));
+        SeedCommonLookups(db);
+        db.FeatureFlagConfigs.Add(new FeatureFlagConfig
+        {
+            Id = 3,
+            FlagKey = "EnableTraceabilityStrictMode",
+            DisplayName = "Enable strict traceability mode",
+            Category = "Traceability",
+            SiteId = 1,
+            CurrentValue = false,
+            LastChangedUtc = DateTime.UtcNow,
+            LastChangedByEmpNo = "EMP200",
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.UpdateFeatureFlagAsync(3, new FeatureFlagConfigUpsertDto(
+                "Enable strict traceability mode",
+                1,
+                true,
+                null,
+                null,
+                "",
+                "turning on")));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateSitePolicyAsync_WritesAuditRecord()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateSitePolicyAsync_WritesAuditRecord));
+        SeedCommonLookups(db);
+        db.SitePolicyConfigs.Add(new SitePolicyConfig
+        {
+            Id = 4,
+            PolicyKey = "DirectReleasePath",
+            DisplayName = "Direct release path",
+            Category = "Order Flow",
+            SiteId = 1,
+            PolicyValue = "Disabled",
+            LastChangedUtc = DateTime.UtcNow,
+            LastChangedByEmpNo = "EMP201",
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var updated = await service.UpdateSitePolicyAsync(4, new SitePolicyConfigUpsertDto(
+            "Direct release path",
+            1,
+            "Enabled",
+            null,
+            "Rollback by disabling policy.",
+            "PolicyUpdate",
+            "Enable direct release pilot"));
+
+        Assert.Equal("Enabled", updated.PolicyValue);
+        var auditRows = await service.GetSetupConfigAuditAsync();
+        Assert.Single(auditRows);
+        Assert.Equal("SitePolicy", auditRows[0].ConfigType);
+        Assert.Equal("DirectReleasePath", auditRows[0].ConfigKey);
+    }
+
     private static void SeedCommonLookups(LpcAppsDbContext db)
     {
         db.Sites.Add(new Site { Id = 1, Name = "Main", SiteCode = "MAIN" });

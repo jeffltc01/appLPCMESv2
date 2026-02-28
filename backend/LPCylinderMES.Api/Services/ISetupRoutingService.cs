@@ -41,4 +41,12 @@ public interface ISetupRoutingService
     Task DeleteAssignmentAsync(int id, CancellationToken cancellationToken = default);
 
     Task<RouteRuleSimulationResponseDto> SimulateRouteAsync(RouteRuleSimulationRequestDto dto, CancellationToken cancellationToken = default);
+
+    Task<List<FeatureFlagConfigDto>> GetFeatureFlagsAsync(CancellationToken cancellationToken = default);
+    Task<FeatureFlagConfigDto> UpdateFeatureFlagAsync(int id, FeatureFlagConfigUpsertDto dto, CancellationToken cancellationToken = default);
+
+    Task<List<SitePolicyConfigDto>> GetSitePoliciesAsync(CancellationToken cancellationToken = default);
+    Task<SitePolicyConfigDto> UpdateSitePolicyAsync(int id, SitePolicyConfigUpsertDto dto, CancellationToken cancellationToken = default);
+
+    Task<List<SetupConfigAuditDto>> GetSetupConfigAuditAsync(CancellationToken cancellationToken = default);
 }

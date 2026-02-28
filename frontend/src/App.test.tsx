@@ -33,6 +33,11 @@ vi.mock("./services/orders", () => ({
 vi.mock("./services/setup", () => ({
   setupApi: {
     listWorkCenters: vi.fn().mockResolvedValue([]),
+    listFeatureFlags: vi.fn().mockResolvedValue([]),
+    listSitePolicies: vi.fn().mockResolvedValue([]),
+    listConfigAudit: vi.fn().mockResolvedValue([]),
+    updateFeatureFlag: vi.fn(),
+    updateSitePolicy: vi.fn(),
   },
 }));
 
@@ -106,6 +111,12 @@ describe("App routing", () => {
     window.history.pushState({}, "", "/setup/order-audit-log");
     render(<App />);
     expect(await screen.findByText("Order Audit Log")).toBeInTheDocument();
+  });
+
+  it("opens feature flags and site policies setup route", async () => {
+    window.history.pushState({}, "", "/setup/feature-flags-policies");
+    render(<App />);
+    expect(await screen.findByText("Setup - Feature Flags & Site Policies")).toBeInTheDocument();
   });
 
   it("redirects operator route to tablet setup when no setup cache exists", async () => {

@@ -20,6 +20,7 @@ import { RouteTemplateDetailPage } from "./pages/RouteTemplateDetailPage";
 import { TabletSetupPage } from "./pages/TabletSetupPage";
 import { WorkCenterOperatorPage } from "./pages/WorkCenterOperatorPage";
 import { OrderAuditLogPage } from "./pages/OrderAuditLogPage";
+import { FeatureFlagsSitePoliciesSetupPage } from "./pages/FeatureFlagsSitePoliciesSetupPage";
 import { LoginPage } from "./pages/LoginPage";
 
 export default function App() {
@@ -138,6 +139,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <OrderAuditLogPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/setup/feature-flags-policies"
+              element={
+                <RequireAuth>
+                  <FeatureFlagsSitePoliciesSetupPage />
                 </RequireAuth>
               }
             />

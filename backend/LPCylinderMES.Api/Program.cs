@@ -78,13 +78,25 @@ builder.Services.AddScoped<IOrderAuditContextAccessor, OrderAuditContextAccessor
 builder.Services.Configure<HelpContentOptions>(builder.Configuration.GetSection("HelpContent"));
 builder.Services.AddSingleton<IHelpContentService, HelpContentService>();
 
-builder.Services.AddCors(options =>
+var allowedCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()?
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .Select(origin => origin.Trim())
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray()
+    ?? [];
+
+if (allowedCorsOrigins.Length > 0)
 {
-    options.AddPolicy("DevCors", policy =>
-        policy.WithOrigins("http://localhost:5510")
-              .AllowAnyHeader()
-              .AllowAnyMethod());
-});
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("ConfiguredCors", policy =>
+            policy.WithOrigins(allowedCorsOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod());
+    });
+}
 
 var app = builder.Build();
 
@@ -101,7 +113,11 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
-    app.UseCors("DevCors");
+}
+
+if (allowedCorsOrigins.Length > 0)
+{
+    app.UseCors("ConfiguredCors");
 }
 
 app.UseHttpsRedirection();

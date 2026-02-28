@@ -4,10 +4,15 @@ import type {
   AppRoleUpsert,
   AppUser,
   AppUserUpsert,
+  FeatureFlagConfig,
+  FeatureFlagConfigUpsert,
   ProductionLine,
   ProductionLineUpsert,
   RouteRuleSimulationRequest,
   RouteRuleSimulationResponse,
+  SetupConfigAuditEntry,
+  SitePolicyConfig,
+  SitePolicyConfigUpsert,
   RouteTemplateAssignment,
   RouteTemplateAssignmentUpsert,
   RouteTemplateDetail,
@@ -62,4 +67,14 @@ export const setupApi = {
 
   simulateRoute: (data: RouteRuleSimulationRequest) =>
     api.post<RouteRuleSimulationResponse>("/setup/rules/simulate", data),
+
+  listFeatureFlags: () => api.get<FeatureFlagConfig[]>("/setup/feature-flags"),
+  updateFeatureFlag: (id: number, data: FeatureFlagConfigUpsert) =>
+    api.put<FeatureFlagConfig>(`/setup/feature-flags/${id}`, data),
+
+  listSitePolicies: () => api.get<SitePolicyConfig[]>("/setup/site-policies"),
+  updateSitePolicy: (id: number, data: SitePolicyConfigUpsert) =>
+    api.put<SitePolicyConfig>(`/setup/site-policies/${id}`, data),
+
+  listConfigAudit: () => api.get<SetupConfigAuditEntry[]>("/setup/config-audit"),
 };

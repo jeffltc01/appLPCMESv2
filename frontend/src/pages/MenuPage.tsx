@@ -50,6 +50,12 @@ const ADMIN_MENU_ITEMS = [
   { key: "tablet-setup", label: "Tablet Setup", path: "/setup/tablet", enabled: true },
   { key: "route-templates", label: "Route Templates", path: "/setup/route-templates", enabled: true },
   { key: "users-roles", label: "Users & Roles", path: "/setup/users-roles", enabled: true },
+  {
+    key: "feature-flags-policies",
+    label: "Feature Flags & Site Policies",
+    path: "/setup/feature-flags-policies",
+    enabled: true,
+  },
   { key: "order-audit-log", label: "Order Audit Log", path: "/setup/order-audit-log", enabled: true },
 ];
 

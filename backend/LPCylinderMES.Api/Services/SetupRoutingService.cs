@@ -6,8 +6,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Services;
 
-public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingService
+public sealed class SetupRoutingService(
+    LpcAppsDbContext db,
+    IOrderAuditContextAccessor? auditContextAccessor = null) : ISetupRoutingService
 {
+    private readonly IOrderAuditContextAccessor? _auditContextAccessor = auditContextAccessor;
     private const int ShowWhereOrderComments = 1;
     private const int ShowWhereOrderProduct = 2;
     private const int ShowWhereOrderReceiving = 4;
@@ -609,6 +612,145 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             ToRouteTemplateDetailDto(selectedTemplate));
     }
 
+    public async Task<List<FeatureFlagConfigDto>> GetFeatureFlagsAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await db.FeatureFlagConfigs
+            .AsNoTracking()
+            .Include(f => f.Site)
+            .OrderBy(f => f.FlagKey)
+            .ThenBy(f => f.SiteId)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(ToFeatureFlagConfigDto).ToList();
+    }
+
+    public async Task<FeatureFlagConfigDto> UpdateFeatureFlagAsync(int id, FeatureFlagConfigUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.FeatureFlagConfigs
+            .Include(f => f.Site)
+            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
+        if (entity is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Feature flag '{id}' was not found.");
+
+        await ValidateFeatureFlagUpdateAsync(entity, dto, cancellationToken);
+
+        var actorEmpNo = ResolveActorEmpNo();
+        var now = DateTime.UtcNow;
+        var previousValue = entity.CurrentValue ? "ON" : "OFF";
+        var newValue = dto.CurrentValue ? "ON" : "OFF";
+
+        entity.DisplayName = dto.DisplayName.Trim();
+        entity.SiteId = dto.SiteId;
+        entity.CurrentValue = dto.CurrentValue;
+        entity.EffectiveFromUtc = dto.EffectiveFromUtc;
+        entity.RollbackPlan = NormalizeNullable(dto.RollbackPlan);
+        entity.LastReasonCode = dto.ReasonCode.Trim();
+        entity.LastChangeNote = NormalizeNullable(dto.ChangeNote);
+        entity.LastChangedUtc = now;
+        entity.LastChangedByEmpNo = actorEmpNo;
+
+        db.SetupConfigAudits.Add(new SetupConfigAudit
+        {
+            ConfigType = "FeatureFlag",
+            ConfigKey = entity.FlagKey,
+            Action = dto.EffectiveFromUtc.HasValue && dto.EffectiveFromUtc.Value > now ? "Scheduled" : "Updated",
+            SiteId = entity.SiteId,
+            ChangedByEmpNo = actorEmpNo,
+            ChangedUtc = now,
+            PreviousValue = previousValue,
+            NewValue = newValue,
+            ReasonCode = dto.ReasonCode.Trim(),
+            ChangeNote = NormalizeNullable(dto.ChangeNote),
+            CorrelationId = ResolveCorrelationId(),
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        entity.Site = entity.SiteId.HasValue
+            ? await db.Sites.AsNoTracking().FirstOrDefaultAsync(s => s.Id == entity.SiteId.Value, cancellationToken)
+            : null;
+
+        return ToFeatureFlagConfigDto(entity);
+    }
+
+    public async Task<List<SitePolicyConfigDto>> GetSitePoliciesAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await db.SitePolicyConfigs
+            .AsNoTracking()
+            .Include(p => p.Site)
+            .OrderBy(p => p.PolicyKey)
+            .ThenBy(p => p.SiteId)
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(ToSitePolicyConfigDto).ToList();
+    }
+
+    public async Task<SitePolicyConfigDto> UpdateSitePolicyAsync(int id, SitePolicyConfigUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.SitePolicyConfigs
+            .Include(p => p.Site)
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (entity is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Site policy '{id}' was not found.");
+
+        await ValidateSitePolicyUpdateAsync(entity, dto, cancellationToken);
+
+        var actorEmpNo = ResolveActorEmpNo();
+        var now = DateTime.UtcNow;
+        var previousValue = entity.PolicyValue;
+        var newValue = dto.PolicyValue.Trim();
+
+        entity.DisplayName = dto.DisplayName.Trim();
+        entity.SiteId = dto.SiteId;
+        entity.PolicyValue = newValue;
+        entity.EffectiveFromUtc = dto.EffectiveFromUtc;
+        entity.RollbackPlan = NormalizeNullable(dto.RollbackPlan);
+        entity.LastReasonCode = dto.ReasonCode.Trim();
+        entity.LastChangeNote = NormalizeNullable(dto.ChangeNote);
+        entity.LastChangedUtc = now;
+        entity.LastChangedByEmpNo = actorEmpNo;
+
+        db.SetupConfigAudits.Add(new SetupConfigAudit
+        {
+            ConfigType = "SitePolicy",
+            ConfigKey = entity.PolicyKey,
+            Action = dto.EffectiveFromUtc.HasValue && dto.EffectiveFromUtc.Value > now ? "Scheduled" : "Updated",
+            SiteId = entity.SiteId,
+            ChangedByEmpNo = actorEmpNo,
+            ChangedUtc = now,
+            PreviousValue = previousValue,
+            NewValue = newValue,
+            ReasonCode = dto.ReasonCode.Trim(),
+            ChangeNote = NormalizeNullable(dto.ChangeNote),
+            CorrelationId = ResolveCorrelationId(),
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        entity.Site = entity.SiteId.HasValue
+            ? await db.Sites.AsNoTracking().FirstOrDefaultAsync(s => s.Id == entity.SiteId.Value, cancellationToken)
+            : null;
+
+        return ToSitePolicyConfigDto(entity);
+    }
+
+    public async Task<List<SetupConfigAuditDto>> GetSetupConfigAuditAsync(CancellationToken cancellationToken = default) =>
+        await db.SetupConfigAudits
+            .AsNoTracking()
+            .OrderByDescending(a => a.ChangedUtc)
+            .ThenByDescending(a => a.Id)
+            .Select(a => new SetupConfigAuditDto(
+                a.Id,
+                a.ConfigType,
+                a.ConfigKey,
+                a.Action,
+                a.ChangedByEmpNo,
+                a.ChangedUtc,
+                a.PreviousValue,
+                a.NewValue,
+                a.CorrelationId))
+            .ToListAsync(cancellationToken);
+
     private async Task ValidateRoleAsync(AppRoleUpsertDto dto, int? existingId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dto.RoleName))
@@ -828,6 +970,54 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             if (!knownItemType)
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"Unknown ItemType '{normalizedItemType}'.");
         }
+    }
+
+    private async Task ValidateFeatureFlagUpdateAsync(FeatureFlagConfig existing, FeatureFlagConfigUpsertDto dto, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.DisplayName))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "DisplayName is required.");
+        if (string.IsNullOrWhiteSpace(dto.ReasonCode))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ReasonCode is required.");
+        if (dto.EffectiveFromUtc.HasValue && dto.EffectiveFromUtc.Value.Kind != DateTimeKind.Utc)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EffectiveFromUtc must be a UTC timestamp.");
+
+        if (dto.SiteId.HasValue)
+        {
+            var siteExists = await db.Sites.AnyAsync(s => s.Id == dto.SiteId.Value, cancellationToken);
+            if (!siteExists)
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid SiteId '{dto.SiteId.Value}'.");
+        }
+
+        var duplicate = await db.FeatureFlagConfigs.AnyAsync(
+            f => f.Id != existing.Id && f.FlagKey == existing.FlagKey && f.SiteId == dto.SiteId,
+            cancellationToken);
+        if (duplicate)
+            throw new ServiceException(StatusCodes.Status409Conflict, "Another feature flag with the same key and scope already exists.");
+    }
+
+    private async Task ValidateSitePolicyUpdateAsync(SitePolicyConfig existing, SitePolicyConfigUpsertDto dto, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.DisplayName))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "DisplayName is required.");
+        if (string.IsNullOrWhiteSpace(dto.PolicyValue))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "PolicyValue is required.");
+        if (string.IsNullOrWhiteSpace(dto.ReasonCode))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ReasonCode is required.");
+        if (dto.EffectiveFromUtc.HasValue && dto.EffectiveFromUtc.Value.Kind != DateTimeKind.Utc)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EffectiveFromUtc must be a UTC timestamp.");
+
+        if (dto.SiteId.HasValue)
+        {
+            var siteExists = await db.Sites.AnyAsync(s => s.Id == dto.SiteId.Value, cancellationToken);
+            if (!siteExists)
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid SiteId '{dto.SiteId.Value}'.");
+        }
+
+        var duplicate = await db.SitePolicyConfigs.AnyAsync(
+            p => p.Id != existing.Id && p.PolicyKey == existing.PolicyKey && p.SiteId == dto.SiteId,
+            cancellationToken);
+        if (duplicate)
+            throw new ServiceException(StatusCodes.Status409Conflict, "Another site policy with the same key and scope already exists.");
     }
 
     private async Task EnsureNoAssignmentOverlapAsync(RouteTemplateAssignmentUpsertDto dto, int? existingId, CancellationToken cancellationToken)
@@ -1062,6 +1252,50 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             assignment.EffectiveToUtc,
             assignment.CreatedUtc,
             assignment.UpdatedUtc);
+
+    private static FeatureFlagConfigDto ToFeatureFlagConfigDto(FeatureFlagConfig featureFlag) =>
+        new(
+            featureFlag.Id,
+            featureFlag.FlagKey,
+            featureFlag.DisplayName,
+            featureFlag.Category,
+            featureFlag.SiteId,
+            featureFlag.Site?.Name,
+            featureFlag.CurrentValue,
+            featureFlag.EffectiveFromUtc,
+            featureFlag.LastChangedUtc,
+            featureFlag.LastChangedByEmpNo,
+            ResolveConfigStatus(featureFlag.EffectiveFromUtc));
+
+    private static SitePolicyConfigDto ToSitePolicyConfigDto(SitePolicyConfig policy) =>
+        new(
+            policy.Id,
+            policy.PolicyKey,
+            policy.DisplayName,
+            policy.Category,
+            policy.SiteId,
+            policy.Site?.Name,
+            policy.PolicyValue,
+            policy.EffectiveFromUtc,
+            policy.LastChangedUtc,
+            policy.LastChangedByEmpNo,
+            ResolveConfigStatus(policy.EffectiveFromUtc));
+
+    private string ResolveActorEmpNo() =>
+        _auditContextAccessor?.Current?.ActorEmpNo?.Trim() is { Length: > 0 } actor ? actor : "system";
+
+    private string ResolveCorrelationId() =>
+        _auditContextAccessor?.Current?.CorrelationId?.Trim() is { Length: > 0 } correlationId
+            ? correlationId
+            : Guid.NewGuid().ToString("N");
+
+    private static string ResolveConfigStatus(DateTime? effectiveFromUtc)
+    {
+        if (!effectiveFromUtc.HasValue)
+            return "Active";
+
+        return effectiveFromUtc.Value > DateTime.UtcNow ? "Scheduled" : "Active";
+    }
 
     private static string? MatchTierLabel(int? tier) => tier switch
     {

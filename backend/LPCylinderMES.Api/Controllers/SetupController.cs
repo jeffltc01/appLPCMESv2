@@ -386,4 +386,51 @@ public class SetupController(ISetupRoutingService setupRoutingService) : Control
             return this.ToActionResult(ex);
         }
     }
+
+    [HttpGet("feature-flags")]
+    public async Task<ActionResult<List<FeatureFlagConfigDto>>> GetFeatureFlags(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetFeatureFlagsAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpPut("feature-flags/{id:int}")]
+    public async Task<ActionResult<FeatureFlagConfigDto>> UpdateFeatureFlag(int id, FeatureFlagConfigUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateFeatureFlagAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("site-policies")]
+    public async Task<ActionResult<List<SitePolicyConfigDto>>> GetSitePolicies(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetSitePoliciesAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpPut("site-policies/{id:int}")]
+    public async Task<ActionResult<SitePolicyConfigDto>> UpdateSitePolicy(int id, SitePolicyConfigUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateSitePolicyAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("config-audit")]
+    public async Task<ActionResult<List<SetupConfigAuditDto>>> GetConfigAudit(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetSetupConfigAuditAsync(cancellationToken);
+        return Ok(items);
+    }
 }

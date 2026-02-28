@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environment": {
+      "value": "test"
+    },
+    "appName": {
+      "value": "lpcmesv2"
+    },
+    "appServicePlanName": {
+      "value": "asp-lpcmesv2-test"
+    },
+    "backendWebAppName": {
+      "value": "app-lpcmesv2-api-test"
+    },
+    "appInsightsName": {
+      "value": "appi-lpcmesv2-test"
+    },
+    "keyVaultName": {
+      "value": "kv-lpcmesv2-test"
+    },
+    "staticWebAppName": {
+      "value": "swa-lpcmesv2-test"
+    },
+    "staticWebAppLocation": {
+      "value": "eastus2"
+    },
+    "appServicePlanSku": {
+      "value": "B1"
+    }
+  }
+}

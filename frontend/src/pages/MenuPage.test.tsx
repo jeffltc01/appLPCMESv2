@@ -240,6 +240,21 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/order-audit-log");
   });
 
+  it("opens admin maintenance menu and navigates to feature flags and site policies setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Feature Flags & Site Policies$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/feature-flags-policies");
+  });
+
   it("calculates and renders metrics from loaded orders", async () => {
     render(
       <MemoryRouter>
