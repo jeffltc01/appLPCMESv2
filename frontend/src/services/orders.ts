@@ -28,6 +28,8 @@ import type {
   ClassifyPromiseMissRequest,
   RecordPromiseNotificationRequest,
   OrderPromiseChangeEvent,
+  OrderFieldAudit,
+  OrderAuditTrailParams,
   OrderLifecycleMigrationResult,
   OrderKpiSummary,
   OrderKpiDiagnostics,
@@ -316,6 +318,39 @@ export const ordersApi = {
 
   promiseHistory: (id: number) =>
     api.get<OrderPromiseChangeEvent[]>(`/orders/${id}/promise-history`),
+
+  orderAuditTrail: (id: number, params: Omit<OrderAuditTrailParams, "orderId"> = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.pageSize) qs.set("pageSize", String(params.pageSize));
+    if (params.search) qs.set("search", params.search);
+    if (params.entityName) qs.set("entityName", params.entityName);
+    if (params.fieldName) qs.set("fieldName", params.fieldName);
+    if (params.actorEmpNo) qs.set("actorEmpNo", params.actorEmpNo);
+    if (params.fromUtc) qs.set("fromUtc", params.fromUtc);
+    if (params.toUtc) qs.set("toUtc", params.toUtc);
+    const query = qs.toString();
+    return api.get<PaginatedResponse<OrderFieldAudit>>(
+      `/orders/${id}/audit-trail${query ? `?${query}` : ""}`
+    );
+  },
+
+  globalAuditTrail: (params: OrderAuditTrailParams = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.pageSize) qs.set("pageSize", String(params.pageSize));
+    if (params.search) qs.set("search", params.search);
+    if (params.orderId) qs.set("orderId", String(params.orderId));
+    if (params.entityName) qs.set("entityName", params.entityName);
+    if (params.fieldName) qs.set("fieldName", params.fieldName);
+    if (params.actorEmpNo) qs.set("actorEmpNo", params.actorEmpNo);
+    if (params.fromUtc) qs.set("fromUtc", params.fromUtc);
+    if (params.toUtc) qs.set("toUtc", params.toUtc);
+    const query = qs.toString();
+    return api.get<PaginatedResponse<OrderFieldAudit>>(
+      `/orders/audit-trail${query ? `?${query}` : ""}`
+    );
+  },
 
   migrateLifecycleStatuses: (
     dryRun: boolean,

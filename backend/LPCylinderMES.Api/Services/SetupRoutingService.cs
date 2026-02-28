@@ -135,6 +135,7 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             EmpNo = NormalizeNullable(dto.EmpNo),
             DisplayName = dto.DisplayName.Trim(),
             Email = NormalizeNullable(dto.Email),
+            OperatorPasswordHash = ResolveOperatorPasswordHash(dto, null),
             DefaultSiteId = dto.DefaultSiteId,
             State = dto.State.Trim(),
             IsActive = dto.IsActive,
@@ -169,6 +170,7 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
         user.EmpNo = NormalizeNullable(dto.EmpNo);
         user.DisplayName = dto.DisplayName.Trim();
         user.Email = NormalizeNullable(dto.Email);
+        user.OperatorPasswordHash = ResolveOperatorPasswordHash(dto, user.OperatorPasswordHash);
         user.DefaultSiteId = dto.DefaultSiteId;
         user.State = dto.State.Trim();
         user.IsActive = dto.IsActive;
@@ -629,9 +631,17 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
         if (dto.Roles is null)
             throw new ServiceException(StatusCodes.Status400BadRequest, "Roles is required.");
 
+        if (!string.IsNullOrWhiteSpace(dto.OperatorPassword) && dto.ClearOperatorPassword)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "OperatorPassword and ClearOperatorPassword cannot both be set.");
+        if (!string.IsNullOrWhiteSpace(dto.OperatorPassword) && dto.OperatorPassword.Trim().Length < 4)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "OperatorPassword must be at least 4 characters when provided.");
+
         var normalizedEmpNo = NormalizeNullable(dto.EmpNo);
         if (!string.IsNullOrWhiteSpace(normalizedEmpNo))
         {
+            if (normalizedEmpNo.Length > 20 || normalizedEmpNo.Any(ch => !char.IsLetterOrDigit(ch)))
+                throw new ServiceException(StatusCodes.Status400BadRequest, "EmpNo must be 1-20 alphanumeric characters.");
+
             var duplicateEmpNo = await db.AppUsers.AnyAsync(
                 u => u.EmpNo == normalizedEmpNo && (!existingId.HasValue || u.Id != existingId.Value),
                 cancellationToken);
@@ -901,6 +911,7 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             user.EmpNo,
             user.DisplayName,
             user.Email,
+            !string.IsNullOrWhiteSpace(user.OperatorPasswordHash),
             user.DefaultSiteId,
             user.State,
             user.IsActive,
@@ -911,6 +922,21 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
                 .ThenBy(ur => ur.SiteId)
                 .Select(ur => new AppUserRoleAssignmentDto(ur.RoleId, ur.Role.RoleName, ur.SiteId))
                 .ToList());
+
+    private static string? ResolveOperatorPasswordHash(AppUserUpsertDto dto, string? currentHash)
+    {
+        if (dto.ClearOperatorPassword)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.OperatorPassword))
+        {
+            return OperatorPasswordHasher.Hash(dto.OperatorPassword.Trim());
+        }
+
+        return currentHash;
+    }
 
     private static ProductionLineDto ToProductionLineDto(ProductionLine productionLine) =>
         new(

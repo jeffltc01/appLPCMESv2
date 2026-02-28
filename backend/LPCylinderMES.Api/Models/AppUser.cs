@@ -6,6 +6,7 @@ public partial class AppUser
     public string? EmpNo { get; set; }
     public string DisplayName { get; set; } = null!;
     public string? Email { get; set; }
+    public string? OperatorPasswordHash { get; set; }
     public int? DefaultSiteId { get; set; }
     public string State { get; set; } = "Active";
     public bool IsActive { get; set; } = true;

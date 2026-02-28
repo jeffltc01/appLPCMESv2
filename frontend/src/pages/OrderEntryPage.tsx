@@ -52,6 +52,7 @@ import type {
   HoldOverlayType,
   OrderAttachment,
   OrderDraftDetail,
+  OrderFieldAudit,
   OrderLine,
   OrderWorkflowStatus,
 } from "../types/order";
@@ -68,6 +69,7 @@ const ATTACHMENT_CATEGORIES = [
   "CustomerDocument",
   "Other",
 ];
+const ORDER_AUDIT_PAGE_SIZE = 25;
 const INVOICE_MUTABLE_LINE_STATUSES = new Set<OrderWorkflowStatus>([
   "Ready to Invoice",
   "DispatchedOrPickupReleased",
@@ -571,6 +573,24 @@ const useStyles = makeStyles({
   footerAction: {
     minHeight: "34px",
   },
+  auditFilterGrid: {
+    display: "grid",
+    gridTemplateColumns:
+      "minmax(180px, 1.4fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr)",
+    gap: "8px",
+    marginBottom: "10px",
+  },
+  auditPagerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "10px",
+    gap: "8px",
+  },
+  auditPagerButtons: {
+    display: "flex",
+    gap: "8px",
+  },
 });
 
 export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
@@ -605,6 +625,17 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedAttachmentCategory, setSelectedAttachmentCategory] = useState("Other");
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [orderAuditRows, setOrderAuditRows] = useState<OrderFieldAudit[]>([]);
+  const [isLoadingOrderAudit, setIsLoadingOrderAudit] = useState(false);
+  const [orderAuditError, setOrderAuditError] = useState<string | null>(null);
+  const [orderAuditPage, setOrderAuditPage] = useState(1);
+  const [orderAuditTotalCount, setOrderAuditTotalCount] = useState(0);
+  const [orderAuditSearch, setOrderAuditSearch] = useState("");
+  const [orderAuditEntityName, setOrderAuditEntityName] = useState("all");
+  const [orderAuditFieldName, setOrderAuditFieldName] = useState("");
+  const [orderAuditActorEmpNo, setOrderAuditActorEmpNo] = useState("");
+  const [orderAuditFromDate, setOrderAuditFromDate] = useState("");
+  const [orderAuditToDate, setOrderAuditToDate] = useState("");
   const [lineDialogOpen, setLineDialogOpen] = useState(false);
   const [editingLine, setEditingLine] = useState<OrderLine | null>(null);
   const [invoiceWizardOpen, setInvoiceWizardOpen] = useState(false);
@@ -741,6 +772,37 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
     setOverlayReasonOptions(rows);
   };
 
+  const refreshOrderAuditTrail = async (id: number, page = 1) => {
+    setIsLoadingOrderAudit(true);
+    setOrderAuditError(null);
+    try {
+      const response = await ordersApi.orderAuditTrail(id, {
+        page,
+        pageSize: ORDER_AUDIT_PAGE_SIZE,
+        search: orderAuditSearch.trim() || undefined,
+        entityName: orderAuditEntityName === "all" ? undefined : orderAuditEntityName,
+        fieldName: orderAuditFieldName.trim() || undefined,
+        actorEmpNo: orderAuditActorEmpNo.trim() || undefined,
+        fromUtc: orderAuditFromDate
+          ? new Date(`${orderAuditFromDate}T00:00:00.000Z`).toISOString()
+          : undefined,
+        toUtc: orderAuditToDate
+          ? new Date(`${orderAuditToDate}T23:59:59.999Z`).toISOString()
+          : undefined,
+      });
+      setOrderAuditRows(response.items);
+      setOrderAuditPage(response.page);
+      setOrderAuditTotalCount(response.totalCount);
+    } catch {
+      setOrderAuditError("Unable to load order audit history.");
+      setOrderAuditRows([]);
+      setOrderAuditPage(1);
+      setOrderAuditTotalCount(0);
+    } finally {
+      setIsLoadingOrderAudit(false);
+    }
+  };
+
   useEffect(() => {
     void Promise.all([
       orderLookupsApi.activeCustomers(),
@@ -792,6 +854,10 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       setStatusReasonCode(null);
       setStatusNote(null);
       setAttachments([]);
+      setOrderAuditRows([]);
+      setOrderAuditError(null);
+      setOrderAuditPage(1);
+      setOrderAuditTotalCount(0);
       setCustomerQuery("");
       return;
     }
@@ -803,7 +869,11 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
 
     setIsLoading(true);
     setLoadError(null);
-    void Promise.all([refreshOrder(parsedOrderId), refreshAttachments(parsedOrderId)])
+    void Promise.all([
+      refreshOrder(parsedOrderId),
+      refreshAttachments(parsedOrderId),
+      refreshOrderAuditTrail(parsedOrderId),
+    ])
       .catch(() => {
         setLoadError("Failed to load order.");
       })
@@ -911,6 +981,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
         setOrder(created);
         updateFormFromOrder(created);
         await refreshAttachments(created.id);
+        await refreshOrderAuditTrail(created.id, 1);
         navigate(`/orders/${created.id}`, { replace: true });
       } else {
         const updated = await ordersApi.update(order.id, {
@@ -936,6 +1007,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
         });
         setOrder(updated);
         updateFormFromOrder(updated);
+        await refreshOrderAuditTrail(updated.id, 1);
       }
     } catch {
       setError("Failed to save order.");
@@ -965,6 +1037,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       });
       setOrder(updated);
       updateFormFromOrder(updated);
+      await refreshOrderAuditTrail(order.id, 1);
     } catch {
       setError("Unable to advance status.");
     } finally {
@@ -985,6 +1058,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       setStatusReasonCode(updated.statusReasonCode ?? payload.reasonCode);
       setStatusOwnerRole(updated.statusOwnerRole ?? payload.actingRole);
       setStatusNote(updated.statusNote ?? payload.note ?? null);
+      await refreshOrderAuditTrail(order.id, 1);
     } catch {
       setError("Unable to apply hold overlay.");
     } finally {
@@ -1040,6 +1114,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       setStatusReasonCode(updated.statusReasonCode ?? null);
       setStatusOwnerRole(updated.statusOwnerRole ?? payload.actingRole);
       setStatusNote(updated.statusNote ?? null);
+      await refreshOrderAuditTrail(order.id, 1);
     } catch {
       setError("Unable to clear hold overlay.");
     } finally {
@@ -1199,12 +1274,25 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       });
       setInvoiceWizardOpen(false);
       await Promise.all([refreshOrder(order.id), refreshAttachments(order.id)]);
+      await refreshOrderAuditTrail(order.id, 1);
     } catch {
       setInvoiceWizardError(
         "Invoice submission failed. The order remains in queue. Please retry and check integration diagnostics."
       );
     } finally {
       setIsSubmittingInvoice(false);
+    }
+  };
+
+  const resetOrderAuditFilters = () => {
+    setOrderAuditSearch("");
+    setOrderAuditEntityName("all");
+    setOrderAuditFieldName("");
+    setOrderAuditActorEmpNo("");
+    setOrderAuditFromDate("");
+    setOrderAuditToDate("");
+    if (order?.id) {
+      void refreshOrderAuditTrail(order.id, 1);
     }
   };
 
@@ -1731,6 +1819,147 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                     order ? ordersApi.attachmentDownloadUrl(order.id, attachmentId) : "#"
                   }
                 />
+              </Card>
+              <Card className={styles.card}>
+                <div className={styles.cardTitle}>Order Audit Trail</div>
+                <div className={styles.auditFilterGrid}>
+                  <Field label="Search">
+                    <Input
+                      value={orderAuditSearch}
+                      onChange={(_, data) => setOrderAuditSearch(data.value)}
+                      placeholder="Field, value, actor"
+                    />
+                  </Field>
+                  <Field label="Entity">
+                    <Select
+                      value={orderAuditEntityName}
+                      onChange={(event) => setOrderAuditEntityName(event.target.value)}
+                    >
+                      <option value="all">All</option>
+                      <option value="SalesOrder">SalesOrder</option>
+                      <option value="SalesOrderDetail">SalesOrderDetail</option>
+                    </Select>
+                  </Field>
+                  <Field label="Field">
+                    <Input
+                      value={orderAuditFieldName}
+                      onChange={(_, data) => setOrderAuditFieldName(data.value)}
+                    />
+                  </Field>
+                  <Field label="Actor EmpNo">
+                    <Input
+                      value={orderAuditActorEmpNo}
+                      onChange={(_, data) => setOrderAuditActorEmpNo(data.value)}
+                    />
+                  </Field>
+                  <Field label="From Date">
+                    <Input
+                      type="date"
+                      value={orderAuditFromDate}
+                      onChange={(_, data) => setOrderAuditFromDate(data.value)}
+                    />
+                  </Field>
+                  <Field label="To Date">
+                    <Input
+                      type="date"
+                      value={orderAuditToDate}
+                      onChange={(_, data) => setOrderAuditToDate(data.value)}
+                    />
+                  </Field>
+                </div>
+                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                  <Button
+                    appearance="primary"
+                    disabled={!order?.id || isLoadingOrderAudit}
+                    onClick={() => order?.id && void refreshOrderAuditTrail(order.id, 1)}
+                  >
+                    Apply
+                  </Button>
+                  <Button
+                    appearance="secondary"
+                    disabled={!order?.id || isLoadingOrderAudit}
+                    onClick={resetOrderAuditFilters}
+                  >
+                    Reset
+                  </Button>
+                </div>
+                {isLoadingOrderAudit ? <Body1>Loading audit history...</Body1> : null}
+                {orderAuditError ? <Body1>{orderAuditError}</Body1> : null}
+                {!isLoadingOrderAudit && !orderAuditError ? (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHeaderCell>UTC</TableHeaderCell>
+                          <TableHeaderCell>Entity</TableHeaderCell>
+                          <TableHeaderCell>Field</TableHeaderCell>
+                          <TableHeaderCell>Old</TableHeaderCell>
+                          <TableHeaderCell>New</TableHeaderCell>
+                          <TableHeaderCell>Actor</TableHeaderCell>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orderAuditRows.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.occurredUtc}</TableCell>
+                            <TableCell>{row.entityName}</TableCell>
+                            <TableCell>{row.fieldName}</TableCell>
+                            <TableCell>{row.oldValue ?? "-"}</TableCell>
+                            <TableCell>{row.newValue ?? "-"}</TableCell>
+                            <TableCell>{row.actorEmpNo ?? "-"}</TableCell>
+                          </TableRow>
+                        ))}
+                        {orderAuditRows.length === 0 ? (
+                          <TableRow>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>No changes captured yet.</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                            <TableCell>-</TableCell>
+                          </TableRow>
+                        ) : null}
+                      </TableBody>
+                    </Table>
+                    <div className={styles.auditPagerRow}>
+                      <Body1>
+                        Page {orderAuditPage} of{" "}
+                        {Math.max(1, Math.ceil(orderAuditTotalCount / ORDER_AUDIT_PAGE_SIZE))} (
+                        {orderAuditTotalCount} rows)
+                      </Body1>
+                      <div className={styles.auditPagerButtons}>
+                        <Button
+                          appearance="secondary"
+                          disabled={orderAuditPage <= 1 || !order?.id || isLoadingOrderAudit}
+                          onClick={() =>
+                            order?.id &&
+                            void refreshOrderAuditTrail(order.id, orderAuditPage - 1)
+                          }
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          appearance="secondary"
+                          disabled={
+                            orderAuditPage >=
+                              Math.max(
+                                1,
+                                Math.ceil(orderAuditTotalCount / ORDER_AUDIT_PAGE_SIZE)
+                              ) ||
+                            !order?.id ||
+                            isLoadingOrderAudit
+                          }
+                          onClick={() =>
+                            order?.id &&
+                            void refreshOrderAuditTrail(order.id, orderAuditPage + 1)
+                          }
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
               </Card>
             </div>
           </div>

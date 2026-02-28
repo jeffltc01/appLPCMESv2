@@ -42,6 +42,7 @@ export interface AppUser {
   empNo: string | null;
   displayName: string;
   email: string | null;
+  hasOperatorPassword: boolean;
   defaultSiteId: number | null;
   state: "Active" | "Inactive" | "Locked";
   isActive: boolean;
@@ -54,6 +55,8 @@ export interface AppUserUpsert {
   empNo?: string | null;
   displayName: string;
   email?: string | null;
+  operatorPassword?: string | null;
+  clearOperatorPassword: boolean;
   defaultSiteId?: number | null;
   state: "Active" | "Inactive" | "Locked";
   isActive: boolean;

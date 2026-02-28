@@ -1,15 +1,22 @@
 using System;
 using System.Collections.Generic;
 using LPCylinderMES.Api.Models;
+using LPCylinderMES.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Data;
 
 public partial class LpcAppsDbContext : DbContext
 {
-    public LpcAppsDbContext(DbContextOptions<LpcAppsDbContext> options)
+    private readonly IOrderAuditContextAccessor? _orderAuditContextAccessor;
+    private bool _isPersistingAuditRows;
+
+    public LpcAppsDbContext(
+        DbContextOptions<LpcAppsDbContext> options,
+        IOrderAuditContextAccessor? orderAuditContextAccessor = null)
         : base(options)
     {
+        _orderAuditContextAccessor = orderAuditContextAccessor;
     }
 
     public virtual DbSet<Address> Addresses { get; set; }
@@ -32,6 +39,7 @@ public partial class LpcAppsDbContext : DbContext
 
     public virtual DbSet<OrderAttachment> OrderAttachments { get; set; }
     public virtual DbSet<OrderAttachmentAudit> OrderAttachmentAudits { get; set; }
+    public virtual DbSet<OrderFieldAudit> OrderFieldAudits { get; set; }
     public virtual DbSet<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; }
     public virtual DbSet<OrderLifecycleEvent> OrderLifecycleEvents { get; set; }
     public virtual DbSet<OrderLifecycleMigrationAudit> OrderLifecycleMigrationAudits { get; set; }
@@ -428,6 +436,65 @@ public partial class LpcAppsDbContext : DbContext
                 .HasForeignKey(d => d.AttachmentId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("FK_order_attachment_audits_order_attachments");
+        });
+
+        modelBuilder.Entity<OrderFieldAudit>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK_order_field_audits");
+
+            entity.ToTable("order_field_audits");
+
+            entity.HasIndex(e => e.OrderId, "ix_order_field_audits_order_id");
+            entity.HasIndex(e => e.OccurredUtc, "ix_order_field_audits_occurred_utc");
+            entity.HasIndex(e => new { e.OrderId, e.EntityName, e.EntityId }, "ix_order_field_audits_order_entity");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.EntityName)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("entity_name");
+            entity.Property(e => e.EntityId).HasColumnName("entity_id");
+            entity.Property(e => e.FieldName)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasColumnName("field_name");
+            entity.Property(e => e.OldValue)
+                .HasMaxLength(4000)
+                .IsUnicode(false)
+                .HasColumnName("old_value");
+            entity.Property(e => e.NewValue)
+                .HasMaxLength(4000)
+                .IsUnicode(false)
+                .HasColumnName("new_value");
+            entity.Property(e => e.ActionType)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasColumnName("action_type");
+            entity.Property(e => e.ActorEmpNo)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("actor_emp_no");
+            entity.Property(e => e.ActorRole)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("actor_role");
+            entity.Property(e => e.Source)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasColumnName("source");
+            entity.Property(e => e.CorrelationId)
+                .HasMaxLength(120)
+                .IsUnicode(false)
+                .HasColumnName("correlation_id");
+            entity.Property(e => e.OccurredUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("occurred_utc");
+
+            entity.HasOne(d => d.Order).WithMany(p => p.OrderFieldAudits)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_order_field_audits_sales_orders");
         });
 
         modelBuilder.Entity<OrderInvoiceSubmissionAudit>(entity =>

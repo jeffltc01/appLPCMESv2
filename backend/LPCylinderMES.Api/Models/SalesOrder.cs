@@ -222,6 +222,7 @@ public partial class SalesOrder
     public virtual ICollection<SalesOrderDetail> SalesOrderDetails { get; set; } = new List<SalesOrderDetail>();
     public virtual ICollection<OrderAttachment> OrderAttachments { get; set; } = new List<OrderAttachment>();
     public virtual ICollection<OrderAttachmentAudit> OrderAttachmentAudits { get; set; } = new List<OrderAttachmentAudit>();
+    public virtual ICollection<OrderFieldAudit> OrderFieldAudits { get; set; } = new List<OrderFieldAudit>();
     public virtual ICollection<OrderInvoiceSubmissionAudit> OrderInvoiceSubmissionAudits { get; set; } = new List<OrderInvoiceSubmissionAudit>();
     public virtual ICollection<OrderLifecycleEvent> OrderLifecycleEvents { get; set; } = new List<OrderLifecycleEvent>();
     public virtual ICollection<OrderLifecycleMigrationAudit> OrderLifecycleMigrationAudits { get; set; } = new List<OrderLifecycleMigrationAudit>();

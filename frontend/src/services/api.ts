@@ -1,4 +1,7 @@
 const API_BASE = "/api";
+let authToken: string | null = null;
+let auditActorEmpNo = "EMP001";
+let auditActorRole = "Office";
 
 export class ApiError extends Error {
   status: number;
@@ -14,8 +17,19 @@ export class ApiError extends Error {
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+  if (auditActorEmpNo) {
+    headers["X-Actor-EmpNo"] = auditActorEmpNo;
+  }
+  if (auditActorRole) {
+    headers["X-Actor-Role"] = auditActorRole;
+  }
+
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
   if (!res.ok) {
@@ -29,6 +43,15 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return res.json();
+}
+
+export function setApiAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export function setApiAuditActor(empNo: string | null, role: string | null) {
+  auditActorEmpNo = empNo?.trim() || "UNKNOWN";
+  auditActorRole = role?.trim() || "Unknown";
 }
 
 export const api = {

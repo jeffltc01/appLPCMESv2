@@ -105,6 +105,9 @@ interface UserFormState {
   empNo: string;
   displayName: string;
   email: string;
+  operatorPassword: string;
+  clearOperatorPassword: boolean;
+  hasOperatorPassword: boolean;
   defaultSiteId: string;
   state: UserState;
   isActive: boolean;
@@ -121,6 +124,9 @@ const EMPTY_USER_FORM: UserFormState = {
   empNo: "",
   displayName: "",
   email: "",
+  operatorPassword: "",
+  clearOperatorPassword: false,
+  hasOperatorPassword: false,
   defaultSiteId: "",
   state: "Active",
   isActive: true,
@@ -254,6 +260,9 @@ export function UsersRolesSetupPage() {
       empNo: user.empNo ?? "",
       displayName: user.displayName,
       email: user.email ?? "",
+      operatorPassword: "",
+      clearOperatorPassword: false,
+      hasOperatorPassword: user.hasOperatorPassword,
       defaultSiteId: user.defaultSiteId ? String(user.defaultSiteId) : "",
       state: user.state,
       isActive: user.isActive,
@@ -316,6 +325,8 @@ export function UsersRolesSetupPage() {
         empNo: userForm.empNo.trim() || null,
         displayName: userForm.displayName.trim(),
         email: userForm.email.trim() || null,
+        operatorPassword: userForm.operatorPassword.trim() || null,
+        clearOperatorPassword: userForm.clearOperatorPassword,
         defaultSiteId: userForm.defaultSiteId ? Number(userForm.defaultSiteId) : null,
         state: userForm.state,
         isActive: userForm.isActive,
@@ -532,6 +543,17 @@ export function UsersRolesSetupPage() {
                       onChange={(_, d) => setUserForm((prev) => ({ ...prev, email: d.value }))}
                     />
                   </Field>
+                  <Field label="Operator Password (optional)">
+                    <Input
+                      type="password"
+                      value={userForm.operatorPassword}
+                      onChange={(_, d) =>
+                        setUserForm((prev) => ({ ...prev, operatorPassword: d.value }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
                   <Field label="Default Site">
                     <Dropdown
                       value={
@@ -551,6 +573,19 @@ export function UsersRolesSetupPage() {
                         </Option>
                       ))}
                     </Dropdown>
+                  </Field>
+                  <Field label="Operator Password Status">
+                    <Checkbox
+                      label={`Password currently set: ${userForm.hasOperatorPassword ? "Yes" : "No"}`}
+                      checked={userForm.clearOperatorPassword}
+                      disabled={!userForm.hasOperatorPassword}
+                      onChange={(_, d) =>
+                        setUserForm((prev) => ({
+                          ...prev,
+                          clearOperatorPassword: Boolean(d.checked),
+                        }))
+                      }
+                    />
                   </Field>
                 </div>
                 <div className={styles.formRow}>

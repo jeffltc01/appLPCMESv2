@@ -8,6 +8,7 @@ public partial class LpcAppsDbContext
     public virtual DbSet<AppUser> AppUsers { get; set; }
     public virtual DbSet<AppRole> AppRoles { get; set; }
     public virtual DbSet<AppUserRole> AppUserRoles { get; set; }
+    public virtual DbSet<AppAuthSession> AppAuthSessions { get; set; }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
@@ -18,6 +19,7 @@ public partial class LpcAppsDbContext
             entity.Property(e => e.EmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("emp_no");
             entity.Property(e => e.DisplayName).HasMaxLength(120).IsUnicode(false).HasColumnName("display_name");
             entity.Property(e => e.Email).HasMaxLength(255).IsUnicode(false).HasColumnName("email");
+            entity.Property(e => e.OperatorPasswordHash).HasMaxLength(500).IsUnicode(false).HasColumnName("operator_password_hash");
             entity.Property(e => e.DefaultSiteId).HasColumnName("default_site_id");
             entity.Property(e => e.State).HasMaxLength(20).IsUnicode(false).HasColumnName("state");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
@@ -54,6 +56,26 @@ public partial class LpcAppsDbContext
             entity.HasOne(e => e.User).WithMany(u => u.UserRoles).HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Role).WithMany(r => r.UserRoles).HasForeignKey(e => e.RoleId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Site).WithMany().HasForeignKey(e => e.SiteId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AppAuthSession>(entity =>
+        {
+            entity.ToTable("app_auth_sessions");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.TokenHash).HasMaxLength(128).IsUnicode(false).HasColumnName("token_hash");
+            entity.Property(e => e.AuthMethod).HasMaxLength(30).IsUnicode(false).HasColumnName("auth_method");
+            entity.Property(e => e.SiteId).HasColumnName("site_id");
+            entity.Property(e => e.WorkCenterId).HasColumnName("work_center_id");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.ExpiresUtc).HasColumnType("datetime").HasColumnName("expires_utc");
+            entity.Property(e => e.RevokedUtc).HasColumnType("datetime").HasColumnName("revoked_utc");
+            entity.HasIndex(e => e.TokenHash).IsUnique();
+            entity.HasIndex(e => e.ExpiresUtc);
+
+            entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Site).WithMany().HasForeignKey(e => e.SiteId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.WorkCenter).WithMany().HasForeignKey(e => e.WorkCenterId).OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

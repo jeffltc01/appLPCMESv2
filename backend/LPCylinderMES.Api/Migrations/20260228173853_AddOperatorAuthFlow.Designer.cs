@@ -4,6 +4,7 @@ using LPCylinderMES.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LPCylinderMES.Api.Migrations
 {
     [DbContext(typeof(LpcAppsDbContext))]
-    partial class LpcAppsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260228173853_AddOperatorAuthFlow")]
+    partial class AddOperatorAuthFlow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -127,7 +130,7 @@ namespace LPCylinderMES.Api.Migrations
                         .HasColumnType("datetime")
                         .HasColumnName("revoked_utc");
 
-                    b.Property<int?>("SiteId")
+                    b.Property<int>("SiteId")
                         .HasColumnType("int")
                         .HasColumnName("site_id");
 
@@ -142,7 +145,7 @@ namespace LPCylinderMES.Api.Migrations
                         .HasColumnType("int")
                         .HasColumnName("user_id");
 
-                    b.Property<int?>("WorkCenterId")
+                    b.Property<int>("WorkCenterId")
                         .HasColumnType("int")
                         .HasColumnName("work_center_id");
 
@@ -3577,7 +3580,7 @@ namespace LPCylinderMES.Api.Migrations
                     b.HasOne("LPCylinderMES.Api.Models.Site", "Site")
                         .WithMany()
                         .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .IsRequired();
 
                     b.HasOne("LPCylinderMES.Api.Models.AppUser", "User")
                         .WithMany()
@@ -3588,7 +3591,7 @@ namespace LPCylinderMES.Api.Migrations
                     b.HasOne("LPCylinderMES.Api.Models.WorkCenter", "WorkCenter")
                         .WithMany()
                         .HasForeignKey("WorkCenterId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .IsRequired();
 
                     b.Navigation("Site");
 

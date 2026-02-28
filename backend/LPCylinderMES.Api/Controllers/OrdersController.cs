@@ -234,6 +234,163 @@ public class OrdersController(
         }
     }
 
+    [HttpGet("{id:int}/audit-trail")]
+    public async Task<ActionResult<PaginatedResponse<OrderFieldAuditDto>>> GetOrderAuditTrail(
+        int id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? entityName = null,
+        [FromQuery] string? fieldName = null,
+        [FromQuery] string? search = null,
+        [FromQuery] string? actorEmpNo = null,
+        [FromQuery] DateTime? fromUtc = null,
+        [FromQuery] DateTime? toUtc = null)
+    {
+        var order = await db.SalesOrders
+            .AsNoTracking()
+            .Where(o => o.Id == id)
+            .Select(o => new { o.Id, o.SalesOrderNo })
+            .FirstOrDefaultAsync();
+        if (order is null)
+        {
+            return NotFound();
+        }
+
+        var safePage = Math.Max(1, page);
+        var safePageSize = Math.Clamp(pageSize, 1, 200);
+        var query = db.OrderFieldAudits
+            .AsNoTracking()
+            .Where(a => a.OrderId == id);
+
+        if (!string.IsNullOrWhiteSpace(entityName))
+        {
+            var normalizedEntity = entityName.Trim();
+            query = query.Where(a => a.EntityName == normalizedEntity);
+        }
+
+        if (!string.IsNullOrWhiteSpace(fieldName))
+        {
+            var normalizedField = fieldName.Trim();
+            query = query.Where(a => a.FieldName == normalizedField);
+        }
+
+        if (!string.IsNullOrWhiteSpace(actorEmpNo))
+        {
+            var normalizedActor = actorEmpNo.Trim();
+            query = query.Where(a => a.ActorEmpNo != null && a.ActorEmpNo.Contains(normalizedActor));
+        }
+
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(a => a.OccurredUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(a => a.OccurredUtc <= toUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim();
+            query = query.Where(a =>
+                a.EntityName.Contains(normalizedSearch) ||
+                a.FieldName.Contains(normalizedSearch) ||
+                (a.OldValue != null && a.OldValue.Contains(normalizedSearch)) ||
+                (a.NewValue != null && a.NewValue.Contains(normalizedSearch)) ||
+                (a.ActorEmpNo != null && a.ActorEmpNo.Contains(normalizedSearch)));
+        }
+
+        var totalCount = await query.CountAsync();
+        var rows = await query
+            .OrderByDescending(a => a.OccurredUtc)
+            .ThenByDescending(a => a.Id)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .Select(a => ToOrderFieldAuditDto(a, order.SalesOrderNo))
+            .ToListAsync();
+
+        return Ok(new PaginatedResponse<OrderFieldAuditDto>(rows, totalCount, safePage, safePageSize));
+    }
+
+    [HttpGet("audit-trail")]
+    public async Task<ActionResult<PaginatedResponse<OrderFieldAuditDto>>> GetGlobalAuditTrail(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 100,
+        [FromQuery] string? search = null,
+        [FromQuery] int? orderId = null,
+        [FromQuery] string? entityName = null,
+        [FromQuery] string? fieldName = null,
+        [FromQuery] string? actorEmpNo = null,
+        [FromQuery] DateTime? fromUtc = null,
+        [FromQuery] DateTime? toUtc = null)
+    {
+        var safePage = Math.Max(1, page);
+        var safePageSize = Math.Clamp(pageSize, 1, 500);
+
+        var baseQuery =
+            from audit in db.OrderFieldAudits.AsNoTracking()
+            join order in db.SalesOrders.AsNoTracking()
+                on audit.OrderId equals order.Id
+            select new { Audit = audit, OrderNo = order.SalesOrderNo };
+
+        if (orderId.HasValue)
+        {
+            baseQuery = baseQuery.Where(row => row.Audit.OrderId == orderId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(entityName))
+        {
+            var normalizedEntity = entityName.Trim();
+            baseQuery = baseQuery.Where(row => row.Audit.EntityName == normalizedEntity);
+        }
+
+        if (!string.IsNullOrWhiteSpace(fieldName))
+        {
+            var normalizedField = fieldName.Trim();
+            baseQuery = baseQuery.Where(row => row.Audit.FieldName == normalizedField);
+        }
+
+        if (!string.IsNullOrWhiteSpace(actorEmpNo))
+        {
+            var normalizedActor = actorEmpNo.Trim();
+            baseQuery = baseQuery.Where(row => row.Audit.ActorEmpNo == normalizedActor);
+        }
+
+        if (fromUtc.HasValue)
+        {
+            baseQuery = baseQuery.Where(row => row.Audit.OccurredUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            baseQuery = baseQuery.Where(row => row.Audit.OccurredUtc <= toUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var normalizedSearch = search.Trim();
+            baseQuery = baseQuery.Where(row =>
+                row.OrderNo.Contains(normalizedSearch) ||
+                row.Audit.EntityName.Contains(normalizedSearch) ||
+                row.Audit.FieldName.Contains(normalizedSearch) ||
+                (row.Audit.OldValue != null && row.Audit.OldValue.Contains(normalizedSearch)) ||
+                (row.Audit.NewValue != null && row.Audit.NewValue.Contains(normalizedSearch)) ||
+                (row.Audit.ActorEmpNo != null && row.Audit.ActorEmpNo.Contains(normalizedSearch)));
+        }
+
+        var totalCount = await baseQuery.CountAsync();
+        var rows = await baseQuery
+            .OrderByDescending(row => row.Audit.OccurredUtc)
+            .ThenByDescending(row => row.Audit.Id)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .Select(row => ToOrderFieldAuditDto(row.Audit, row.OrderNo))
+            .ToListAsync();
+
+        return Ok(new PaginatedResponse<OrderFieldAuditDto>(rows, totalCount, safePage, safePageSize));
+    }
+
     [HttpGet("kpi-summary")]
     public async Task<ActionResult<OrderKpiSummaryDto>> GetKpiSummary(
         [FromQuery] DateTime? fromUtc = null,
@@ -966,6 +1123,25 @@ public class OrdersController(
         if (contact is null) return null;
         var fullName = $"{contact.FirstName} {contact.LastName}".Trim();
         return string.IsNullOrWhiteSpace(fullName) ? null : fullName;
+    }
+
+    private static OrderFieldAuditDto ToOrderFieldAuditDto(OrderFieldAudit audit, string salesOrderNo)
+    {
+        return new OrderFieldAuditDto(
+            audit.Id,
+            audit.OrderId,
+            salesOrderNo,
+            audit.EntityName,
+            audit.EntityId,
+            audit.FieldName,
+            audit.OldValue,
+            audit.NewValue,
+            audit.ActionType,
+            audit.ActorEmpNo,
+            audit.ActorRole,
+            audit.Source,
+            audit.CorrelationId,
+            audit.OccurredUtc);
     }
 }
 

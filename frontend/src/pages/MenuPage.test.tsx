@@ -225,6 +225,21 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/users-roles");
   });
 
+  it("opens admin maintenance menu and navigates to order audit log", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Order Audit Log$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/order-audit-log");
+  });
+
   it("calculates and renders metrics from loaded orders", async () => {
     render(
       <MemoryRouter>

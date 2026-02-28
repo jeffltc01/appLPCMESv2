@@ -43,6 +43,7 @@ describe("UsersRolesSetupPage", () => {
         empNo: "EMP001",
         displayName: "Alice Operator",
         email: "alice@example.com",
+        hasOperatorPassword: false,
         defaultSiteId: 10,
         state: "Active",
         isActive: true,

@@ -863,6 +863,35 @@ export interface OrderPromiseChangeEvent {
   missReasonCode?: string | null;
 }
 
+export interface OrderFieldAudit {
+  id: number;
+  orderId: number;
+  salesOrderNo: string;
+  entityName: "SalesOrder" | "SalesOrderDetail" | string;
+  entityId?: number | null;
+  fieldName: string;
+  oldValue?: string | null;
+  newValue?: string | null;
+  actionType: "Create" | "Update" | "Delete" | string;
+  actorEmpNo?: string | null;
+  actorRole?: string | null;
+  source?: string | null;
+  correlationId?: string | null;
+  occurredUtc: string;
+}
+
+export interface OrderAuditTrailParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  orderId?: number;
+  entityName?: string;
+  fieldName?: string;
+  actorEmpNo?: string;
+  fromUtc?: string;
+  toUtc?: string;
+}
+
 export interface OrderLifecycleMigrationResult {
   totalOrdersScanned: number;
   ordersAlreadyInitialized: number;

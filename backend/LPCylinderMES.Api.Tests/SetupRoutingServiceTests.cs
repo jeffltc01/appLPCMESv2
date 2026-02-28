@@ -257,6 +257,8 @@ public class SetupRoutingServiceTests
             "EMP100",
             "Test User",
             "test.user@example.com",
+            null,
+            false,
             1,
             "Active",
             true,

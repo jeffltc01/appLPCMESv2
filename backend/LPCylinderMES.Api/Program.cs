@@ -71,6 +71,10 @@ builder.Services.AddScoped<IWorkCenterWorkflowService, WorkCenterWorkflowService
 builder.Services.AddScoped<ISetupRoutingService, SetupRoutingService>();
 builder.Services.AddScoped<IOrderPolicyService, OrderPolicyService>();
 builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
+builder.Services.Configure<MicrosoftAuthOptions>(builder.Configuration.GetSection("MicrosoftAuth"));
+builder.Services.AddSingleton<IMicrosoftTokenValidator, MicrosoftTokenValidator>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IOrderAuditContextAccessor, OrderAuditContextAccessor>();
 builder.Services.Configure<HelpContentOptions>(builder.Configuration.GetSection("HelpContent"));
 builder.Services.AddSingleton<IHelpContentService, HelpContentService>();
 
@@ -101,6 +105,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<OrderAuditContextMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
