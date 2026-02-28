@@ -31,6 +31,8 @@ public interface IOrderQueryService
     Task<List<ReceivingOrderListItemDto>> GetReceivingQueueAsync(CancellationToken cancellationToken = default);
 
     Task<List<ProductionOrderListItemDto>> GetProductionQueueAsync(CancellationToken cancellationToken = default);
+    Task<List<ProductionOrderListItemDto>> GetPendingRouteReviewQueueAsync(CancellationToken cancellationToken = default);
+    Task<List<ProductionOrderListItemDto>> GetPendingSupervisorReviewQueueAsync(CancellationToken cancellationToken = default);
 
     Task<ReceivingOrderDetailDto?> GetReceivingDetailAsync(int id, CancellationToken cancellationToken = default);
 

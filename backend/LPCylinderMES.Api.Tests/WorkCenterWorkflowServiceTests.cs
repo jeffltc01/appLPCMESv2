@@ -18,7 +18,7 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.ScanInAsync(500, 5001, 5102, new OperatorScanInDto("EMP001", null, "Production")));
+            service.ScanInAsync(500, 5001, 5102, new OperatorScanInDto("EMP001", null, 10, "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
     }
@@ -479,6 +479,62 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
+    public async Task CompleteStepAsync_WhenManualTimeModePendingWithElapsedMinutes_CompletesWithoutScanIn()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenManualTimeModePendingWithElapsedMinutes_CompletesWithoutScanIn));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 612,
+            lineId: 6121,
+            routeId: 6220,
+            firstStepState: "Completed",
+            secondStepState: "Pending",
+            secondStepTimeCaptureMode: "Manual");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.CompleteStepAsync(
+            612,
+            6121,
+            6222,
+            new CompleteWorkCenterStepDto(
+                "EMP612",
+                "Manual completion",
+                ManualDurationMinutes: 18m,
+                ActingRole: "Production"));
+
+        var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 6222);
+        Assert.Equal("Completed", step.State);
+        Assert.Equal(18m, step.ManualDurationMinutes);
+        Assert.Equal(18m, step.DurationMinutes);
+        Assert.Equal("ManualEntry", step.TimeCaptureSource);
+        Assert.Null(step.ScanInUtc);
+        Assert.Null(step.ScanOutUtc);
+    }
+
+    [Fact]
+    public async Task CompleteStepAsync_WhenManualTimeModePendingWithoutElapsedMinutes_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenManualTimeModePendingWithoutElapsedMinutes_ThrowsConflict));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 613,
+            lineId: 6131,
+            routeId: 6230,
+            firstStepState: "Completed",
+            secondStepState: "Pending",
+            secondStepTimeCaptureMode: "Manual");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CompleteStepAsync(613, 6131, 6232, new CompleteWorkCenterStepDto("EMP613", null, ActingRole: "Production")));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("elapsed duration", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CloseReworkAsync_ClearsOrderReworkOverlay()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CloseReworkAsync_ClearsOrderReworkOverlay));
@@ -597,7 +653,7 @@ public class WorkCenterWorkflowServiceTests
         var workflowService = new OrderWorkflowService(db, queryService, new FakeOrderPolicyService());
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), workflowService);
 
-        await service.ScanInAsync(720, 7201, 7302, new OperatorScanInDto("EMP720", null, "Production"));
+        await service.ScanInAsync(720, 7201, 7302, new OperatorScanInDto("EMP720", null, 10, "Production"));
 
         var refreshedOrder = await db.SalesOrders.FirstAsync(o => o.Id == 720);
         Assert.Equal(OrderStatusCatalog.InProduction, refreshedOrder.OrderLifecycleStatus);
@@ -740,9 +796,39 @@ public class WorkCenterWorkflowServiceTests
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
         var ex = await Assert.ThrowsAsync<ServiceException>(() =>
-            service.ScanInAsync(820, 8201, 8302, new OperatorScanInDto("EMP820", null, "Quality")));
+            service.ScanInAsync(820, 8201, 8302, new OperatorScanInDto("EMP820", null, 10, "Quality")));
 
         Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task ScanInAsync_WhenOperatorAtWrongWorkCenter_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ScanInAsync_WhenOperatorAtWrongWorkCenter_ThrowsConflict));
+        SeedRouteWithTwoSteps(db, orderId: 920, lineId: 9201, routeId: 9300, firstStepState: "Completed", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.ScanInAsync(920, 9201, 9302, new OperatorScanInDto("EMP920", null, 99, "Production")));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("Wrong work center", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ScanOutAsync_WhenOperatorAtWrongWorkCenter_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ScanOutAsync_WhenOperatorAtWrongWorkCenter_ThrowsConflict));
+        SeedRouteWithTwoSteps(db, orderId: 921, lineId: 9211, routeId: 9310, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.ScanOutAsync(921, 9211, 9312, new OperatorScanOutDto("EMP921", null, 99, "Production")));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("Wrong work center", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -760,6 +846,190 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
+    public async Task AdjustRouteAsync_WhenExecutionStartedWithoutFormalReopen_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenExecutionStartedWithoutFormalReopen_ThrowsConflict));
+        SeedRouteWithTwoSteps(db, orderId: 8230, lineId: 82301, routeId: 83300, firstStepState: "Completed", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdjustRouteAsync(
+                8230,
+                new SupervisorRouteReviewDto(
+                    true,
+                    "Post-start correction without reopen",
+                    "SUP8230",
+                    "Supervisor",
+                    [new RouteStepAdjustmentDto(83302, null, 1, null, null, null, null, null, "try resequence")])));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("formal reopen", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AdjustRouteAsync_WhenExecutionStartedAfterFormalReopen_AllowsAdjustment()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenExecutionStartedAfterFormalReopen_AllowsAdjustment));
+        SeedRouteWithTwoSteps(db, orderId: 8231, lineId: 82311, routeId: 83310, firstStepState: "Completed", secondStepState: "Pending");
+        db.WorkCenters.Add(new WorkCenter
+        {
+            Id = 11,
+            WorkCenterCode = "WC-11",
+            WorkCenterName = "Final",
+            SiteId = 1,
+            IsActive = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.ReopenRouteAsync(
+            8231,
+            new SupervisorRouteReviewDto(
+                false,
+                "Formal reopen approved for post-start correction",
+                "SUP8231",
+                "Supervisor"));
+
+        await service.AdjustRouteAsync(
+            8231,
+            new SupervisorRouteReviewDto(
+                true,
+                "Apply post-start correction",
+                "SUP8231",
+                "Supervisor",
+                [new RouteStepAdjustmentDto(83312, null, 2, 11, null, null, null, null, "move work center")]));
+
+        var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 83312);
+        var route = await db.OrderLineRouteInstances.FirstAsync(r => r.Id == 83310);
+        Assert.Equal(11, step.WorkCenterId);
+        Assert.Equal("SUP8231", step.StepAdjustedBy);
+        Assert.Equal("Adjusted", route.RouteReviewState);
+    }
+
+    [Fact]
+    public async Task AdjustRouteAsync_WhenStepSequenceAndWorkCenterChanged_PersistsStepAdjustments()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenStepSequenceAndWorkCenterChanged_PersistsStepAdjustments));
+        SeedRouteWithTwoSteps(db, orderId: 824, lineId: 8241, routeId: 8340, firstStepState: "Pending", secondStepState: "Pending");
+        db.WorkCenters.Add(new WorkCenter
+        {
+            Id = 11,
+            WorkCenterCode = "WC-11",
+            WorkCenterName = "Final",
+            SiteId = 1,
+            IsActive = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.AdjustRouteAsync(
+            824,
+            new SupervisorRouteReviewDto(
+                true,
+                "Route balancing",
+                "SUP824",
+                "Supervisor",
+                [
+                    new RouteStepAdjustmentDto(8341, null, 2, null, null, null, null, null, "Reorder first"),
+                    new RouteStepAdjustmentDto(8342, null, 1, 11, null, null, null, null, "Move and reorder second"),
+                ]));
+
+        var firstStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 8341);
+        var secondStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 8342);
+        Assert.Equal(2, firstStep.StepSequence);
+        Assert.Equal(1, secondStep.StepSequence);
+        Assert.Equal(11, secondStep.WorkCenterId);
+        Assert.Equal("SUP824", secondStep.StepAdjustedBy);
+        Assert.NotNull(secondStep.StepAdjustedUtc);
+        Assert.Equal("Move and reorder second", secondStep.StepAdjustmentReason);
+    }
+
+    [Fact]
+    public async Task AdjustRouteAsync_WhenRemovingRequiredStep_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenRemovingRequiredStep_ThrowsConflict));
+        SeedRouteWithTwoSteps(db, orderId: 825, lineId: 8251, routeId: 8350, firstStepState: "Pending", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdjustRouteAsync(
+                825,
+                new SupervisorRouteReviewDto(
+                    true,
+                    "Try remove protected step",
+                    "SUP825",
+                    "Supervisor",
+                    [new RouteStepAdjustmentDto(8351, null, null, null, null, null, null, true, "remove")]))
+        );
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("protected", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AdjustRouteAsync_WhenAddingStep_PersistsNewStepAndMetadata()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenAddingStep_PersistsNewStepAndMetadata));
+        SeedRouteWithTwoSteps(db, orderId: 826, lineId: 8261, routeId: 8360, firstStepState: "Pending", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.AdjustRouteAsync(
+            826,
+            new SupervisorRouteReviewDto(
+                true,
+                "Add optional verification step",
+                "SUP826",
+                "Supervisor",
+                [new RouteStepAdjustmentDto(null, 8261, 3, 10, "VERIFY", "Verification", false, false, "Added optional")]));
+
+        var added = await db.OrderLineRouteStepInstances
+            .OrderByDescending(s => s.Id)
+            .FirstAsync(s => s.OrderLineRouteInstanceId == 8360 && s.StepCode == "VERIFY");
+        Assert.Equal("Verification", added.StepName);
+        Assert.Equal(3, added.StepSequence);
+        Assert.Equal("Pending", added.State);
+        Assert.False(added.IsRequired);
+        Assert.Equal("SUP826", added.StepAdjustedBy);
+        Assert.NotNull(added.StepAdjustedUtc);
+        Assert.Equal("Added optional", added.StepAdjustmentReason);
+    }
+
+    [Fact]
+    public async Task AdjustRouteAsync_WhenRemovingOptionalStep_MarksSkippedAndWritesAdjustmentMetadata()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdjustRouteAsync_WhenRemovingOptionalStep_MarksSkippedAndWritesAdjustmentMetadata));
+        SeedRouteWithTwoSteps(db, orderId: 827, lineId: 8271, routeId: 8370, firstStepState: "Pending", secondStepState: "Pending");
+        await db.SaveChangesAsync();
+        var optionalStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 8372);
+        optionalStep.IsRequired = false;
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.AdjustRouteAsync(
+            827,
+            new SupervisorRouteReviewDto(
+                true,
+                "Remove optional second step",
+                "SUP827",
+                "Supervisor",
+                [new RouteStepAdjustmentDto(8372, null, null, null, null, null, null, true, "No longer needed")]));
+
+        var removed = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 8372);
+        Assert.Equal("Skipped", removed.State);
+        Assert.Equal("RouteAdjustedRemoved", removed.BlockedReason);
+        Assert.Equal("SUP827", removed.StepAdjustedBy);
+        Assert.NotNull(removed.StepAdjustedUtc);
+        Assert.Equal("No longer needed", removed.StepAdjustmentReason);
+    }
+
+    [Fact]
     public async Task ApproveOrderAsync_WhenRoleForbidden_ThrowsForbidden()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(ApproveOrderAsync_WhenRoleForbidden_ThrowsForbidden));
@@ -771,6 +1041,124 @@ public class WorkCenterWorkflowServiceTests
             service.ApproveOrderAsync(822, new SupervisorDecisionDto("EMP822", "approve", "Production")));
 
         Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompleteStepAsync_WhenSupervisorGateRequired_SetsRoutePendingSupervisorReviewAndLifecyclePendingApproval()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenSupervisorGateRequired_SetsRoutePendingSupervisorReviewAndLifecyclePendingApproval));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 8240,
+            lineId: 82401,
+            routeId: 83400,
+            firstStepState: "Completed",
+            secondStepState: "InProgress",
+            supervisorApprovalRequiredForRoute: true);
+        await db.SaveChangesAsync();
+
+        var queryService = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(
+                TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToShip)),
+        };
+        var workflowService = new OrderWorkflowService(db, queryService, new FakeOrderPolicyService());
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), workflowService);
+
+        await service.CompleteStepAsync(8240, 82401, 83402, new CompleteWorkCenterStepDto("EMP8240", "complete", ActingRole: "Production"));
+
+        var route = await db.OrderLineRouteInstances.FirstAsync(r => r.Id == 83400);
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 8240);
+        Assert.Equal("PendingSupervisorReview", route.State);
+        Assert.Null(route.CompletedUtc);
+        Assert.Equal(OrderStatusCatalog.ProductionCompletePendingApproval, order.OrderLifecycleStatus);
+        Assert.NotNull(order.PendingSupervisorReviewUtc);
+    }
+
+    [Fact]
+    public async Task ApproveOrderAsync_WhenPendingSupervisorReviewRoutes_ApprovesRoutesAndAdvancesLifecycle()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApproveOrderAsync_WhenPendingSupervisorReviewRoutes_ApprovesRoutesAndAdvancesLifecycle));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 8241,
+            lineId: 82411,
+            routeId: 83410,
+            firstStepState: "Completed",
+            secondStepState: "Completed",
+            supervisorApprovalRequiredForRoute: true);
+        await db.SaveChangesAsync();
+
+        var route = await db.OrderLineRouteInstances.FirstAsync(r => r.Id == 83410);
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 8241);
+        route.State = "PendingSupervisorReview";
+        order.OrderLifecycleStatus = OrderStatusCatalog.ProductionCompletePendingApproval;
+        order.OrderStatus = OrderStatusCatalog.ReadyToShip;
+        order.PendingSupervisorReviewUtc = DateTime.UtcNow.AddMinutes(-10);
+        await db.SaveChangesAsync();
+
+        var queryService = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(
+                TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToShip)),
+        };
+        var workflowService = new OrderWorkflowService(db, queryService, new FakeOrderPolicyService());
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), workflowService);
+
+        await service.ApproveOrderAsync(8241, new SupervisorDecisionDto("SUP8241", "approved", "Supervisor"));
+
+        var refreshedRoute = await db.OrderLineRouteInstances.FirstAsync(r => r.Id == 83410);
+        var refreshedOrder = await db.SalesOrders.FirstAsync(o => o.Id == 8241);
+        Assert.Equal("Completed", refreshedRoute.State);
+        Assert.Equal("SUP8241", refreshedRoute.SupervisorApprovedBy);
+        Assert.NotNull(refreshedRoute.SupervisorApprovedUtc);
+        Assert.Equal(OrderStatusCatalog.ProductionComplete, refreshedOrder.OrderLifecycleStatus);
+        Assert.Equal("SUP8241", refreshedOrder.SupervisorReviewedBy);
+        Assert.NotNull(refreshedOrder.SupervisorReviewedUtc);
+    }
+
+    [Fact]
+    public async Task RejectOrderAsync_WhenPendingSupervisorReviewRoutes_ReopensRouteAndMovesLifecycleBackToInProduction()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(RejectOrderAsync_WhenPendingSupervisorReviewRoutes_ReopensRouteAndMovesLifecycleBackToInProduction));
+        SeedRouteWithTwoSteps(
+            db,
+            orderId: 8242,
+            lineId: 82421,
+            routeId: 83420,
+            firstStepState: "Completed",
+            secondStepState: "Completed",
+            supervisorApprovalRequiredForRoute: true);
+        await db.SaveChangesAsync();
+
+        var route = await db.OrderLineRouteInstances.FirstAsync(r => r.Id == 83420);
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 8242);
+        route.State = "PendingSupervisorReview";
+        route.CompletedUtc = DateTime.UtcNow.AddMinutes(-5);
+        order.OrderLifecycleStatus = OrderStatusCatalog.ProductionCompletePendingApproval;
+        order.OrderStatus = OrderStatusCatalog.ReadyToShip;
+        order.PendingSupervisorReviewUtc = DateTime.UtcNow.AddMinutes(-10);
+        await db.SaveChangesAsync();
+
+        var queryService = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(
+                TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.Received)),
+        };
+        var workflowService = new OrderWorkflowService(db, queryService, new FakeOrderPolicyService());
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService(), workflowService);
+
+        await service.RejectOrderAsync(8242, new SupervisorDecisionDto("SUP8242", "rejected", "Supervisor"));
+
+        var refreshedRoute = await db.OrderLineRouteInstances.FirstAsync(r => r.Id == 83420);
+        var refreshedOrder = await db.SalesOrders.FirstAsync(o => o.Id == 8242);
+        Assert.Equal("Active", refreshedRoute.State);
+        Assert.Null(refreshedRoute.CompletedUtc);
+        Assert.Null(refreshedRoute.SupervisorApprovedBy);
+        Assert.Null(refreshedRoute.SupervisorApprovedUtc);
+        Assert.Equal(OrderStatusCatalog.InProduction, refreshedOrder.OrderLifecycleStatus);
+        Assert.Equal("SUP8242", refreshedOrder.SupervisorReviewedBy);
+        Assert.NotNull(refreshedOrder.SupervisorReviewedUtc);
     }
 
     [Fact]
@@ -808,7 +1196,8 @@ public class WorkCenterWorkflowServiceTests
         string secondStepTimeCaptureMode = "Automated",
         string dataCaptureModeForSecond = "ElectronicRequired",
         string? blockedReasonForSecond = null,
-        IEnumerable<string>? withLineSerials = null)
+        IEnumerable<string>? withLineSerials = null,
+        bool supervisorApprovalRequiredForRoute = false)
     {
         db.Sites.Add(new Site { Id = 1, Name = "Main", SiteCode = "MAIN" });
         db.Customers.Add(new Customer { Id = 1, Name = "Customer A" });
@@ -876,6 +1265,7 @@ public class WorkCenterWorkflowServiceTests
             RouteTemplateId = 20,
             State = "Active",
             StartedUtc = DateTime.UtcNow,
+            SupervisorApprovalRequired = supervisorApprovalRequiredForRoute,
         });
         db.OrderLineRouteStepInstances.AddRange(
             new OrderLineRouteStepInstance

@@ -32,6 +32,7 @@ describe("OperatorWorkCenterConsolePage", () => {
   const setupBaseMocks = (
     overrides: Partial<{
       state: "Pending" | "InProgress";
+      timeCaptureMode: "Automated" | "Manual" | "Hybrid";
       requiresUsageEntry: boolean;
       requiresScrapEntry: boolean;
       requiresSerialCapture: boolean;
@@ -83,7 +84,7 @@ describe("OperatorWorkCenterConsolePage", () => {
               isRequired: true,
               requiresScan: true,
               dataCaptureMode: "ElectronicRequired",
-              timeCaptureMode: "Automated",
+              timeCaptureMode: overrides.timeCaptureMode ?? "Automated",
               scanInUtc: null,
               scanOutUtc: null,
               completedUtc: null,
@@ -162,5 +163,29 @@ describe("OperatorWorkCenterConsolePage", () => {
 
     await waitFor(() => expect(screen.getByText(/Sequence or concurrency conflict/i)).toBeInTheDocument());
     expect(screen.getByLabelText("Trailer number")).toHaveValue("TRL-77");
+  });
+
+  it("completes pending manual-time step without scan-out", async () => {
+    setupBaseMocks({ state: "Pending", timeCaptureMode: "Manual" });
+    render(<OperatorWorkCenterConsolePage />);
+    await waitFor(() => expect(ordersApiMock.workCenterQueue).toHaveBeenCalled());
+
+    const completeButton = await screen.findByRole("button", { name: /Scan Out & Complete/i });
+    expect(completeButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Manual duration minutes"), { target: { value: "15" } });
+    await waitFor(() => expect(completeButton).toBeEnabled());
+    fireEvent.click(completeButton);
+
+    await waitFor(() => expect(ordersApiMock.completeStep).toHaveBeenCalled());
+    expect(ordersApiMock.scanOut).not.toHaveBeenCalled();
+    expect(ordersApiMock.completeStep).toHaveBeenCalledWith(
+      100,
+      200,
+      501,
+      expect.objectContaining({
+        manualDurationMinutes: 15,
+      })
+    );
   });
 });

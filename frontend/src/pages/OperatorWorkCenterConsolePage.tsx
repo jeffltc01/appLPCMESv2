@@ -337,8 +337,22 @@ export function OperatorWorkCenterConsolePage() {
     if (!selectedStep) return ["Select a queue row to begin."];
 
     const warnings: string[] = [];
+    const isManualMode = selectedStep.timeCaptureMode === "Manual";
+    const manualDurationValue = Number(manualDurationMinutes);
+    const hasValidManualDurationInput = Number.isFinite(manualDurationValue) && manualDurationValue > 0;
+    const hasExistingManualDuration =
+      typeof selectedStep.manualDurationMinutes === "number"
+        ? selectedStep.manualDurationMinutes > 0
+        : typeof selectedStep.durationMinutes === "number" && selectedStep.durationMinutes > 0;
+    const hasEffectiveManualDuration = hasValidManualDurationInput || hasExistingManualDuration;
     if (selectedStep.state !== "InProgress") {
-      warnings.push("Step must be in progress. Scan in before completing.");
+      const canCompleteManualFromPending = isManualMode && selectedStep.state === "Pending";
+      if (!canCompleteManualFromPending) {
+        warnings.push("Step must be in progress. Scan in before completing.");
+      }
+    }
+    if (isManualMode && !hasEffectiveManualDuration) {
+      warnings.push("Manual duration minutes must be greater than zero for manual time mode.");
     }
     if (selectedStep.blockedReason) {
       warnings.push(`Blocked: ${selectedStep.blockedReason}`);
@@ -365,7 +379,7 @@ export function OperatorWorkCenterConsolePage() {
       warnings.push("Provide both supervisor override employee number and reason.");
     }
     return warnings;
-  }, [selectedStep, stepEvidence, supervisorOverrideEmpNo, supervisorOverrideReason]);
+  }, [manualDurationMinutes, selectedStep, stepEvidence, supervisorOverrideEmpNo, supervisorOverrideReason]);
 
   const timerChip = useMemo(() => {
     if (!selectedStep?.scanInUtc) return "00:00:00";
@@ -411,12 +425,17 @@ export function OperatorWorkCenterConsolePage() {
         .split(",")
         .map((value) => value.trim())
         .filter((value) => value.length > 0);
+      const selectedWorkCenterId = Number(workCenterId);
+      if (!Number.isFinite(selectedWorkCenterId) || selectedWorkCenterId <= 0) {
+        throw new Error("Select a valid work center before scanning.");
+      }
       const roleToUse = actingRole;
       const empNoToUse = actingEmpNo.trim() || "OP001";
       if (action === "scanIn") {
         await ordersApi.scanIn(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           deviceId: "UI",
+          workCenterId: selectedWorkCenterId,
           actingRole: roleToUse,
         });
       } else if (action === "addUsage") {
@@ -537,14 +556,30 @@ export function OperatorWorkCenterConsolePage() {
           deviceId: "UI",
         });
       } else {
-        await ordersApi.scanOut(selected.orderId, selected.lineId, selected.stepInstanceId, {
-          empNo: empNoToUse,
-          deviceId: "UI",
-          actingRole: roleToUse,
-        });
+        const isManualMode = selectedStep?.timeCaptureMode === "Manual";
+        const parsedDuration = Number(manualDurationMinutes);
+        const hasValidManualInput = Number.isFinite(parsedDuration) && parsedDuration > 0;
+        const hasExistingManualDuration =
+          typeof selectedStep?.manualDurationMinutes === "number"
+            ? selectedStep.manualDurationMinutes > 0
+            : typeof selectedStep?.durationMinutes === "number" && selectedStep.durationMinutes > 0;
+        if (isManualMode) {
+          if (!hasValidManualInput && !hasExistingManualDuration) {
+            throw new Error("Manual duration minutes must be greater than zero.");
+          }
+        } else {
+          await ordersApi.scanOut(selected.orderId, selected.lineId, selected.stepInstanceId, {
+            empNo: empNoToUse,
+            deviceId: "UI",
+            workCenterId: selectedWorkCenterId,
+            actingRole: roleToUse,
+          });
+        }
         await ordersApi.completeStep(selected.orderId, selected.lineId, selected.stepInstanceId, {
           empNo: empNoToUse,
           notes: "Completed from operator console",
+          manualDurationMinutes: isManualMode && hasValidManualInput ? parsedDuration : null,
+          manualDurationReason: isManualMode && hasValidManualInput ? manualDurationReason.trim() || null : null,
           actingRole: roleToUse,
           supervisorOverrideEmpNo: supervisorOverrideEmpNo || null,
           supervisorOverrideReason: supervisorOverrideReason || null,

@@ -567,13 +567,15 @@ public record DeleteOrderAttachmentDto(
     string ActingEmpNo,
     string? ReasonCode);
 
-public record OperatorScanInDto(string EmpNo, string? DeviceId, string? ActingRole = null);
+public record OperatorScanInDto(string EmpNo, string? DeviceId, int WorkCenterId, string? ActingRole = null);
 
-public record OperatorScanOutDto(string EmpNo, string? DeviceId, string? ActingRole = null);
+public record OperatorScanOutDto(string EmpNo, string? DeviceId, int WorkCenterId, string? ActingRole = null);
 
 public record CompleteWorkCenterStepDto(
     string EmpNo,
     string? Notes,
+    decimal? ManualDurationMinutes = null,
+    string? ManualDurationReason = null,
     string? SupervisorOverrideEmpNo = null,
     string? SupervisorOverrideReason = null,
     string? SupervisorOverrideActingRole = null,
@@ -624,7 +626,23 @@ public record StepChecklistResultCreateDto(
     string CompletedByEmpNo,
     string? ActingRole = null);
 
-public record SupervisorRouteReviewDto(bool IsAdjusted, string? Notes, string ReviewerEmpNo, string? ActingRole = null);
+public record SupervisorRouteReviewDto(
+    bool IsAdjusted,
+    string? Notes,
+    string ReviewerEmpNo,
+    string? ActingRole = null,
+    List<RouteStepAdjustmentDto>? Adjustments = null);
+
+public record RouteStepAdjustmentDto(
+    long? StepInstanceId,
+    int? LineId,
+    int? StepSequence,
+    int? WorkCenterId,
+    string? StepCode,
+    string? StepName,
+    bool? IsRequired,
+    bool? Remove,
+    string? Reason = null);
 
 public record SupervisorDecisionDto(string EmpNo, string? Notes, string? ActingRole = null);
 

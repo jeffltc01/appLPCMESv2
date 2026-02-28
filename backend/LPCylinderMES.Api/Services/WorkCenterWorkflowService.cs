@@ -32,6 +32,7 @@ public class WorkCenterWorkflowService(
         EnsureRoleProvided(dto.ActingRole);
         _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "scan in work-center step");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        EnsureOperatorAtRequiredWorkCenter(step, dto.WorkCenterId);
         await EnsurePreviousStepsCompletedAsync(step, cancellationToken);
 
         if (!string.Equals(step.State, "Pending", StringComparison.OrdinalIgnoreCase) &&
@@ -69,6 +70,7 @@ public class WorkCenterWorkflowService(
         EnsureRoleProvided(dto.ActingRole);
         _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "scan out work-center step");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        EnsureOperatorAtRequiredWorkCenter(step, dto.WorkCenterId);
         if (!string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase))
         {
             throw new ServiceException(StatusCodes.Status409Conflict, "Only in-progress steps can be scanned out.");
@@ -364,9 +366,32 @@ public class WorkCenterWorkflowService(
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         await _stepCompletionValidationService.ValidateAsync(step, dto, cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(step.State) || !string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase))
+        var isManualMode = string.Equals(step.TimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase);
+        var isManualPendingCompletion = isManualMode && string.Equals(step.State, "Pending", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(step.State) ||
+            (!string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase) && !isManualPendingCompletion))
         {
             throw new ServiceException(StatusCodes.Status409Conflict, "Step must be in progress before completion.");
+        }
+
+        if (isManualMode)
+        {
+            if (dto.ManualDurationMinutes.HasValue)
+            {
+                step.ManualDurationMinutes = dto.ManualDurationMinutes.Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.ManualDurationReason))
+            {
+                step.ManualDurationReason = dto.ManualDurationReason.Trim();
+            }
+
+            var effectiveDuration = step.ManualDurationMinutes ?? step.DurationMinutes;
+            if (effectiveDuration.HasValue)
+            {
+                step.DurationMinutes = effectiveDuration.Value;
+                step.TimeCaptureSource = "ManualEntry";
+            }
         }
 
         step.State = "Completed";
@@ -528,7 +553,18 @@ public class WorkCenterWorkflowService(
             throw new ServiceException(StatusCodes.Status400BadRequest, "Route adjustment requires reason notes.");
         }
 
-        await UpdateRouteReviewAsync(orderId, dto, "Adjusted", cancellationToken);
+        var routes = await db.OrderLineRouteInstances
+            .Include(r => r.Steps)
+            .Where(r => r.SalesOrderId == orderId)
+            .ToListAsync(cancellationToken);
+        if (routes.Count == 0)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "No route instances found for order.");
+        }
+
+        await ApplyRouteAdjustmentsAsync(routes, dto, cancellationToken);
+        await UpdateRouteReviewAsync(orderId, dto, "Adjusted", cancellationToken, saveChanges: false, routes);
+        await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
@@ -541,7 +577,7 @@ public class WorkCenterWorkflowService(
             throw new ServiceException(StatusCodes.Status400BadRequest, "Route reopen requires reason notes.");
         }
 
-        await UpdateRouteReviewAsync(orderId, dto, "Pending", cancellationToken);
+        await UpdateRouteReviewAsync(orderId, dto, "Reopened", cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
     }
 
@@ -549,26 +585,52 @@ public class WorkCenterWorkflowService(
     {
         EnsureRoleProvided(dto.ActingRole);
         _rolePermissionService.EnsureSupervisorGateDecisionAllowed(dto.ActingRole!);
+        var pendingRoutes = await db.OrderLineRouteInstances
+            .Where(r =>
+                r.SalesOrderId == orderId &&
+                r.SupervisorApprovalRequired &&
+                !r.SupervisorApprovedUtc.HasValue &&
+                r.State == "PendingSupervisorReview")
+            .ToListAsync(cancellationToken);
+        if (pendingRoutes.Count == 0)
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Order has no routes pending supervisor review.");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var actorEmpNo = dto.EmpNo.Trim();
+        foreach (var route in pendingRoutes)
+        {
+            route.SupervisorApprovedBy = actorEmpNo;
+            route.SupervisorApprovedUtc = nowUtc;
+            route.State = "Completed";
+            route.CompletedUtc ??= nowUtc;
+        }
+
+        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+            ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+        order.SupervisorReviewedBy = actorEmpNo;
+        order.SupervisorReviewedUtc = nowUtc;
+
+        await db.SaveChangesAsync(cancellationToken);
         if (_orderWorkflowService is not null)
         {
             await _orderWorkflowService.AdvanceStatusAsync(
                 orderId,
                 OrderStatusCatalog.ProductionComplete,
-                actingRole: "Supervisor",
+                actingRole: dto.ActingRole,
                 reasonCode: "SupervisorApproved",
                 note: dto.Notes,
-                actingEmpNo: dto.EmpNo,
+                actingEmpNo: actorEmpNo,
                 cancellationToken: cancellationToken);
         }
         else
         {
-            var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
-                ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
             order.OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete;
-            order.StatusOwnerRole = "Supervisor";
+            order.StatusOwnerRole = dto.ActingRole;
             order.StatusNote = dto.Notes;
             order.StatusReasonCode = "SupervisorApproved";
-            order.StatusUpdatedUtc = DateTime.UtcNow;
+            order.StatusUpdatedUtc = nowUtc;
             await db.SaveChangesAsync(cancellationToken);
         }
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
@@ -578,26 +640,52 @@ public class WorkCenterWorkflowService(
     {
         EnsureRoleProvided(dto.ActingRole);
         _rolePermissionService.EnsureSupervisorGateDecisionAllowed(dto.ActingRole!);
+        var pendingRoutes = await db.OrderLineRouteInstances
+            .Where(r =>
+                r.SalesOrderId == orderId &&
+                r.SupervisorApprovalRequired &&
+                !r.SupervisorApprovedUtc.HasValue &&
+                r.State == "PendingSupervisorReview")
+            .ToListAsync(cancellationToken);
+        if (pendingRoutes.Count == 0)
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Order has no routes pending supervisor review.");
+        }
+
+        var nowUtc = DateTime.UtcNow;
+        var actorEmpNo = dto.EmpNo.Trim();
+        foreach (var route in pendingRoutes)
+        {
+            route.State = "Active";
+            route.CompletedUtc = null;
+            route.SupervisorApprovedBy = null;
+            route.SupervisorApprovedUtc = null;
+        }
+
+        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+            ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
+        order.SupervisorReviewedBy = actorEmpNo;
+        order.SupervisorReviewedUtc = nowUtc;
+
+        await db.SaveChangesAsync(cancellationToken);
         if (_orderWorkflowService is not null)
         {
             await _orderWorkflowService.AdvanceStatusAsync(
                 orderId,
                 OrderStatusCatalog.InProduction,
-                actingRole: "Supervisor",
+                actingRole: dto.ActingRole,
                 reasonCode: "SupervisorRejected",
                 note: dto.Notes,
-                actingEmpNo: dto.EmpNo,
+                actingEmpNo: actorEmpNo,
                 cancellationToken: cancellationToken);
         }
         else
         {
-            var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
-                ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
             order.OrderLifecycleStatus = OrderStatusCatalog.InProduction;
-            order.StatusOwnerRole = "Supervisor";
+            order.StatusOwnerRole = dto.ActingRole;
             order.StatusNote = dto.Notes;
             order.StatusReasonCode = "SupervisorRejected";
-            order.StatusUpdatedUtc = DateTime.UtcNow;
+            order.StatusUpdatedUtc = nowUtc;
             await db.SaveChangesAsync(cancellationToken);
         }
         return await GetOrderRouteExecutionAsync(orderId, null, cancellationToken);
@@ -760,6 +848,16 @@ public class WorkCenterWorkflowService(
         }
     }
 
+    private static void EnsureOperatorAtRequiredWorkCenter(OrderLineRouteStepInstance step, int operatorWorkCenterId)
+    {
+        if (operatorWorkCenterId != step.WorkCenterId)
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                $"Wrong work center. Step requires work center '{step.WorkCenterId}' but operator is at '{operatorWorkCenterId}'.");
+        }
+    }
+
     private async Task<OrderLineRouteStepInstance> GetStepAsync(int orderId, int lineId, long stepId, CancellationToken cancellationToken)
     {
         var step = await db.OrderLineRouteStepInstances
@@ -798,33 +896,45 @@ public class WorkCenterWorkflowService(
             .Include(r => r.SalesOrder)
             .FirstAsync(r => r.Id == routeInstanceId, cancellationToken);
 
-        var hasPendingRequiredStep = await db.OrderLineRouteStepInstances
-            .AnyAsync(s => s.OrderLineRouteInstanceId == routeInstanceId && s.IsRequired && s.State != "Completed", cancellationToken);
+        var routeSteps = await db.OrderLineRouteStepInstances
+            .Where(s => s.OrderLineRouteInstanceId == routeInstanceId)
+            .ToListAsync(cancellationToken);
+        var hasPendingRequiredStep = routeSteps.Any(s =>
+            s.IsRequired &&
+            !string.Equals(s.State, "Completed", StringComparison.OrdinalIgnoreCase));
         if (!hasPendingRequiredStep)
         {
-            route.State = "Completed";
-            route.CompletedUtc = DateTime.UtcNow;
+            if (route.SupervisorApprovalRequired && !route.SupervisorApprovedUtc.HasValue)
+            {
+                route.State = "PendingSupervisorReview";
+                route.CompletedUtc = null;
+                route.SalesOrder.PendingSupervisorReviewUtc ??= DateTime.UtcNow;
+                route.SalesOrder.SupervisorReviewedBy = null;
+                route.SalesOrder.SupervisorReviewedUtc = null;
+            }
+            else
+            {
+                route.State = "Completed";
+                route.CompletedUtc = DateTime.UtcNow;
+            }
         }
 
-        var hasIncompleteRequiredRoutes = await db.OrderLineRouteInstances
-            .AnyAsync(r => r.SalesOrderId == route.SalesOrderId && r.State != "Completed", cancellationToken);
-        if (!hasIncompleteRequiredRoutes && _orderWorkflowService is not null)
+        var siblingRoutes = await db.OrderLineRouteInstances
+            .Where(r => r.SalesOrderId == route.SalesOrderId)
+            .ToListAsync(cancellationToken);
+        var hasActiveRoutes = siblingRoutes.Any(r => string.Equals(r.State, "Active", StringComparison.OrdinalIgnoreCase));
+        var hasPendingSupervisorReviewRoutes = siblingRoutes.Any(r => string.Equals(r.State, "PendingSupervisorReview", StringComparison.OrdinalIgnoreCase));
+        if (!hasActiveRoutes && _orderWorkflowService is not null)
         {
-            var hasPendingApprovals = await db.OrderLineRouteInstances
-                .AnyAsync(
-                    r => r.SalesOrderId == route.SalesOrderId &&
-                         r.SupervisorApprovalRequired &&
-                         !r.SupervisorApprovedUtc.HasValue,
-                    cancellationToken);
-            var targetStatus = hasPendingApprovals
+            var targetStatus = hasPendingSupervisorReviewRoutes
                 ? OrderStatusCatalog.ProductionCompletePendingApproval
                 : OrderStatusCatalog.ProductionComplete;
             await _orderWorkflowService.AdvanceStatusAsync(
                 route.SalesOrderId,
                 targetStatus,
-                actingRole: hasPendingApprovals ? "Supervisor" : "Production",
-                reasonCode: hasPendingApprovals ? "SupervisorGateEntered" : "ProductionCompleted",
-                note: hasPendingApprovals
+                actingRole: hasPendingSupervisorReviewRoutes ? "Supervisor" : "Production",
+                reasonCode: hasPendingSupervisorReviewRoutes ? "SupervisorGateEntered" : "ProductionCompleted",
+                note: hasPendingSupervisorReviewRoutes
                     ? "Awaiting required supervisor or quality approvals."
                     : "All required route instances completed.",
                 actingEmpNo: actorEmpNo,
@@ -834,7 +944,18 @@ public class WorkCenterWorkflowService(
 
     private async Task UpdateRouteReviewAsync(int orderId, SupervisorRouteReviewDto dto, string state, CancellationToken cancellationToken)
     {
-        var routes = await db.OrderLineRouteInstances
+        await UpdateRouteReviewAsync(orderId, dto, state, cancellationToken, saveChanges: true);
+    }
+
+    private async Task UpdateRouteReviewAsync(
+        int orderId,
+        SupervisorRouteReviewDto dto,
+        string state,
+        CancellationToken cancellationToken,
+        bool saveChanges,
+        List<OrderLineRouteInstance>? existingRoutes = null)
+    {
+        var routes = existingRoutes ?? await db.OrderLineRouteInstances
             .Where(r => r.SalesOrderId == orderId)
             .ToListAsync(cancellationToken);
         if (routes.Count == 0)
@@ -850,7 +971,225 @@ public class WorkCenterWorkflowService(
             route.RouteReviewNotes = dto.Notes;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        if (saveChanges)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private async Task ApplyRouteAdjustmentsAsync(
+        List<OrderLineRouteInstance> routes,
+        SupervisorRouteReviewDto dto,
+        CancellationToken cancellationToken)
+    {
+        var adjustments = dto.Adjustments ?? [];
+        if (adjustments.Count == 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Route adjustment requires at least one step adjustment.");
+        }
+
+        var reviewerEmpNo = dto.ReviewerEmpNo?.Trim();
+        if (string.IsNullOrWhiteSpace(reviewerEmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "ReviewerEmpNo is required.");
+        }
+
+        var hasStartedExecution = routes.SelectMany(r => r.Steps).Any(IsStartedOrCompletedStep);
+        var hasFormalReopen = routes.All(r => string.Equals(r.RouteReviewState, "Reopened", StringComparison.OrdinalIgnoreCase));
+        if (hasStartedExecution && !hasFormalReopen)
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                "Route adjustment is locked after execution start. A formal reopen is required before post-start corrections.");
+        }
+
+        var routeByLineId = routes.ToDictionary(r => r.SalesOrderDetailId);
+        var stepById = routes
+            .SelectMany(r => r.Steps)
+            .ToDictionary(s => s.Id);
+
+        var requestedWorkCenterIds = adjustments
+            .Where(a => (a.Remove ?? false) == false && a.WorkCenterId.HasValue)
+            .Select(a => a.WorkCenterId!.Value)
+            .Distinct()
+            .ToList();
+        var validWorkCenterIds = await db.WorkCenters
+            .Where(wc => requestedWorkCenterIds.Contains(wc.Id) && wc.IsActive)
+            .Select(wc => wc.Id)
+            .ToListAsync(cancellationToken);
+        var validWorkCenterSet = validWorkCenterIds.ToHashSet();
+
+        var now = DateTime.UtcNow;
+        var defaultReason = dto.Notes?.Trim();
+
+        foreach (var adjustment in adjustments)
+        {
+            var isRemoval = adjustment.Remove ?? false;
+            var reason = string.IsNullOrWhiteSpace(adjustment.Reason) ? defaultReason : adjustment.Reason.Trim();
+
+            if (isRemoval)
+            {
+                if (!adjustment.StepInstanceId.HasValue || !stepById.TryGetValue(adjustment.StepInstanceId.Value, out var stepToRemove))
+                {
+                    throw new ServiceException(StatusCodes.Status400BadRequest, "Remove operation requires a valid StepInstanceId.");
+                }
+
+                EnsureStepMutableForRouteAdjustment(stepToRemove);
+                if (stepToRemove.IsRequired)
+                {
+                    throw new ServiceException(StatusCodes.Status409Conflict, $"Step '{stepToRemove.StepCode}' is protected and cannot be removed.");
+                }
+
+                stepToRemove.State = "Skipped";
+                stepToRemove.BlockedReason = "RouteAdjustedRemoved";
+                stepToRemove.StepAdjustedBy = reviewerEmpNo;
+                stepToRemove.StepAdjustedUtc = now;
+                stepToRemove.StepAdjustmentReason = reason;
+                continue;
+            }
+
+            if (adjustment.StepInstanceId.HasValue)
+            {
+                if (!stepById.TryGetValue(adjustment.StepInstanceId.Value, out var existingStep))
+                {
+                    throw new ServiceException(StatusCodes.Status400BadRequest, $"Step '{adjustment.StepInstanceId.Value}' was not found for this order.");
+                }
+
+                EnsureStepMutableForRouteAdjustment(existingStep);
+                if (adjustment.StepSequence.HasValue)
+                {
+                    existingStep.StepSequence = ValidatePositiveSequence(adjustment.StepSequence.Value);
+                }
+
+                if (adjustment.WorkCenterId.HasValue)
+                {
+                    var requestedWorkCenterId = adjustment.WorkCenterId.Value;
+                    if (!validWorkCenterSet.Contains(requestedWorkCenterId))
+                    {
+                        throw new ServiceException(StatusCodes.Status400BadRequest, $"WorkCenterId '{requestedWorkCenterId}' is invalid or inactive.");
+                    }
+
+                    existingStep.WorkCenterId = requestedWorkCenterId;
+                }
+
+                existingStep.StepAdjustedBy = reviewerEmpNo;
+                existingStep.StepAdjustedUtc = now;
+                existingStep.StepAdjustmentReason = reason;
+                continue;
+            }
+
+            if (!adjustment.LineId.HasValue)
+            {
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Add operation requires LineId when StepInstanceId is not provided.");
+            }
+
+            if (!routeByLineId.TryGetValue(adjustment.LineId.Value, out var lineRoute))
+            {
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"Line '{adjustment.LineId.Value}' does not have an active route instance.");
+            }
+
+            if (!adjustment.StepSequence.HasValue || !adjustment.WorkCenterId.HasValue)
+            {
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Add operation requires StepSequence and WorkCenterId.");
+            }
+
+            if (string.IsNullOrWhiteSpace(adjustment.StepCode) || string.IsNullOrWhiteSpace(adjustment.StepName))
+            {
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Add operation requires StepCode and StepName.");
+            }
+
+            var newWorkCenterId = adjustment.WorkCenterId.Value;
+            if (!validWorkCenterSet.Contains(newWorkCenterId))
+            {
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"WorkCenterId '{newWorkCenterId}' is invalid or inactive.");
+            }
+
+            var newStep = new OrderLineRouteStepInstance
+            {
+                OrderLineRouteInstanceId = lineRoute.Id,
+                SalesOrderDetailId = lineRoute.SalesOrderDetailId,
+                StepSequence = ValidatePositiveSequence(adjustment.StepSequence.Value),
+                StepCode = adjustment.StepCode.Trim(),
+                StepName = adjustment.StepName.Trim(),
+                WorkCenterId = newWorkCenterId,
+                State = "Pending",
+                IsRequired = adjustment.IsRequired ?? false,
+                DataCaptureMode = "ElectronicRequired",
+                TimeCaptureMode = "Automated",
+                RequiresScan = true,
+                StepAdjustedBy = reviewerEmpNo,
+                StepAdjustedUtc = now,
+                StepAdjustmentReason = reason,
+            };
+
+            db.OrderLineRouteStepInstances.Add(newStep);
+        }
+
+        foreach (var route in routes)
+        {
+            NormalizeRouteStepSequence(route, reviewerEmpNo, now, defaultReason);
+        }
+    }
+
+    private static void NormalizeRouteStepSequence(
+        OrderLineRouteInstance route,
+        string reviewerEmpNo,
+        DateTime adjustedUtc,
+        string? defaultReason)
+    {
+        var activeSteps = route.Steps
+            .Where(s => !string.Equals(s.State, "Skipped", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.StepSequence)
+            .ThenBy(s => s.Id)
+            .ToList();
+        var expected = 1;
+        foreach (var step in activeSteps)
+        {
+            if (step.StepSequence != expected)
+            {
+                step.StepSequence = expected;
+                step.StepAdjustedBy ??= reviewerEmpNo;
+                step.StepAdjustedUtc ??= adjustedUtc;
+                step.StepAdjustmentReason ??= defaultReason;
+            }
+
+            expected++;
+        }
+
+        var duplicateSequence = activeSteps
+            .GroupBy(s => s.StepSequence)
+            .Any(g => g.Count() > 1);
+        if (duplicateSequence)
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Route line '{route.SalesOrderDetailId}' has duplicate step sequence values after adjustment.");
+        }
+    }
+
+    private static bool IsStartedOrCompletedStep(OrderLineRouteStepInstance step) =>
+        step.ScanInUtc.HasValue ||
+        step.ScanOutUtc.HasValue ||
+        step.CompletedUtc.HasValue ||
+        string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(step.State, "Completed", StringComparison.OrdinalIgnoreCase);
+
+    private static void EnsureStepMutableForRouteAdjustment(OrderLineRouteStepInstance step)
+    {
+        if (IsStartedOrCompletedStep(step))
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                $"Step '{step.StepCode}' cannot be adjusted because execution has already started.");
+        }
+    }
+
+    private static int ValidatePositiveSequence(int sequence)
+    {
+        if (sequence <= 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "StepSequence must be greater than zero.");
+        }
+
+        return sequence;
     }
 
     private async Task AddActivityAsync(

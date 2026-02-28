@@ -11,9 +11,15 @@ const ordersApiMock = vi.hoisted(() => ({
   supervisorApprove: vi.fn(),
   supervisorReject: vi.fn(),
 }));
+const setupApiMock = vi.hoisted(() => ({
+  listWorkCenters: vi.fn(),
+}));
 
 vi.mock("../services/orders", () => ({
   ordersApi: ordersApiMock,
+}));
+vi.mock("../services/setup", () => ({
+  setupApi: setupApiMock,
 }));
 
 describe("SupervisorRouteReviewPage", () => {
@@ -90,6 +96,20 @@ describe("SupervisorRouteReviewPage", () => {
     ordersApiMock.reopenRoute.mockResolvedValue({});
     ordersApiMock.supervisorApprove.mockResolvedValue({});
     ordersApiMock.supervisorReject.mockResolvedValue({});
+    setupApiMock.listWorkCenters.mockResolvedValue([
+      {
+        id: 10,
+        workCenterCode: "WC-10",
+        workCenterName: "Prep",
+        siteId: 1,
+        description: null,
+        isActive: true,
+        defaultTimeCaptureMode: "Automated",
+        requiresScanByDefault: true,
+        createdUtc: "2026-01-01T00:00:00Z",
+        updatedUtc: "2026-01-01T00:00:00Z",
+      },
+    ]);
   });
 
   it("loads queues and runs validate action", async () => {

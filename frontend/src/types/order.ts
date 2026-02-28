@@ -974,18 +974,22 @@ export interface OrderRouteExecution {
 export interface OperatorScanInRequest {
   empNo: string;
   deviceId?: string | null;
+  workCenterId: number;
   actingRole: OrderWorkspaceRole;
 }
 
 export interface OperatorScanOutRequest {
   empNo: string;
   deviceId?: string | null;
+  workCenterId: number;
   actingRole: OrderWorkspaceRole;
 }
 
 export interface CompleteWorkCenterStepRequest {
   empNo: string;
   notes?: string | null;
+  manualDurationMinutes?: number | null;
+  manualDurationReason?: string | null;
   actingRole: OrderWorkspaceRole;
   supervisorOverrideEmpNo?: string | null;
   supervisorOverrideReason?: string | null;
@@ -1059,6 +1063,19 @@ export interface SupervisorRouteReviewRequest {
   notes?: string | null;
   reviewerEmpNo: string;
   actingRole: OrderWorkspaceRole;
+  adjustments?: RouteStepAdjustmentRequest[] | null;
+}
+
+export interface RouteStepAdjustmentRequest {
+  stepInstanceId?: number | null;
+  lineId?: number | null;
+  stepSequence?: number | null;
+  workCenterId?: number | null;
+  stepCode?: string | null;
+  stepName?: string | null;
+  isRequired?: boolean | null;
+  remove?: boolean | null;
+  reason?: string | null;
 }
 
 export interface SupervisorDecisionRequest {

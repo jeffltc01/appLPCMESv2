@@ -191,6 +191,22 @@ internal sealed class StepCompletionValidationService(
             throw new ServiceException(StatusCodes.Status409Conflict, "Bill of lading must be generated before completion.");
         }
 
+        if (string.Equals(step.TimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase))
+        {
+            if (dto.ManualDurationMinutes.HasValue && dto.ManualDurationMinutes.Value <= 0)
+            {
+                throw new ServiceException(StatusCodes.Status400BadRequest, "ManualDurationMinutes must be greater than zero.");
+            }
+
+            var effectiveDuration = dto.ManualDurationMinutes ?? step.ManualDurationMinutes ?? step.DurationMinutes;
+            if (!effectiveDuration.HasValue || effectiveDuration.Value <= 0)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Manual time mode requires elapsed duration minutes before completion.");
+            }
+        }
+
         return Task.CompletedTask;
     }
 

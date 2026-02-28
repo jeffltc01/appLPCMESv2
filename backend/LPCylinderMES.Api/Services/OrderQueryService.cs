@@ -365,29 +365,37 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
 
     public async Task<List<ProductionOrderListItemDto>> GetProductionQueueAsync(CancellationToken cancellationToken = default)
     {
-        var orders = await db.SalesOrders
+        var orderIds = await db.SalesOrders
             .Where(o => o.OrderStatus == OrderStatusCatalog.Received)
-            .Include(o => o.Customer)
-            .Include(o => o.Site)
-            .Include(o => o.SalesOrderDetails)
-                .ThenInclude(d => d.Item)
-            .OrderByDescending(o => o.ReceivedDate.HasValue)
-            .ThenByDescending(o => o.ReceivedDate)
-            .ThenByDescending(o => o.Id)
+            .Select(o => o.Id)
             .ToListAsync(cancellationToken);
+        return await GetProductionQueueByOrderIdsAsync(orderIds, cancellationToken);
+    }
 
-        return orders
-            .Select(o => new ProductionOrderListItemDto(
-                o.Id,
-                o.SalesOrderNo,
-                o.Customer.Name,
-                o.Site.Name,
-                o.Priority,
-                BuildLineSummary(o.SalesOrderDetails),
-                o.ReceivedDate,
-                o.SalesOrderDetails.Count,
-                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
-            .ToList();
+    public async Task<List<ProductionOrderListItemDto>> GetPendingRouteReviewQueueAsync(CancellationToken cancellationToken = default)
+    {
+        var orderIds = await db.OrderLineRouteInstances
+            .Where(r =>
+                r.RouteReviewState == "Pending" &&
+                r.State != "Cancelled")
+            .Select(r => r.SalesOrderId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        return await GetProductionQueueByOrderIdsAsync(orderIds, cancellationToken);
+    }
+
+    public async Task<List<ProductionOrderListItemDto>> GetPendingSupervisorReviewQueueAsync(CancellationToken cancellationToken = default)
+    {
+        var orderIds = await db.OrderLineRouteInstances
+            .Where(r =>
+                r.SupervisorApprovalRequired &&
+                !r.SupervisorApprovedUtc.HasValue &&
+                r.State == "PendingSupervisorReview" &&
+                r.SalesOrder.OrderLifecycleStatus == OrderStatusCatalog.ProductionCompletePendingApproval)
+            .Select(r => r.SalesOrderId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        return await GetProductionQueueByOrderIdsAsync(orderIds, cancellationToken);
     }
 
     public async Task<ReceivingOrderDetailDto?> GetReceivingDetailAsync(int id, CancellationToken cancellationToken = default)
@@ -662,6 +670,40 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             TrimToNull(order.Comments),
             order.ReceivedDate,
             lines);
+    }
+
+    private async Task<List<ProductionOrderListItemDto>> GetProductionQueueByOrderIdsAsync(
+        IReadOnlyCollection<int> orderIds,
+        CancellationToken cancellationToken)
+    {
+        if (orderIds.Count == 0)
+        {
+            return [];
+        }
+
+        var orders = await db.SalesOrders
+            .Where(o => orderIds.Contains(o.Id))
+            .Include(o => o.Customer)
+            .Include(o => o.Site)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.Item)
+            .OrderByDescending(o => o.ReceivedDate.HasValue)
+            .ThenByDescending(o => o.ReceivedDate)
+            .ThenByDescending(o => o.Id)
+            .ToListAsync(cancellationToken);
+
+        return orders
+            .Select(o => new ProductionOrderListItemDto(
+                o.Id,
+                o.SalesOrderNo,
+                o.Customer.Name,
+                o.Site.Name,
+                o.Priority,
+                BuildLineSummary(o.SalesOrderDetails),
+                o.ReceivedDate,
+                o.SalesOrderDetails.Count,
+                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
+            .ToList();
     }
 }
 

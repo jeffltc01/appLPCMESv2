@@ -771,7 +771,7 @@ public class OrdersController(
     [HttpGet("pending-supervisor-review")]
     public async Task<ActionResult<List<ProductionOrderListItemDto>>> GetPendingSupervisorReview()
     {
-        var rows = await orderQueryService.GetProductionQueueAsync();
+        var rows = await orderQueryService.GetPendingSupervisorReviewQueueAsync();
         return Ok(rows);
     }
 
@@ -804,7 +804,7 @@ public class OrdersController(
     [HttpGet("pending-route-review")]
     public async Task<ActionResult<List<ProductionOrderListItemDto>>> GetPendingRouteReview()
     {
-        var rows = await orderQueryService.GetProductionQueueAsync();
+        var rows = await orderQueryService.GetPendingRouteReviewQueueAsync();
         return Ok(rows);
     }
 

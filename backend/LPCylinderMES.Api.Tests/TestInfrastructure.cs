@@ -78,6 +78,10 @@ internal sealed class FakeOrderQueryService : IOrderQueryService
 
     public Task<List<ProductionOrderListItemDto>> GetProductionQueueAsync(CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();
+    public Task<List<ProductionOrderListItemDto>> GetPendingRouteReviewQueueAsync(CancellationToken cancellationToken = default) =>
+        throw new NotImplementedException();
+    public Task<List<ProductionOrderListItemDto>> GetPendingSupervisorReviewQueueAsync(CancellationToken cancellationToken = default) =>
+        throw new NotImplementedException();
 
     public Task<ReceivingOrderDetailDto?> GetReceivingDetailAsync(int id, CancellationToken cancellationToken = default) =>
         GetReceivingDetailHandler?.Invoke(id, cancellationToken) ?? Task.FromResult<ReceivingOrderDetailDto?>(null);
