@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # Subscription where test resources will be created.
-$SubscriptionId = "<YOUR_SUBSCRIPTION_ID>"
+$SubscriptionId = "faa5210a-d33c-41ce-8494-75e2a12237ac"
 
 # Existing test resource group. Set to $null to let deploy script create it.
 $ResourceGroupName = "rg-lpcmesv2-test"

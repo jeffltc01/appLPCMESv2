@@ -166,18 +166,23 @@ $secretUri = az keyvault secret show `
     --query "id" `
     --output tsv
 
+$backendSettingsFilePath = Join-Path $scriptDir "backend.appsettings.json"
+$backendSettings = @{
+    ASPNETCORE_ENVIRONMENT                 = "Test"
+    ConnectionStrings__LPCApps             = "@Microsoft.KeyVault(SecretUri=$secretUri)"
+    APPLICATIONINSIGHTS_CONNECTION_STRING  = $appInsightsConnectionString
+    Cors__AllowedOrigins__0                = $testFrontendUrl
+    MicrosoftAuth__Authority               = $MicrosoftAuthority
+    MicrosoftAuth__ClientId                = $MicrosoftClientId
+}
+$backendSettings | ConvertTo-Json -Compress | Set-Content -Path $backendSettingsFilePath -Encoding UTF8
+
 Invoke-Step -Title "Configure backend application settings" -Action {
     Invoke-CommandChecked -FailureMessage "Failed to set backend app settings" -Command {
         az webapp config appsettings set `
             --name $backendWebAppName `
             --resource-group $resourceGroupName `
-            --settings `
-            "ASPNETCORE_ENVIRONMENT=Test" `
-            "ConnectionStrings__LPCApps=@Microsoft.KeyVault(SecretUri=$secretUri)" `
-            "APPLICATIONINSIGHTS_CONNECTION_STRING=$appInsightsConnectionString" `
-            "Cors__AllowedOrigins__0=$testFrontendUrl" `
-            "MicrosoftAuth__Authority=$MicrosoftAuthority" `
-            "MicrosoftAuth__ClientId=$MicrosoftClientId" `
+            --settings "@$backendSettingsFilePath" `
             --output none
     }
 }

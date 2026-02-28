@@ -44,7 +44,19 @@ Invoke-Step -Title "Run backend unit tests" -Action {
     Push-Location $backendDir
     try {
         Invoke-CommandChecked -FailureMessage "Backend unit tests failed" -Command {
-            dotnet test "LPCylinderMES.sln" --nologo
+            dotnet test "LPCylinderMES.sln" --configuration Release --nologo
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+Invoke-Step -Title "Validate backend publish output" -Action {
+    Push-Location $backendDir
+    try {
+        Invoke-CommandChecked -FailureMessage "Backend publish validation failed" -Command {
+            dotnet publish "LPCylinderMES.Api/LPCylinderMES.Api.csproj" --configuration Release --output (Join-Path $env:TEMP "lpcmesv2-backend-publish")
         }
     }
     finally {
@@ -83,6 +95,18 @@ Invoke-Step -Title "Validate frontend TypeScript" -Action {
     try {
         Invoke-CommandChecked -FailureMessage "TypeScript validation failed" -Command {
             npm run typecheck
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+Invoke-Step -Title "Validate frontend production build" -Action {
+    Push-Location $frontendDir
+    try {
+        Invoke-CommandChecked -FailureMessage "Frontend build validation failed" -Command {
+            npm run build
         }
     }
     finally {

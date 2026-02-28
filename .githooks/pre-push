@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running local preflight before push..."
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -ExecutionPolicy Bypass -File "./scripts/preflight.ps1"
+elif command -v powershell.exe >/dev/null 2>&1; then
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "./scripts/preflight.ps1"
+else
+  echo "PowerShell was not found. Install PowerShell or run scripts/preflight.ps1 manually."
+  exit 1
+fi
