@@ -53,4 +53,36 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
     expect(screen.getByText("Main - WC-10")).toBeInTheDocument();
   });
+
+  it("allows sign in without assignment when none are returned", async () => {
+    operatorPreLoginMock.mockResolvedValueOnce({
+      empNo: "EMP001",
+      displayName: "Office User",
+      passwordRequired: false,
+      assignments: [],
+    });
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText(/Operator Employee Number/i), {
+      target: { value: "EMP001" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByText("Welcome Office User")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => {
+      expect(operatorLoginMock).toHaveBeenCalledWith({
+        empNo: "EMP001",
+        password: null,
+        siteId: null,
+        workCenterId: null,
+      });
+    });
+  });
 });

@@ -160,9 +160,8 @@ When an order is in `InvoiceReady`, office executes a controlled two-step submis
 3. **ERP invoice handoff**
   - After the attachment step (or immediately when no attachments exist), office submits invoice data to ERP integration staging.
   - Current integration path:
-    - MES calls a Microsoft Power Automate flow
-    - Flow executes a SQL Server stored procedure
-    - Stored procedure inserts invoice payload into ERP temp/staging table
+    - MES calls a Microsoft Power Automate flow endpoint
+    - Flow inserts invoice payload into ERP temp/staging table
     - ERP background process consumes staging data and creates invoice
 
 `Invoiced` in MES means invoice submission to ERP staging succeeded (and, when available, ERP acknowledgment/reference is recorded).
@@ -397,7 +396,7 @@ Transition behavior:
 16. `InvoiceReady` -> `Invoiced` only when:
   - Final office review is complete,
   - Attachment email step has been completed or explicitly skipped, and
-  - ERP staging handoff (Power Automate -> SQL stored procedure -> temp table insert) succeeds.
+  - ERP staging handoff (Power Automate flow endpoint -> temp table insert) succeeds.
 17. Any state with active `ReworkOpen` overlay cannot transition forward to `InvoiceReady` or `Invoiced`.
 18. If `ReworkOpen` is raised while status is `InvoiceReady`, status must revert to a production-valid pre-invoice status per policy (minimum default: `InProduction` until rework closure/verification).
 19. `PromisedDateUtc` must be set before order can enter outbound release planning or direct release path per site policy.
@@ -473,7 +472,7 @@ These support board filters and KPI tiles without overloading status definitions
 - `AttachmentEmailRecipientSummary` (nullable; audit-friendly masked summary)
 - `InvoiceSubmissionRequestedByEmpNo` (nullable)
 - `InvoiceSubmissionRequestedUtc` (nullable)
-- `InvoiceSubmissionChannel` (for v1 integration: `PowerAutomateSqlSp`)
+- `InvoiceSubmissionChannel` (for v1 integration: `PowerAutomateHttp`)
 - `InvoiceSubmissionCorrelationId` (nullable; flow run id / trace id)
 - `InvoiceStagingResult` (`Success`, `Failed`, `PendingAck`)
 - `InvoiceStagingError` (nullable)

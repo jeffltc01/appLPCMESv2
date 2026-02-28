@@ -108,7 +108,7 @@ export function LoginPage() {
   };
 
   const submitLogin = async () => {
-    if (!selectedAssignment) {
+    if (assignments.length > 0 && !selectedAssignment) {
       setError("Please select a site/work center assignment.");
       return;
     }
@@ -119,8 +119,8 @@ export function LoginPage() {
       await operatorLogin({
         empNo,
         password: passwordRequired ? password : null,
-        siteId: selectedAssignment.siteId,
-        workCenterId: selectedAssignment.workCenterId,
+        siteId: selectedAssignment?.siteId ?? null,
+        workCenterId: selectedAssignment?.workCenterId ?? null,
       });
       navigate("/", { replace: true });
     } catch (err: unknown) {
@@ -170,30 +170,34 @@ export function LoginPage() {
                 />
               </Field>
             )}
-            <div className={styles.row}>
-              <Field label="Site / Work Center" required>
-                <Dropdown
-                  value={
-                    selectedAssignment
-                      ? `${selectedAssignment.siteName} - ${selectedAssignment.workCenterCode}`
-                      : ""
-                  }
-                  selectedOptions={selectedAssignmentKey ? [selectedAssignmentKey] : []}
-                  onOptionSelect={(_, data) => setSelectedAssignmentKey(data.optionValue ?? "")}
-                >
-                  {assignments.map((assignment) => {
-                    const key = `${assignment.siteId}:${assignment.workCenterId}`;
-                    const label = `${assignment.siteName} - ${assignment.workCenterCode} (${assignment.workCenterName})`;
-                    return (
-                      <Option key={key} value={key} text={label}>
-                        {label}
-                      </Option>
-                    );
-                  })}
-                </Dropdown>
-              </Field>
-              <div />
-            </div>
+            {assignments.length > 0 ? (
+              <div className={styles.row}>
+                <Field label="Site / Work Center" required>
+                  <Dropdown
+                    value={
+                      selectedAssignment
+                        ? `${selectedAssignment.siteName} - ${selectedAssignment.workCenterCode}`
+                        : ""
+                    }
+                    selectedOptions={selectedAssignmentKey ? [selectedAssignmentKey] : []}
+                    onOptionSelect={(_, data) => setSelectedAssignmentKey(data.optionValue ?? "")}
+                  >
+                    {assignments.map((assignment) => {
+                      const key = `${assignment.siteId}:${assignment.workCenterId}`;
+                      const label = `${assignment.siteName} - ${assignment.workCenterCode} (${assignment.workCenterName})`;
+                      return (
+                        <Option key={key} value={key} text={label}>
+                          {label}
+                        </Option>
+                      );
+                    })}
+                  </Dropdown>
+                </Field>
+                <div />
+              </div>
+            ) : (
+              <Body1>No work-center assignment found. Continuing with role-based access.</Body1>
+            )}
             <div className={styles.actions}>
               <Button appearance="secondary" onClick={() => window.location.reload()} disabled={isLoading}>
                 Reset

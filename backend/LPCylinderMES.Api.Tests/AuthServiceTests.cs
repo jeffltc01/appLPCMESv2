@@ -97,6 +97,81 @@ public sealed class AuthServiceTests
         Assert.NotEmpty(response.Assignments);
     }
 
+    [Fact]
+    public async Task GetOperatorPreLoginAsync_WhenNoWorkCenters_ReturnsEmptyAssignments()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GetOperatorPreLoginAsync_WhenNoWorkCenters_ReturnsEmptyAssignments));
+        SeedOperatorContext(db, withPassword: false, includeWorkCenter: false);
+        await db.SaveChangesAsync();
+
+        var service = new AuthService(db, BuildConfig(operatorHours: 8), new FakeMicrosoftTokenValidator());
+        var response = await service.GetOperatorPreLoginAsync(new OperatorPreLoginRequestDto("EMP001"));
+
+        Assert.Equal("EMP001", response.EmpNo);
+        Assert.Empty(response.Assignments);
+    }
+
+    [Fact]
+    public async Task GetOperatorPreLoginAsync_WhenNoSiteScope_ReturnsEmptyAssignments()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GetOperatorPreLoginAsync_WhenNoSiteScope_ReturnsEmptyAssignments));
+        SeedOperatorContext(
+            db,
+            withPassword: false,
+            roleSiteId: null,
+            defaultSiteId: null,
+            includeWorkCenter: false);
+        await db.SaveChangesAsync();
+
+        var service = new AuthService(db, BuildConfig(operatorHours: 8), new FakeMicrosoftTokenValidator());
+        var response = await service.GetOperatorPreLoginAsync(new OperatorPreLoginRequestDto("EMP001"));
+
+        Assert.Equal("EMP001", response.EmpNo);
+        Assert.Empty(response.Assignments);
+    }
+
+    [Fact]
+    public async Task LoginOperatorAsync_WhenNoAssignmentsAndOfficeRole_AllowsRoleBasedSession()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(LoginOperatorAsync_WhenNoAssignmentsAndOfficeRole_AllowsRoleBasedSession));
+        SeedOperatorContext(
+            db,
+            withPassword: false,
+            roleName: "Office",
+            roleSiteId: null,
+            defaultSiteId: null,
+            includeWorkCenter: false);
+        await db.SaveChangesAsync();
+
+        var service = new AuthService(db, BuildConfig(operatorHours: 8), new FakeMicrosoftTokenValidator());
+        var login = await service.LoginOperatorAsync(new OperatorLoginRequestDto("EMP001", null, null, null));
+
+        Assert.Equal("operator-id", login.AuthMethod);
+        Assert.Equal("EMP001", login.EmpNo);
+        Assert.Null(login.WorkCenterId);
+    }
+
+    [Fact]
+    public async Task LoginOperatorAsync_WhenNoAssignmentsAndProductionOnlyRole_RequiresScopeSelection()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(LoginOperatorAsync_WhenNoAssignmentsAndProductionOnlyRole_RequiresScopeSelection));
+        SeedOperatorContext(
+            db,
+            withPassword: false,
+            roleName: "Production",
+            roleSiteId: null,
+            defaultSiteId: null,
+            includeWorkCenter: false);
+        await db.SaveChangesAsync();
+
+        var service = new AuthService(db, BuildConfig(operatorHours: 8), new FakeMicrosoftTokenValidator());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.LoginOperatorAsync(new OperatorLoginRequestDto("EMP001", null, null, null)));
+
+        Assert.Equal(StatusCodes.Status403Forbidden, ex.StatusCode);
+        Assert.Equal("A site/work center assignment is required for this role.", ex.Message);
+    }
+
     private static IConfiguration BuildConfig(int operatorHours)
     {
         return new ConfigurationBuilder()
@@ -107,19 +182,28 @@ public sealed class AuthServiceTests
             .Build();
     }
 
-    private static void SeedOperatorContext(LpcAppsDbContext db, bool withPassword, string roleName = "Production")
+    private static void SeedOperatorContext(
+        LpcAppsDbContext db,
+        bool withPassword,
+        string roleName = "Production",
+        int? roleSiteId = 1,
+        int? defaultSiteId = 1,
+        bool includeWorkCenter = true)
     {
         db.Sites.Add(new Site { Id = 1, Name = "Main Site", SiteCode = "MAIN" });
-        db.WorkCenters.Add(new WorkCenter
+        if (includeWorkCenter)
         {
-            Id = 10,
-            WorkCenterCode = "WC-10",
-            WorkCenterName = "Blast",
-            SiteId = 1,
-            IsActive = true,
-            CreatedUtc = DateTime.UtcNow,
-            UpdatedUtc = DateTime.UtcNow,
-        });
+            db.WorkCenters.Add(new WorkCenter
+            {
+                Id = 10,
+                WorkCenterCode = "WC-10",
+                WorkCenterName = "Blast",
+                SiteId = 1,
+                IsActive = true,
+                CreatedUtc = DateTime.UtcNow,
+                UpdatedUtc = DateTime.UtcNow,
+            });
+        }
         db.AppRoles.Add(new AppRole
         {
             Id = 100,
@@ -135,7 +219,7 @@ public sealed class AuthServiceTests
             EmpNo = "EMP001",
             DisplayName = "Operator One",
             OperatorPasswordHash = withPassword ? HashPassword("pw1234") : null,
-            DefaultSiteId = 1,
+            DefaultSiteId = defaultSiteId,
             State = "Active",
             IsActive = true,
             CreatedUtc = DateTime.UtcNow,
@@ -147,7 +231,7 @@ public sealed class AuthServiceTests
             Id = 200,
             UserId = 1,
             RoleId = 100,
-            SiteId = 1,
+            SiteId = roleSiteId,
             CreatedUtc = DateTime.UtcNow,
             CreatedBy = "test",
         });

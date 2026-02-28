@@ -13,7 +13,21 @@ public sealed class AuthService(
     IConfiguration configuration,
     IMicrosoftTokenValidator microsoftTokenValidator) : IAuthService
 {
-    private static readonly string[] AllowedOperatorRoles = ["Admin", "Production", "Supervisor", "PlantManager", "Quality"];
+    private static readonly string[] AllowedEmployeeLoginRoles =
+    [
+        "Admin",
+        "Setup",
+        "Office",
+        "Transportation",
+        "Receiving",
+        "Production",
+        "Supervisor",
+        "Quality",
+        "PlantManager",
+        "ReadOnly",
+    ];
+
+    private static readonly string[] WorkCenterScopedRoles = ["Production", "Quality"];
 
     public async Task<OperatorPreLoginResponseDto> GetOperatorPreLoginAsync(OperatorPreLoginRequestDto dto, CancellationToken cancellationToken = default)
     {
@@ -33,10 +47,28 @@ public sealed class AuthService(
         var normalizedEmpNo = NormalizeEmpNo(dto.EmpNo);
         var user = await LoadOperatorUserByEmpNoAsync(normalizedEmpNo, cancellationToken);
         var assignments = await BuildAssignmentsAsync(user, cancellationToken);
+        var userRoles = user.UserRoles
+            .Select(ur => ur.Role.RoleName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        if (!assignments.Any(a => a.SiteId == dto.SiteId && a.WorkCenterId == dto.WorkCenterId))
+        var hasSelection = dto.SiteId.HasValue || dto.WorkCenterId.HasValue;
+        if (hasSelection && (!dto.SiteId.HasValue || !dto.WorkCenterId.HasValue))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Both SiteId and WorkCenterId are required when selecting operator scope.");
+        }
+
+        var hasWorkCenterScopedRole = userRoles.Any(role => WorkCenterScopedRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+        var hasOfficeCapableRole = userRoles.Any(role => !WorkCenterScopedRoles.Contains(role, StringComparer.OrdinalIgnoreCase));
+
+        if (hasSelection && !assignments.Any(a => a.SiteId == dto.SiteId && a.WorkCenterId == dto.WorkCenterId))
         {
             throw new ServiceException(StatusCodes.Status400BadRequest, "The selected site/work center is not assigned to this operator.");
+        }
+
+        if (!hasSelection && hasWorkCenterScopedRole && !hasOfficeCapableRole)
+        {
+            throw new ServiceException(StatusCodes.Status403Forbidden, "A site/work center assignment is required for this role.");
         }
 
         if (!string.IsNullOrWhiteSpace(user.OperatorPasswordHash))
@@ -59,7 +91,7 @@ public sealed class AuthService(
             userId: user.Id,
             tokenHash: tokenHash,
             authMethod: "operator-id",
-            siteId: dto.SiteId,
+            siteId: dto.SiteId ?? user.DefaultSiteId,
             workCenterId: dto.WorkCenterId,
             expiresUtc: expiresUtc,
             cancellationToken: cancellationToken);
@@ -176,7 +208,7 @@ public sealed class AuthService(
             throw new ServiceException(StatusCodes.Status401Unauthorized, "Invalid employee number or password.");
         }
 
-        var hasOperatorRole = user.UserRoles.Any(ur => AllowedOperatorRoles.Contains(ur.Role.RoleName));
+        var hasOperatorRole = user.UserRoles.Any(ur => AllowedEmployeeLoginRoles.Contains(ur.Role.RoleName));
         if (!hasOperatorRole)
         {
             throw new ServiceException(StatusCodes.Status403Forbidden, "User does not have operator permissions.");
@@ -197,10 +229,9 @@ public sealed class AuthService(
         {
             siteIds.Add(user.DefaultSiteId.Value);
         }
-
         if (siteIds.Count == 0)
         {
-            throw new ServiceException(StatusCodes.Status403Forbidden, "Operator has no assigned site access.");
+            return [];
         }
 
         var workCenters = await db.WorkCenters
@@ -213,7 +244,7 @@ public sealed class AuthService(
 
         if (workCenters.Count == 0)
         {
-            throw new ServiceException(StatusCodes.Status403Forbidden, "Operator has no active work center assignments.");
+            return [];
         }
 
         return workCenters

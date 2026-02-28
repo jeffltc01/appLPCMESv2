@@ -18,8 +18,8 @@ public sealed record OperatorPreLoginResponseDto(
 public sealed record OperatorLoginRequestDto(
     string EmpNo,
     string? Password,
-    int SiteId,
-    int WorkCenterId);
+    int? SiteId,
+    int? WorkCenterId);
 
 public sealed record MicrosoftLoginRequestDto(string IdToken);
 

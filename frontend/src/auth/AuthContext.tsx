@@ -14,8 +14,8 @@ interface AuthContextValue {
   operatorLogin: (payload: {
     empNo: string;
     password?: string | null;
-    siteId: number;
-    workCenterId: number;
+    siteId?: number | null;
+    workCenterId?: number | null;
   }) => Promise<AuthSession>;
   logout: () => Promise<void>;
 }

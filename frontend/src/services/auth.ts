@@ -7,8 +7,8 @@ export const authApi = {
   operatorLogin: (payload: {
     empNo: string;
     password?: string | null;
-    siteId: number;
-    workCenterId: number;
+    siteId?: number | null;
+    workCenterId?: number | null;
   }) => api.post<AuthSession>("/auth/operator/login", payload),
   microsoftLogin: (idToken: string) => api.post<AuthSession>("/auth/microsoft/login", { idToken }),
   getSession: () => api.get<AuthSession>("/auth/session"),

@@ -63,6 +63,7 @@ builder.Services.AddScoped<IOrderQueryService, OrderQueryService>();
 builder.Services.AddScoped<IOrderKpiService, OrderKpiService>();
 builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 builder.Services.AddScoped<IInvoiceStagingService, InvoiceStagingService>();
+builder.Services.AddHttpClient(nameof(InvoiceStagingService));
 builder.Services.AddScoped<IReceivingService, ReceivingService>();
 builder.Services.AddScoped<IProductionService, ProductionService>();
 builder.Services.AddScoped<IOrderAttachmentService, OrderAttachmentService>();

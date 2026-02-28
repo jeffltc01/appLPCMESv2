@@ -109,7 +109,7 @@ Primary related specs:
 ### 3.5 Invoice Integration Enums
 
 `InvoiceSubmissionChannel`:
-- `PowerAutomateSqlSp`
+- `PowerAutomateHttp`
 
 `InvoiceStagingResult`:
 - `Success`

@@ -327,7 +327,7 @@ public class OrderWorkflowService(
                 order.InvoiceStagingResult = existingSuccessfulAttempt.InvoiceStagingResult;
                 order.InvoiceStagingError = existingSuccessfulAttempt.InvoiceStagingError;
                 order.ErpInvoiceReference = existingSuccessfulAttempt.ErpInvoiceReference;
-                order.InvoiceSubmissionChannel = existingSuccessfulAttempt.InvoiceSubmissionChannel ?? "PowerAutomateSqlSp";
+                order.InvoiceSubmissionChannel = existingSuccessfulAttempt.InvoiceSubmissionChannel ?? "PowerAutomateHttp";
                 await db.SaveChangesAsync(cancellationToken);
                 return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken: cancellationToken);
             }
@@ -453,7 +453,7 @@ public class OrderWorkflowService(
         order.InvoiceReviewCompletedByEmpNo = TrimToNull(dto.ReviewCompletedByEmpNo) ?? TrimToNull(dto.SubmittedByEmpNo);
         order.InvoiceSubmissionRequestedUtc = now;
         order.InvoiceSubmissionRequestedByEmpNo = TrimToNull(dto.SubmittedByEmpNo);
-        order.InvoiceSubmissionChannel = "PowerAutomateSqlSp";
+        order.InvoiceSubmissionChannel = "PowerAutomateHttp";
         order.InvoiceSubmissionCorrelationId = normalizedCorrelationId;
 
         var stagingService = invoiceStagingService;
