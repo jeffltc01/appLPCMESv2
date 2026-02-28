@@ -18,6 +18,7 @@ import {
   MessageBar,
   MessageBarBody,
 } from "@fluentui/react-components";
+import { ApiError } from "../../services/api";
 import { orderLinesApi, orderLookupsApi } from "../../services/orders";
 import type { OrderLine, OrderLineCreate, OrderLineUpdate } from "../../types/order";
 import type { Lookup } from "../../types/customer";
@@ -57,6 +58,19 @@ interface OrderLineDialogProps {
   line: OrderLine | null;
   onClose: () => void;
   onSaved: () => void;
+}
+
+function extractApiMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+
+  const body = error.body as { message?: string } | undefined;
+  if (body?.message) {
+    return body.message;
+  }
+
+  return `${error.status} ${error.statusText}`;
 }
 
 export function OrderLineDialog({
@@ -180,8 +194,8 @@ export function OrderLineDialog({
         await orderLinesApi.create(orderId, payload);
       }
       onSaved();
-    } catch {
-      setError("Failed to save order line.");
+    } catch (error) {
+      setError(extractApiMessage(error) ?? "Failed to save order line.");
     } finally {
       setSaving(false);
     }

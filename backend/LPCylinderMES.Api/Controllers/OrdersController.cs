@@ -87,6 +87,8 @@ public class OrdersController(
             SalesOrderNo = await GenerateOrderNumber(),
             CustomerId = dto.CustomerId,
             SiteId = dto.SiteId,
+            InboundMode = string.IsNullOrWhiteSpace(dto.InboundMode) ? "LpcArrangedPickup" : dto.InboundMode.Trim(),
+            OutboundMode = string.IsNullOrWhiteSpace(dto.OutboundMode) ? "LpcArrangedDelivery" : dto.OutboundMode.Trim(),
             OrderDate = dto.OrderDate ?? DateOnly.FromDateTime(DateTime.Today),
             OrderStatus = OrderStatusCatalog.New,
             OrderLifecycleStatus = OrderStatusCatalog.Draft,
@@ -135,6 +137,8 @@ public class OrdersController(
 
         order.CustomerId = dto.CustomerId;
         order.SiteId = dto.SiteId;
+        order.InboundMode = string.IsNullOrWhiteSpace(dto.InboundMode) ? "LpcArrangedPickup" : dto.InboundMode.Trim();
+        order.OutboundMode = string.IsNullOrWhiteSpace(dto.OutboundMode) ? "LpcArrangedDelivery" : dto.OutboundMode.Trim();
         order.OrderDate = dto.OrderDate;
         order.CustomerPoNo = dto.CustomerPoNo;
         order.Contact = dto.Contact;

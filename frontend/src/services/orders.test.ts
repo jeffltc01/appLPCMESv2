@@ -26,7 +26,7 @@ describe("getWorkspaceActionState", () => {
     expect(state.enabled).toBe(true);
   });
 
-  it("blocks non-adjacent transitions in guided mode", () => {
+  it("allows explicit mapped transitions even if not adjacent", () => {
     const state = getWorkspaceActionState(
       "Admin",
       "markDispatchedOrReleased",

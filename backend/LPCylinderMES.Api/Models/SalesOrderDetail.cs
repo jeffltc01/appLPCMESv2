@@ -15,6 +15,8 @@ public partial class SalesOrderDetail
 
     public decimal? QuantityAsReceived { get; set; }
 
+    public string ReceiptStatus { get; set; } = ReceiptStatusCatalog.Unknown;
+
     public decimal? QuantityAsShipped { get; set; }
 
     public decimal? QuantityAsScrapped { get; set; }

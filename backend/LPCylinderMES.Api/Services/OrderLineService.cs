@@ -48,6 +48,7 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
             ItemId = dto.ItemId,
             ItemName = item.ItemDescription ?? item.ItemNo,
             QuantityAsOrdered = dto.QuantityAsOrdered,
+            QuantityAsReceived = 0,
             UnitPrice = unitPrice,
             Extension = unitPrice.HasValue ? dto.QuantityAsOrdered * unitPrice.Value : null,
             Notes = dto.Notes,
@@ -60,6 +61,7 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
             ValveType = dto.ValveType,
             Gauges = dto.Gauges,
             SiteId = order.SiteId,
+            ReceiptStatus = ReceiptStatusCatalog.Unknown,
         };
 
         db.SalesOrderDetails.Add(detail);
@@ -139,11 +141,17 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
 
     private static void EnsureOrderEditable(SalesOrder order)
     {
-        if (order.OrderStatus != OrderStatusCatalog.New)
+        var canEditDraftLines = string.Equals(order.OrderStatus, OrderStatusCatalog.New, StringComparison.Ordinal);
+        var canEditInvoiceLines =
+            string.Equals(order.OrderStatus, OrderStatusCatalog.ReadyToInvoice, StringComparison.Ordinal) ||
+            string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.DispatchedOrPickupReleased, StringComparison.Ordinal) ||
+            string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal);
+
+        if (!canEditDraftLines && !canEditInvoiceLines)
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                $"Only orders in status '{OrderStatusCatalog.New}' can be edited in this sprint.");
+                $"Only orders in statuses '{OrderStatusCatalog.New}', '{OrderStatusCatalog.ReadyToInvoice}', '{OrderStatusCatalog.DispatchedOrPickupReleased}', or '{OrderStatusCatalog.InvoiceReady}' can be edited.");
         }
     }
 

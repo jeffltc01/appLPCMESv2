@@ -8,4 +8,4 @@ public record ItemSizeLookupDto(int Id, string Name, int Size);
 
 public record AddressLookupDto(int Id, string Type, string Name);
 
-public record OrderItemLookupDto(int Id, string ItemNo, string? ItemDescription);
+public record OrderItemLookupDto(int Id, string ItemNo, string? ItemDescription, string? ProductLine);

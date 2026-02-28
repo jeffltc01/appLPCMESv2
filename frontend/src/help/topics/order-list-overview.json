@@ -1,0 +1,52 @@
+{
+  "topicId": "order-list-overview",
+  "title": "Find and open sales orders",
+  "appliesToRoles": [
+    "Office",
+    "Transportation",
+    "Receiving",
+    "Production",
+    "Supervisor",
+    "Quality",
+    "PlantManager",
+    "ReadOnly",
+    "Admin"
+  ],
+  "appliesToPages": [
+    "/orders"
+  ],
+  "purpose": "Use the Sales Orders page to search active orders and open an order workspace.",
+  "whenToUse": [
+    "You need to locate an order by number, customer, or status.",
+    "You need to start a new order from the order board."
+  ],
+  "prerequisites": [
+    "You are signed in with a role that can view sales orders.",
+    "Order data exists for the selected site scope."
+  ],
+  "stepByStepActions": [
+    "Enter search text in Search.",
+    "Select Search to refresh results.",
+    "Select a row to open the order workspace.",
+    "Select Create New Order to start a draft order."
+  ],
+  "expectedResult": "Matching orders are displayed and row selection opens the order detail workspace.",
+  "commonErrorsAndRecovery": [
+    {
+      "error": "Unable to load orders.",
+      "cause": "API request failed or the service is temporarily unavailable.",
+      "recovery": [
+        "Retry with Search.",
+        "Confirm backend service health.",
+        "Escalate to MES support if repeated failures continue."
+      ]
+    }
+  ],
+  "relatedTopics": [
+    "order-entry-create-and-maintain",
+    "order-entry-lifecycle-and-holds"
+  ],
+  "lastValidatedOnUtc": "2026-02-28T00:00:00Z",
+  "validatedBy": "MES Product+Engineering",
+  "escalationPath": "Contact site MES support lead and include the order number and timestamp."
+}

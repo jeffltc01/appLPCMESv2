@@ -42,6 +42,7 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<BusinessDecisionSignoff> BusinessDecisionSignoffs { get; set; }
 
     public virtual DbSet<PromiseReasonPolicy> PromiseReasonPolicies { get; set; }
+    public virtual DbSet<StatusReasonCode> StatusReasonCodes { get; set; }
 
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
 
@@ -1155,6 +1156,11 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.QuantityAsReceived)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("quantity_as_received");
+            entity.Property(e => e.ReceiptStatus)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue(ReceiptStatusCatalog.Unknown)
+                .HasColumnName("receipt_status");
             entity.Property(e => e.QuantityAsShipped)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("quantity_as_shipped");
@@ -1674,6 +1680,17 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
             entity.Property(e => e.UpdatedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("updated_by_emp_no");
             entity.HasIndex(e => e.ReasonCode).IsUnique();
+        });
+
+        modelBuilder.Entity<StatusReasonCode>(entity =>
+        {
+            entity.ToTable("status_reason_codes");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.OverlayType).HasMaxLength(60).IsUnicode(false).HasColumnName("overlay_type");
+            entity.Property(e => e.CodeName).HasMaxLength(80).IsUnicode(false).HasColumnName("code_name");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+            entity.Property(e => e.UpdatedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("updated_by_emp_no");
+            entity.HasIndex(e => new { e.OverlayType, e.CodeName }).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);

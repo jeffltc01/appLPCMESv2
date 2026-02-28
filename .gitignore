@@ -35,3 +35,6 @@ desktop.ini
 backend/LPCylinderMES.Api/_temp_build/
 backend/_testbin/
 backend/_buildcheck/
+.alt-build/
+.alt-build-tests/
+backend/.alt-run-out*/

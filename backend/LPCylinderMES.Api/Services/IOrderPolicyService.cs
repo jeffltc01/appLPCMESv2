@@ -14,4 +14,7 @@ public interface IOrderPolicyService
     Task<PolicyActivationResultDto> ActivatePolicyVersionAsync(int policyVersion, CancellationToken cancellationToken = default);
     Task<List<PromiseReasonPolicyDto>> GetPromiseReasonPoliciesAsync(CancellationToken cancellationToken = default);
     Task<PromiseReasonPolicyDto> UpsertPromiseReasonPolicyAsync(UpsertPromiseReasonPolicyDto dto, CancellationToken cancellationToken = default);
+    Task<List<StatusReasonCodeDto>> GetStatusReasonCodesAsync(string? overlayType = null, CancellationToken cancellationToken = default);
+    Task<StatusReasonCodeDto> UpsertStatusReasonCodeAsync(int? id, UpsertStatusReasonCodeDto dto, CancellationToken cancellationToken = default);
+    Task DeleteStatusReasonCodeAsync(int id, CancellationToken cancellationToken = default);
 }

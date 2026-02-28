@@ -62,4 +62,64 @@ public class OrderPolicyController(IOrderPolicyService orderPolicyService) : Con
     {
         return Ok(await orderPolicyService.UpsertPromiseReasonPolicyAsync(dto, cancellationToken));
     }
+
+    [HttpGet("status-reasons")]
+    public async Task<ActionResult<List<StatusReasonCodeDto>>> GetStatusReasons(
+        [FromQuery] string? overlayType,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await orderPolicyService.GetStatusReasonCodesAsync(overlayType, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("status-reasons")]
+    public async Task<ActionResult<StatusReasonCodeDto>> CreateStatusReason(
+        [FromBody] UpsertStatusReasonCodeDto dto,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await orderPolicyService.UpsertStatusReasonCodeAsync(null, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPut("status-reasons/{id:int}")]
+    public async Task<ActionResult<StatusReasonCodeDto>> UpdateStatusReason(
+        int id,
+        [FromBody] UpsertStatusReasonCodeDto dto,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await orderPolicyService.UpsertStatusReasonCodeAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("status-reasons/{id:int}")]
+    public async Task<IActionResult> DeleteStatusReason(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await orderPolicyService.DeleteStatusReasonCodeAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
 }

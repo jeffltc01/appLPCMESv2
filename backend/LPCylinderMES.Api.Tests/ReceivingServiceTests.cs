@@ -362,10 +362,73 @@ public class ReceivingServiceTests
 
         var originalLine = order.SalesOrderDetails.Single(l => l.Id == 501);
         Assert.Equal(0, originalLine.QuantityAsReceived);
+        Assert.Equal(ReceiptStatusCatalog.Unknown, originalLine.ReceiptStatus);
 
         var addedLine = order.SalesOrderDetails.Single(l => l.ItemId == 52);
         Assert.Equal(2, addedLine.QuantityAsReceived);
         Assert.Equal(2, addedLine.LineNo);
+        Assert.Equal(ReceiptStatusCatalog.Unknown, addedLine.ReceiptStatus);
+    }
+
+    [Fact]
+    public async Task CompleteReceivingAsync_MissingRouteAssignment_DoesNotBlockReceivingAndFlagsException()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteReceivingAsync_MissingRouteAssignment_DoesNotBlockReceivingAndFlagsException));
+        db.Items.Add(new Item { Id = 61, ItemNo = "TNK-61", ItemType = "Tank", RequiresSerialNumbers = 0, ItemDescription = "Tank 61" });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 60,
+            SalesOrderNo = "SO-60",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.PickupScheduled,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundInTransit,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 601,
+                    LineNo = 1,
+                    ItemId = 61,
+                    QuantityAsOrdered = 3,
+                    QuantityAsReceived = 0,
+                    SalesOrderId = 60,
+                    SiteId = 1,
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetReceivingDetailHandler = (id, _) => Task.FromResult<ReceivingOrderDetailDto?>(
+                new ReceivingOrderDetailDto(
+                    id,
+                    "SO-60",
+                    OrderStatusCatalog.Received,
+                    "Customer",
+                    "Pickup",
+                    "TR-1",
+                    null,
+                    DateTime.UtcNow,
+                    [])),
+        };
+
+        var service = new ReceivingService(db, queries);
+        var dto = new CompleteReceivingDto(DateTime.UtcNow, [new ReceivingLineUpdateDto(601, true, 3)], null);
+
+        await service.CompleteReceivingAsync(60, dto);
+
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 60);
+        var routes = await db.OrderLineRouteInstances.Where(r => r.SalesOrderId == 60).ToListAsync();
+
+        Assert.Equal(OrderStatusCatalog.Received, order.OrderStatus);
+        Assert.Equal(OrderStatusCatalog.ReceivedPendingReconciliation, order.OrderLifecycleStatus);
+        Assert.Equal(OrderStatusCatalog.ExceptionDocumentation, order.HoldOverlay);
+        Assert.Equal("Office", order.StatusOwnerRole);
+        Assert.Equal("RouteAssignmentMissing", order.StatusReasonCode);
+        Assert.Empty(routes);
     }
 
     private static void SeedRoutingTemplate(LpcAppsDbContext db, int routeTemplateId, int workCenterId)

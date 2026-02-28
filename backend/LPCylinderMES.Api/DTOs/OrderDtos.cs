@@ -268,6 +268,8 @@ public record TraceabilityCompletenessMetricDto(
 public record OrderDraftCreateDto(
     int CustomerId,
     int SiteId,
+    string? InboundMode,
+    string? OutboundMode,
     DateOnly? OrderDate,
     string? CustomerPoNo,
     string? Contact,
@@ -287,6 +289,8 @@ public record OrderDraftCreateDto(
 public record OrderDraftUpdateDto(
     int CustomerId,
     int SiteId,
+    string? InboundMode,
+    string? OutboundMode,
     DateOnly OrderDate,
     string? CustomerPoNo,
     string? Contact,
@@ -412,11 +416,20 @@ public record TransportBoardItemDto(
     DateTime? ScheduledDate,
     string? TransportationStatus,
     string? TransportationNotes,
+    List<TransportBoardLineDto> Lines,
     bool IsInboundComplete = false,
     bool IsProductionComplete = false,
     bool IsProductionCompleteForShipment = false,
     bool IsInvoiceComplete = false,
     bool IsReworkOpen = false);
+
+public record TransportBoardLineDto(
+    int LineId,
+    decimal LineNo,
+    string ItemNo,
+    string ItemDescription,
+    string? ProductLine,
+    decimal QuantityOrdered);
 
 public record TransportBoardUpdateDto(
     int Id,
@@ -463,9 +476,11 @@ public record ReceivingOrderLineDto(
     int ItemId,
     string ItemNo,
     string ItemDescription,
+    string ProductLine,
     decimal QuantityAsOrdered,
     decimal QuantityAsReceived,
-    bool IsReceived);
+    bool IsReceived,
+    string ReceiptStatus = "Unknown");
 
 public record ReceivingOrderDetailDto(
     int Id,
@@ -476,7 +491,8 @@ public record ReceivingOrderDetailDto(
     string? TrailerNo,
     string? OrderComments,
     DateTime? ReceivedDate,
-    List<ReceivingOrderLineDto> Lines);
+    List<ReceivingOrderLineDto> Lines,
+    string? PickUpAddressStreet = null);
 
 public record ProductionOrderDetailDto(
     int Id,
@@ -535,7 +551,8 @@ public record CompleteProductionDto(
 public record ReceivingLineUpdateDto(
     int LineId,
     bool IsReceived,
-    decimal QuantityAsReceived);
+    decimal QuantityAsReceived,
+    string ReceiptStatus = "Unknown");
 
 public record ReceivingAddLineDto(
     int ItemId,

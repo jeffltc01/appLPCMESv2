@@ -36,7 +36,9 @@ const ACTING_EMP_NO = "EMP001";
 
 const useStyles = makeStyles({
   page: {
-    minHeight: "100vh",
+    height: "100vh",
+    overflow: "hidden",
+    boxSizing: "border-box",
     backgroundColor: "#f5f5f5",
     padding: tokens.spacingVerticalL,
   },
@@ -44,6 +46,9 @@ const useStyles = makeStyles({
     maxWidth: "1480px",
     margin: "0 auto",
     display: "grid",
+    gridTemplateRows: "auto auto minmax(0, 1fr)",
+    height: "100%",
+    minHeight: 0,
     gap: tokens.spacingVerticalM,
   },
   header: {
@@ -65,9 +70,20 @@ const useStyles = makeStyles({
   },
   tableCard: {
     border: "1px solid #e8e8e8",
+    display: "grid",
+    gridTemplateRows: "auto minmax(0, 1fr)",
+    minHeight: 0,
   },
   tableWrap: {
-    overflow: "auto",
+    overflowX: "auto",
+    overflowY: "auto",
+    minHeight: 0,
+  },
+  stickyHeaderCell: {
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    backgroundColor: tokens.colorNeutralBackground1,
   },
   muted: {
     color: tokens.colorNeutralForeground2,
@@ -386,7 +402,7 @@ export function TransportationDispatchPage() {
       : `${dirtyOrderIds.size} order(s) with unsaved transportation updates`;
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-testid="transport-dispatch-page">
       <div className={styles.shell}>
         <div className={styles.header}>
           <div>
@@ -441,22 +457,22 @@ export function TransportationDispatchPage() {
             <Body1 className={styles.muted}>{orders.length} order(s)</Body1>
           </div>
 
-          <div className={styles.tableWrap}>
+          <div className={styles.tableWrap} data-testid="transport-dispatch-list-wrap">
             <Table>
-              <TableHeader>
+              <TableHeader data-testid="transport-dispatch-table-header">
                 <TableRow>
-                  <TableHeaderCell>Order No</TableHeaderCell>
-                  <TableHeaderCell>Customer</TableHeaderCell>
-                  <TableHeaderCell>Order Date</TableHeaderCell>
-                  <TableHeaderCell>Site</TableHeaderCell>
-                  <TableHeaderCell>Movement</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>Trailer No</TableHeaderCell>
-                  <TableHeaderCell>Carrier</TableHeaderCell>
-                  <TableHeaderCell>Dispatched</TableHeaderCell>
-                  <TableHeaderCell>Scheduled</TableHeaderCell>
-                  <TableHeaderCell>Transp. Status</TableHeaderCell>
-                  <TableHeaderCell>Transp. Notes</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Order No</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Customer</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Order Date</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Site</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Movement</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Status</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Trailer No</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Carrier</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Dispatched</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Scheduled</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Transp. Status</TableHeaderCell>
+                  <TableHeaderCell className={styles.stickyHeaderCell}>Transp. Notes</TableHeaderCell>
                 </TableRow>
               </TableHeader>
               <TableBody>

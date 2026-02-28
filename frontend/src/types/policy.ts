@@ -43,3 +43,17 @@ export interface PolicyActivationResult {
   activated: boolean;
   missingFunctions: string[];
 }
+
+export interface StatusReasonCode {
+  id: number;
+  overlayType: string;
+  codeName: string;
+  updatedUtc: string;
+  updatedByEmpNo: string | null;
+}
+
+export interface UpsertStatusReasonCodeRequest {
+  overlayType: string;
+  codeName: string;
+  updatedByEmpNo?: string | null;
+}

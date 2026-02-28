@@ -24,6 +24,7 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
     [InlineData("/api/orders/statuses")]
     [InlineData("/api/orders/receiving")]
     [InlineData("/api/orders/production")]
+    [InlineData("/api/help/topics?route=/orders")]
     public async Task Get_EndpointRespondsSuccessfully(string endpoint)
     {
         var response = await _client.GetAsync(endpoint);
@@ -43,6 +44,26 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("\"id\":1", payload, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Get_HelpTopics_WithoutRoute_ReturnsBadRequest()
+    {
+        var response = await _client.GetAsync("/api/help/topics");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("InvalidQuery", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Get_HelpTopicById_ReturnsNotFound_WhenUnknown()
+    {
+        var response = await _client.GetAsync("/api/help/topics/unknown-topic");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("TopicNotFound", payload, StringComparison.Ordinal);
+    }
 }
 
 public sealed class ApiSmokeWebApplicationFactory : WebApplicationFactory<Program>
@@ -57,6 +78,9 @@ public sealed class ApiSmokeWebApplicationFactory : WebApplicationFactory<Progra
             {
                 ["Testing:UseInMemoryDatabase"] = "true",
                 ["Testing:InMemoryDatabaseName"] = _databaseName,
+                ["HelpContent:SourceType"] = "File",
+                ["HelpContent:BasePath"] = ResolveHelpTopicPath(),
+                ["HelpContent:EnableSchemaValidation"] = "true",
             });
         });
 
@@ -93,5 +117,11 @@ public sealed class ApiSmokeWebApplicationFactory : WebApplicationFactory<Progra
             Name = "Damaged",
         });
         db.SaveChanges();
+    }
+
+    private static string ResolveHelpTopicPath()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        return Path.Combine(root, "frontend", "src", "help", "topics");
     }
 }

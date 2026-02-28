@@ -160,7 +160,8 @@ public class LookupsController(LpcAppsDbContext db) : ControllerBase
             .Select(i => new OrderItemLookupDto(
                 i.Id,
                 i.ItemNo,
-                i.ItemDescription))
+                i.ItemDescription,
+                i.ProductLine))
             .ToListAsync();
         return Ok(items);
     }

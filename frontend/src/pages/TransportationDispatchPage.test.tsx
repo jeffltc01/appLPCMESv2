@@ -152,4 +152,38 @@ describe("TransportationDispatchPage", () => {
       ]);
     });
   });
+
+  it("keeps page fixed and list region scrollable", async () => {
+    render(
+      <MemoryRouter>
+        <TransportationDispatchPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("SO-TD-101");
+
+    expect(screen.getByTestId("transport-dispatch-page")).toHaveStyle({
+      height: "100vh",
+      overflow: "hidden",
+    });
+    expect(screen.getByTestId("transport-dispatch-list-wrap")).toHaveStyle({
+      overflowY: "auto",
+    });
+  });
+
+  it("keeps header sticky while list scrolls", async () => {
+    render(
+      <MemoryRouter>
+        <TransportationDispatchPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("SO-TD-101");
+
+    const orderNoHeaderCell = screen.getByRole("columnheader", { name: "Order No" });
+    expect(orderNoHeaderCell).toHaveStyle({
+      position: "sticky",
+      top: "0",
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { getHoldOverlayDisplayLabel } from "../types/order";
 import type {
   OrderDraftListItem,
   OrderDraftDetail,
@@ -52,6 +53,7 @@ import type {
   OrderWorkspaceAction,
   OrderWorkspaceRole,
   OrderWorkflowStatus,
+  HoldOverlayType,
 } from "../types/order";
 import type {
   Lookup,
@@ -207,15 +209,25 @@ export function getWorkspaceActionState(
   role: OrderWorkspaceRole,
   action: OrderWorkspaceAction,
   currentStatus: string,
-  hasHoldOverlay: boolean,
+  hasHoldOverlay: boolean | HoldOverlayType | null | undefined,
   overrideEnabled: boolean
 ): { enabled: boolean; reason?: string; targetStatus?: OrderWorkflowStatus } {
   if (!ROLE_ACTIONS[role].has(action) && !overrideEnabled) {
     return { enabled: false, reason: "Role does not allow this action." };
   }
 
-  if (hasHoldOverlay && action !== "applyHold" && !overrideEnabled) {
-    return { enabled: false, reason: "Hold overlay blocks forward transitions." };
+  const activeOverlay =
+    typeof hasHoldOverlay === "string"
+      ? hasHoldOverlay
+      : hasHoldOverlay
+      ? ("OnHoldCustomer" as HoldOverlayType)
+      : null;
+
+  if (activeOverlay && action !== "applyHold" && !overrideEnabled) {
+    return {
+      enabled: false,
+      reason: `${getHoldOverlayDisplayLabel(activeOverlay)} blocks forward transitions.`,
+    };
   }
 
   const targetStatus = ACTION_TO_STATUS[action];
@@ -236,10 +248,6 @@ export function getWorkspaceActionState(
 
   if (targetIdx < currentIdx && !overrideEnabled) {
     return { enabled: false, reason: "Backwards transitions require override.", targetStatus };
-  }
-
-  if (targetIdx > currentIdx + 1 && !overrideEnabled) {
-    return { enabled: false, reason: "Guided mode only allows next-step progress.", targetStatus };
   }
 
   return { enabled: true, targetStatus };
@@ -567,6 +575,7 @@ export const orderLookupsApi = {
     return api.get<AddressLookup[]>(`/lookups/customers/${customerId}/addresses${qs}`);
   },
   items: () => api.get<OrderItemLookup[]>("/lookups/order-items"),
+  productLines: () => api.get<string[]>("/lookups/product-lines"),
   sites: () => api.get<Lookup[]>("/lookups/sites"),
   paymentTerms: () => api.get<Lookup[]>("/lookups/payment-terms"),
   shipVias: () => api.get<Lookup[]>("/lookups/ship-vias"),

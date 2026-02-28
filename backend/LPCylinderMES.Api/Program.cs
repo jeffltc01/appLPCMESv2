@@ -71,6 +71,8 @@ builder.Services.AddScoped<IWorkCenterWorkflowService, WorkCenterWorkflowService
 builder.Services.AddScoped<ISetupRoutingService, SetupRoutingService>();
 builder.Services.AddScoped<IOrderPolicyService, OrderPolicyService>();
 builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
+builder.Services.Configure<HelpContentOptions>(builder.Configuration.GetSection("HelpContent"));
+builder.Services.AddSingleton<IHelpContentService, HelpContentService>();
 
 builder.Services.AddCors(options =>
 {

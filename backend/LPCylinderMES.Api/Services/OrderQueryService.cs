@@ -463,6 +463,16 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
         var totalQuantity = order.SalesOrderDetails.Sum(d => d.QuantityAsOrdered);
         var lifecycleStatus = ResolveLifecycleStatus(order.OrderLifecycleStatus, order.OrderStatus);
         var progress = ComputeProgress(lifecycleStatus, order.HoldOverlay, order.HasOpenRework ?? false, order.ReworkBlockingInvoice ?? false);
+        var lines = order.SalesOrderDetails
+            .OrderBy(d => d.LineNo)
+            .Select(d => new TransportBoardLineDto(
+                d.Id,
+                d.LineNo,
+                d.Item?.ItemNo ?? d.ItemName ?? $"Item {d.ItemId}",
+                d.Item?.ItemDescription ?? d.ItemName ?? (d.Item?.ItemNo ?? $"Item {d.ItemId}"),
+                TrimToNull(d.Item?.ProductLine),
+                d.QuantityAsOrdered))
+            .ToList();
         var topLines = order.SalesOrderDetails
             .OrderBy(d => d.LineNo)
             .Take(3)
@@ -502,6 +512,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.PickupScheduledDate,
             order.TransportationStatus,
             order.TransportationNotes,
+            lines,
             progress.IsInboundComplete,
             progress.IsProductionComplete,
             progress.IsProductionCompleteForShipment,
@@ -593,15 +604,20 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             .Select(d =>
             {
                 var qtyReceived = d.QuantityAsReceived ?? 0;
+                var receiptStatus = ReceiptStatusCatalog.Allowed.Contains(d.ReceiptStatus)
+                    ? d.ReceiptStatus
+                    : (qtyReceived > 0 ? ReceiptStatusCatalog.Received : ReceiptStatusCatalog.Unknown);
                 return new ReceivingOrderLineDto(
                     d.Id,
                     d.LineNo,
                     d.ItemId,
                     d.Item.ItemNo,
                     d.Item.ItemDescription ?? d.Item.ItemNo,
+                    TrimToNull(d.Item.ProductLine) ?? d.Item.ItemType,
                     d.QuantityAsOrdered,
                     qtyReceived,
-                    qtyReceived > 0);
+                    receiptStatus == ReceiptStatusCatalog.Received,
+                    receiptStatus);
             })
             .ToList();
 
@@ -614,7 +630,8 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.TrailerNo,
             TrimToNull(order.Comments),
             order.ReceivedDate,
-            lines);
+            lines,
+            TrimToNull(order.PickUpAddress?.Address1));
     }
 
     private static ProductionOrderDetailDto ToProductionDetailDto(SalesOrder order)

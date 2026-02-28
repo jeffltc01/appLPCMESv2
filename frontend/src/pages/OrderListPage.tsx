@@ -1,243 +1,201 @@
-import { useState, useEffect, useCallback } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  makeStyles,
-  tokens,
-  Title2,
-  Input,
-  Dropdown,
-  Option,
-  Button,
-  Spinner,
   Body1,
+  Button,
+  Card,
+  Field,
+  Input,
   Table,
+  TableBody,
+  TableCell,
   TableHeader,
   TableHeaderCell,
-  TableBody,
   TableRow,
-  TableCell,
+  Title2,
+  makeStyles,
+  tokens,
 } from "@fluentui/react-components";
-import { Add24Regular, Search24Regular } from "@fluentui/react-icons";
-import { ordersApi, orderLookupsApi } from "../services/orders";
-import { ORDER_STATUS_KEYS, type OrderDraftListItem } from "../types/order";
-import type { Lookup, PaginatedResponse } from "../types/customer";
+import { Add24Regular } from "@fluentui/react-icons";
+import { ordersApi } from "../services/orders";
+import type { OrderDraftListItem } from "../types/order";
+import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
 
 const useStyles = makeStyles({
+  page: {
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
+    padding: tokens.spacingVerticalL,
+  },
+  shell: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+  },
   header: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: tokens.spacingHorizontalM,
-    marginBottom: tokens.spacingVerticalL,
-  },
-  filters: {
-    display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalM,
-    flexWrap: "wrap",
-    marginBottom: tokens.spacingVerticalM,
   },
-  searchBox: {
-    minWidth: "240px",
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
   },
-  dropdown: {
-    minWidth: "220px",
+  controls: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
   },
-  dateInput: {
-    minWidth: "170px",
+  tableCard: {
+    border: "1px solid #e8e8e8",
   },
-  tableRow: {
+  tableWrap: {
+    overflow: "auto",
+  },
+  clickableRow: {
     cursor: "pointer",
-    ":hover": {
-      backgroundColor: tokens.colorNeutralBackground1Hover,
-    },
   },
-  pager: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: tokens.spacingHorizontalM,
-    marginTop: tokens.spacingVerticalL,
-  },
-  center: {
-    display: "flex",
-    justifyContent: "center",
-    marginTop: tokens.spacingVerticalXXL,
+  muted: {
+    color: tokens.colorNeutralForeground2,
   },
 });
 
-const PAGE_SIZE = 25;
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString();
+}
 
 export function OrderListPage() {
   const styles = useStyles();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [searchParams] = useSearchParams();
-
-  const [data, setData] = useState<PaginatedResponse<OrderDraftListItem> | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<OrderDraftListItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [customerId, setCustomerId] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [page, setPage] = useState(1);
-  const [customers, setCustomers] = useState<Lookup[]>([]);
-  const statusFilter = searchParams.get("status")?.trim()
-    ||
-    (location.pathname.startsWith("/invoicing")
-      ? ORDER_STATUS_KEYS.READY_TO_INVOICE
-      : ORDER_STATUS_KEYS.NEW);
 
-  useEffect(() => {
-    orderLookupsApi.activeCustomers().then(setCustomers);
-  }, []);
-
-  const load = useCallback(async () => {
+  const loadOrders = async (query?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const result = await ordersApi.list({
-        page,
-        pageSize: PAGE_SIZE,
-        search: search || undefined,
-        status: statusFilter || undefined,
-        customerId: customerId ? Number(customerId) : undefined,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
+        page: 1,
+        pageSize: 100,
+        search: (query ?? "").trim() || undefined,
       });
-      setData(result);
+      setOrders(result.items);
+    } catch {
+      setError("Unable to load orders.");
     } finally {
       setLoading(false);
     }
-  }, [page, search, customerId, dateFrom, dateTo, statusFilter]);
+  };
 
   useEffect(() => {
-    load();
-  }, [load]);
+    void loadOrders("");
+  }, []);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, customerId, dateFrom, dateTo, statusFilter]);
-
-  const totalPages = data ? Math.ceil(data.totalCount / PAGE_SIZE) : 0;
+  const filteredCountLabel = useMemo(() => {
+    if (!search.trim()) {
+      return `${orders.length} order(s)`;
+    }
+    return `${orders.length} result(s)`;
+  }, [orders.length, search]);
 
   return (
-    <div>
-      <div className={styles.header}>
-        <Title2>Orders</Title2>
-        <Button
-          appearance="primary"
-          icon={<Add24Regular />}
-          onClick={() => navigate("/orders/new")}
-        >
-          New Order
-        </Button>
-      </div>
-
-      <div className={styles.filters}>
-        <Input
-          className={styles.searchBox}
-          contentBefore={<Search24Regular />}
-          placeholder="Search order no, customer, PO..."
-          value={search}
-          onChange={(_, d) => setSearch(d.value)}
-        />
-        <Dropdown
-          className={styles.dropdown}
-          placeholder="Customer"
-          value={
-            customers.find((c) => String(c.id) === customerId)?.name ?? "All Customers"
-          }
-          selectedOptions={customerId ? [customerId] : []}
-          onOptionSelect={(_, d) => setCustomerId(d.optionValue ?? "")}
-          clearable
-        >
-          {customers.map((customer) => (
-            <Option key={customer.id} value={String(customer.id)}>
-              {customer.name}
-            </Option>
-          ))}
-        </Dropdown>
-        <Input
-          className={styles.dateInput}
-          type="date"
-          value={dateFrom}
-          onChange={(_, d) => setDateFrom(d.value)}
-          contentBefore={<span>From</span>}
-        />
-        <Input
-          className={styles.dateInput}
-          type="date"
-          value={dateTo}
-          onChange={(_, d) => setDateTo(d.value)}
-          contentBefore={<span>To</span>}
-        />
-      </div>
-
-      {loading ? (
-        <div className={styles.center}>
-          <Spinner size="large" label="Loading draft orders..." />
-        </div>
-      ) : !data || data.items.length === 0 ? (
-        <div className={styles.center}>
-          <Body1>No draft orders found.</Body1>
-        </div>
-      ) : (
-        <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Order No</TableHeaderCell>
-                <TableHeaderCell>Order Date</TableHeaderCell>
-                <TableHeaderCell>Customer</TableHeaderCell>
-                <TableHeaderCell>Site</TableHeaderCell>
-                <TableHeaderCell>Customer PO</TableHeaderCell>
-                <TableHeaderCell>Contact</TableHeaderCell>
-                <TableHeaderCell>Lines</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.items.map((order) => (
-                <TableRow
-                  key={order.id}
-                  className={styles.tableRow}
-                  onClick={() => navigate(`/orders/${order.id}/workspace`)}
-                >
-                  <TableCell>{order.salesOrderNo}</TableCell>
-                  <TableCell>{order.orderDate}</TableCell>
-                  <TableCell>{order.customerName}</TableCell>
-                  <TableCell>{order.siteName}</TableCell>
-                  <TableCell>{order.customerPoNo}</TableCell>
-                  <TableCell>{order.contact}</TableCell>
-                  <TableCell>{order.lineCount}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          <div className={styles.pager}>
-            <Button
-              appearance="subtle"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
+    <div className={styles.page}>
+      <div className={styles.shell}>
+        <div className={styles.header}>
+          <div>
+            <Title2>Sales Orders</Title2>
+            <Body1 className={styles.muted}>{filteredCountLabel}</Body1>
+          </div>
+          <div className={styles.headerActions}>
+            <HelpEntryPoint route="/orders" />
+            <Button appearance="secondary" onClick={() => navigate("/transportation")}>
+              Transportation Dispatch
             </Button>
-            <Body1>
-              Page {page} of {totalPages} ({data.totalCount} total)
-            </Body1>
+            <Button appearance="secondary" onClick={() => navigate("/invoices")}>
+              Invoice Screen
+            </Button>
             <Button
-              appearance="subtle"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
+              appearance="primary"
+              icon={<Add24Regular />}
+              onClick={() => navigate("/orders/new")}
             >
-              Next
+              Create New Order
             </Button>
           </div>
-        </>
-      )}
+        </div>
+
+        <Card className={styles.tableCard}>
+          <div className={styles.controls}>
+            <Field label="Search">
+              <Input
+                value={search}
+                onChange={(_, data) => setSearch(data.value)}
+                placeholder="Order no, customer, or status"
+              />
+            </Field>
+            <Button
+              appearance="secondary"
+              onClick={() => void loadOrders(search)}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Search"}
+            </Button>
+          </div>
+          {error ? <Body1>{error}</Body1> : null}
+          <div className={styles.tableWrap}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHeaderCell>Order No</TableHeaderCell>
+                  <TableHeaderCell>Customer</TableHeaderCell>
+                  <TableHeaderCell>Lifecycle Status</TableHeaderCell>
+                  <TableHeaderCell>Legacy Status</TableHeaderCell>
+                  <TableHeaderCell>Order Date</TableHeaderCell>
+                  <TableHeaderCell>Site</TableHeaderCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orders.map((order) => (
+                  <TableRow
+                    key={order.id}
+                    className={styles.clickableRow}
+                    onClick={() => navigate(`/orders/${order.id}`)}
+                  >
+                    <TableCell>{order.salesOrderNo}</TableCell>
+                    <TableCell>{order.customerName}</TableCell>
+                    <TableCell>{order.orderLifecycleStatus ?? "-"}</TableCell>
+                    <TableCell>{order.orderStatus}</TableCell>
+                    <TableCell>{formatDate(order.orderDate)}</TableCell>
+                    <TableCell>{order.siteName}</TableCell>
+                  </TableRow>
+                ))}
+                {!loading && orders.length === 0 ? (
+                  <TableRow>
+                    <TableCell>-</TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell>No orders found.</TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell>-</TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

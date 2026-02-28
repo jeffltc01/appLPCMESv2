@@ -4,6 +4,8 @@ import type {
   DecisionPolicyEntry,
   DecisionSignoff,
   PolicyActivationResult,
+  StatusReasonCode,
+  UpsertStatusReasonCodeRequest,
   UpsertDecisionPolicyRequest,
 } from "../types/policy";
 
@@ -27,4 +29,18 @@ export const orderPoliciesApi = {
 
   activate: (policyVersion: number) =>
     api.post<PolicyActivationResult>(`/order-policy/activate/${policyVersion}`, {}),
+
+  listStatusReasons: (overlayType?: string) =>
+    api.get<StatusReasonCode[]>(
+      `/order-policy/status-reasons${overlayType ? `?overlayType=${encodeURIComponent(overlayType)}` : ""}`
+    ),
+
+  createStatusReason: (payload: UpsertStatusReasonCodeRequest) =>
+    api.post<StatusReasonCode>("/order-policy/status-reasons", payload),
+
+  updateStatusReason: (id: number, payload: UpsertStatusReasonCodeRequest) =>
+    api.put<StatusReasonCode>(`/order-policy/status-reasons/${id}`, payload),
+
+  deleteStatusReason: (id: number) =>
+    api.delete<void>(`/order-policy/status-reasons/${id}`),
 };

@@ -1,0 +1,60 @@
+{
+  "topicId": "order-entry-lifecycle-and-holds",
+  "title": "Advance lifecycle and manage holds",
+  "appliesToRoles": [
+    "Office",
+    "Transportation",
+    "Receiving",
+    "Production",
+    "Supervisor",
+    "Quality",
+    "PlantManager",
+    "Admin"
+  ],
+  "appliesToPages": [
+    "/orders/:orderId"
+  ],
+  "purpose": "Guide role-aware status transitions and hold overlay actions from the order lifecycle panel.",
+  "whenToUse": [
+    "You need to move an order to its next lifecycle state.",
+    "A hold overlay must be applied or cleared with proper ownership."
+  ],
+  "prerequisites": [
+    "Order draft has required data and at least one line.",
+    "Your role allows the requested transition or hold action."
+  ],
+  "stepByStepActions": [
+    "Open Lifecycle Navigator on the order workspace.",
+    "Review current status, hold state, and blocked indicators.",
+    "Select the next permitted lifecycle action.",
+    "If blocked by hold, apply or clear hold overlay with reason and role context.",
+    "Confirm the status and owner fields updated after API success."
+  ],
+  "expectedResult": "Lifecycle state updates are auditable and role restrictions are clearly communicated when actions are blocked.",
+  "commonErrorsAndRecovery": [
+    {
+      "error": "Role does not allow this action.",
+      "cause": "Requested transition is outside your RBAC permissions.",
+      "recovery": [
+        "Use an allowed action for your current role.",
+        "Request supervisor or plant manager support for privileged transitions."
+      ]
+    },
+    {
+      "error": "Hold overlay blocks forward transitions.",
+      "cause": "An active hold requires resolution before progression.",
+      "recovery": [
+        "Review hold owner and reason in lifecycle details.",
+        "Clear hold with authorized role and reason code.",
+        "Retry lifecycle transition."
+      ]
+    }
+  ],
+  "relatedTopics": [
+    "order-entry-create-and-maintain",
+    "order-list-overview"
+  ],
+  "lastValidatedOnUtc": "2026-02-28T00:00:00Z",
+  "validatedBy": "MES Product+Engineering",
+  "escalationPath": "Escalate to Supervisor/Quality owner for hold disputes and privileged overrides."
+}

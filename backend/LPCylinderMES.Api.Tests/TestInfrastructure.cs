@@ -133,6 +133,15 @@ internal sealed class FakeOrderPolicyService : IOrderPolicyService
 
     public Task<PromiseReasonPolicyDto> UpsertPromiseReasonPolicyAsync(UpsertPromiseReasonPolicyDto dto, CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();
+
+    public Task<List<StatusReasonCodeDto>> GetStatusReasonCodesAsync(string? overlayType = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new List<StatusReasonCodeDto>());
+
+    public Task<StatusReasonCodeDto> UpsertStatusReasonCodeAsync(int? id, UpsertStatusReasonCodeDto dto, CancellationToken cancellationToken = default) =>
+        throw new NotImplementedException();
+
+    public Task DeleteStatusReasonCodeAsync(int id, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }
 
 internal sealed class FakeInvoiceStagingService : IInvoiceStagingService

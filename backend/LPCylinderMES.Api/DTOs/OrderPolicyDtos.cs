@@ -58,3 +58,15 @@ public record UpsertPromiseReasonPolicyDto(
     string AllowedNotificationPolicies,
     bool IsActive,
     string? UpdatedByEmpNo);
+
+public record StatusReasonCodeDto(
+    int Id,
+    string OverlayType,
+    string CodeName,
+    DateTime UpdatedUtc,
+    string? UpdatedByEmpNo);
+
+public record UpsertStatusReasonCodeDto(
+    string OverlayType,
+    string CodeName,
+    string? UpdatedByEmpNo);

@@ -1,6 +1,7 @@
 using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.DTOs;
 using LPCylinderMES.Api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Services;
@@ -232,6 +233,87 @@ public class OrderPolicyService(LpcAppsDbContext db) : IOrderPolicyService
         return MapReasonPolicy(row);
     }
 
+    public async Task<List<StatusReasonCodeDto>> GetStatusReasonCodesAsync(
+        string? overlayType = null,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedOverlayType = TrimToNull(overlayType);
+        var query = db.StatusReasonCodes.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(normalizedOverlayType))
+        {
+            query = query.Where(r => r.OverlayType == normalizedOverlayType);
+        }
+
+        return await query
+            .OrderBy(r => r.OverlayType)
+            .ThenBy(r => r.CodeName)
+            .Select(r => new StatusReasonCodeDto(
+                r.Id,
+                r.OverlayType,
+                r.CodeName,
+                r.UpdatedUtc,
+                r.UpdatedByEmpNo))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<StatusReasonCodeDto> UpsertStatusReasonCodeAsync(
+        int? id,
+        UpsertStatusReasonCodeDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedOverlay = NormalizeOverlayType(dto.OverlayType);
+        var normalizedCodeName = dto.CodeName.Trim();
+
+        if (string.IsNullOrWhiteSpace(normalizedCodeName))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "CodeName is required.");
+        }
+
+        var duplicate = await db.StatusReasonCodes
+            .FirstOrDefaultAsync(
+                r => r.OverlayType == normalizedOverlay &&
+                     r.CodeName == normalizedCodeName &&
+                     (!id.HasValue || r.Id != id.Value),
+                cancellationToken);
+        if (duplicate is not null)
+        {
+            throw new ServiceException(
+                StatusCodes.Status409Conflict,
+                $"Status reason code '{normalizedCodeName}' already exists for overlay '{normalizedOverlay}'.");
+        }
+
+        StatusReasonCode row;
+        if (id.HasValue)
+        {
+            row = await db.StatusReasonCodes.FirstOrDefaultAsync(r => r.Id == id.Value, cancellationToken)
+                  ?? throw new ServiceException(StatusCodes.Status404NotFound, "Status reason code not found.");
+        }
+        else
+        {
+            row = new StatusReasonCode();
+            db.StatusReasonCodes.Add(row);
+        }
+
+        row.OverlayType = normalizedOverlay;
+        row.CodeName = normalizedCodeName;
+        row.UpdatedUtc = DateTime.UtcNow;
+        row.UpdatedByEmpNo = TrimToNull(dto.UpdatedByEmpNo);
+        await db.SaveChangesAsync(cancellationToken);
+        return MapStatusReasonCode(row);
+    }
+
+    public async Task DeleteStatusReasonCodeAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var row = await db.StatusReasonCodes.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (row is null)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "Status reason code not found.");
+        }
+
+        db.StatusReasonCodes.Remove(row);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private static string NormalizeScope(string scopeType)
     {
         if (string.Equals(scopeType, "Site", StringComparison.OrdinalIgnoreCase))
@@ -245,6 +327,22 @@ public class OrderPolicyService(LpcAppsDbContext db) : IOrderPolicyService
         }
 
         return "Global";
+    }
+
+    private static string NormalizeOverlayType(string overlayType)
+    {
+        var normalized = TrimToNull(overlayType);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "OverlayType is required.");
+        }
+
+        if (!OrderStatusCatalog.HoldOverlays.Contains(normalized))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid overlay type '{normalized}'.");
+        }
+
+        return normalized;
     }
 
     private static string? TrimToNull(string? value)
@@ -278,6 +376,14 @@ public class OrderPolicyService(LpcAppsDbContext db) : IOrderPolicyService
             p.OwnerRole,
             p.AllowedNotificationPolicies,
             p.IsActive,
+            p.UpdatedUtc,
+            p.UpdatedByEmpNo);
+
+    private static StatusReasonCodeDto MapStatusReasonCode(StatusReasonCode p) =>
+        new(
+            p.Id,
+            p.OverlayType,
+            p.CodeName,
             p.UpdatedUtc,
             p.UpdatedByEmpNo);
 }

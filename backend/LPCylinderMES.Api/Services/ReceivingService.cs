@@ -45,7 +45,16 @@ public class ReceivingService(
             if (line.QuantityAsReceived < 0)
                 throw new ServiceException(StatusCodes.Status400BadRequest, "Quantity received cannot be negative.");
 
-            detail.QuantityAsReceived = line.IsReceived ? line.QuantityAsReceived : 0;
+            var normalizedReceiptStatus = NormalizeReceiptStatus(line);
+            if (normalizedReceiptStatus == ReceiptStatusCatalog.Received && line.QuantityAsReceived <= 0)
+            {
+                throw new ServiceException(
+                    StatusCodes.Status400BadRequest,
+                    $"Line {line.LineId} marked as Received must have quantity greater than zero.");
+            }
+
+            detail.ReceiptStatus = normalizedReceiptStatus;
+            detail.QuantityAsReceived = normalizedReceiptStatus == ReceiptStatusCatalog.Received ? line.QuantityAsReceived : 0;
         }
 
         var nextLineNo = order.SalesOrderDetails.Count == 0
@@ -80,6 +89,7 @@ public class ReceivingService(
                     ItemName = item.ItemDescription ?? item.ItemNo,
                     QuantityAsOrdered = 0,
                     QuantityAsReceived = added.QuantityAsReceived,
+                    ReceiptStatus = ReceiptStatusCatalog.Unknown,
                     SiteId = order.SiteId,
                 };
 
@@ -95,11 +105,25 @@ public class ReceivingService(
         order.StatusReasonCode = "ReceivingReconciled";
         order.StatusUpdatedUtc = DateTime.UtcNow;
 
-        await RouteInstantiationService.EnsureRoutesForOrderAsync(
-            db,
-            order,
-            order.SalesOrderDetails.ToList(),
-            cancellationToken);
+        try
+        {
+            await RouteInstantiationService.EnsureRoutesForOrderAsync(
+                db,
+                order,
+                order.SalesOrderDetails.ToList(),
+                cancellationToken);
+        }
+        catch (ServiceException ex) when (
+            ex.StatusCode == StatusCodes.Status409Conflict &&
+            ex.Message.Contains("Route template assignment not found", StringComparison.OrdinalIgnoreCase))
+        {
+            // Receiving should not be blocked by setup gaps; flag for back-office/supervisor follow-up.
+            order.OrderLifecycleStatus = OrderStatusCatalog.ReceivedPendingReconciliation;
+            order.HoldOverlay = OrderStatusCatalog.ExceptionDocumentation;
+            order.StatusOwnerRole = "Office";
+            order.StatusReasonCode = "RouteAssignmentMissing";
+            order.StatusNote = "Route assignment is missing for one or more received lines. Resolve routing before production release.";
+        }
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -122,6 +146,19 @@ public class ReceivingService(
         return string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.InboundInTransit, StringComparison.Ordinal) ||
                string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.InboundLogisticsPlanned, StringComparison.Ordinal) ||
                string.Equals(order.OrderLifecycleStatus, OrderStatusCatalog.ReceivedPendingReconciliation, StringComparison.Ordinal);
+    }
+
+    private static string NormalizeReceiptStatus(ReceivingLineUpdateDto line)
+    {
+        var candidate = line.ReceiptStatus?.Trim();
+        if (!string.IsNullOrWhiteSpace(candidate) && ReceiptStatusCatalog.Allowed.Contains(candidate))
+        {
+            return candidate;
+        }
+
+        return line.IsReceived || line.QuantityAsReceived > 0
+            ? ReceiptStatusCatalog.Received
+            : ReceiptStatusCatalog.Unknown;
     }
 }
 

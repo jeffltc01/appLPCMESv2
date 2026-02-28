@@ -827,6 +827,13 @@ public class OrderWorkflowServiceTests
     public async Task ApplyHoldAsync_OnHoldCustomerRequiresReadinessFields()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_OnHoldCustomerRequiresReadinessFields));
+        db.StatusReasonCodes.Add(new StatusReasonCode
+        {
+            OverlayType = OrderStatusCatalog.OnHoldCustomer,
+            CodeName = "CustomerNotReadyForPickup",
+            UpdatedUtc = DateTime.UtcNow,
+            UpdatedByEmpNo = "SYSTEM",
+        });
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 701,
@@ -859,6 +866,13 @@ public class OrderWorkflowServiceTests
     public async Task ApplyHoldAsync_OnHoldCustomerPersistsRequiredFields()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_OnHoldCustomerPersistsRequiredFields));
+        db.StatusReasonCodes.Add(new StatusReasonCode
+        {
+            OverlayType = OrderStatusCatalog.OnHoldCustomer,
+            CodeName = "CustomerNotReadyForPickup",
+            UpdatedUtc = DateTime.UtcNow,
+            UpdatedByEmpNo = "SYSTEM",
+        });
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 702,
@@ -899,6 +913,13 @@ public class OrderWorkflowServiceTests
     public async Task ApplyHoldAsync_OnHoldCustomer_AllowsMissingContactName()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_OnHoldCustomer_AllowsMissingContactName));
+        db.StatusReasonCodes.Add(new StatusReasonCode
+        {
+            OverlayType = OrderStatusCatalog.OnHoldCustomer,
+            CodeName = "CustomerNotReadyForPickup",
+            UpdatedUtc = DateTime.UtcNow,
+            UpdatedByEmpNo = "SYSTEM",
+        });
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 703,
@@ -931,6 +952,46 @@ public class OrderWorkflowServiceTests
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 703);
         Assert.Equal(OrderStatusCatalog.OnHoldCustomer, order.HoldOverlay);
         Assert.Null(order.CustomerReadyContactName);
+    }
+
+    [Fact]
+    public async Task ApplyHoldAsync_RejectsReasonCodeNotRegisteredForOverlay()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(ApplyHoldAsync_RejectsReasonCodeNotRegisteredForOverlay));
+        db.StatusReasonCodes.Add(new StatusReasonCode
+        {
+            OverlayType = OrderStatusCatalog.OnHoldQuality,
+            CodeName = "QualityInspectionOpen",
+            UpdatedUtc = DateTime.UtcNow,
+            UpdatedByEmpNo = "SYSTEM",
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 704,
+            SalesOrderNo = "SO-704",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyForPickup,
+            OrderLifecycleStatus = OrderStatusCatalog.InboundLogisticsPlanned,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.ApplyHoldAsync(
+            704,
+            new ApplyHoldDto(
+                OrderStatusCatalog.OnHoldCustomer,
+                "Transportation",
+                "EMP704",
+                "CustomerNotReadyForPickup",
+                "Customer requested callback",
+                DateTime.UtcNow.AddHours(8),
+                DateTime.UtcNow,
+                "Customer Planner")));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+        Assert.Contains("not configured", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
     }
 }
 

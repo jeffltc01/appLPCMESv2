@@ -1,0 +1,53 @@
+{
+  "topicId": "customer-detail-reference",
+  "title": "View customer reference details",
+  "appliesToRoles": [
+    "Office",
+    "Transportation",
+    "Receiving",
+    "Production",
+    "Supervisor",
+    "Quality",
+    "PlantManager",
+    "ReadOnly",
+    "Admin"
+  ],
+  "appliesToPages": [
+    "/customers/:customerId"
+  ],
+  "purpose": "Provide reference guidance for the current customer detail route and navigation back to order workflows.",
+  "whenToUse": [
+    "You opened a customer from an order workflow and need context.",
+    "You need to confirm the customer identifier currently in scope."
+  ],
+  "prerequisites": [
+    "A valid customer route parameter is present."
+  ],
+  "stepByStepActions": [
+    "Review the displayed customer identifier.",
+    "Use Back to return to the previous workflow screen.",
+    "If customer data is incorrect, update it through approved master-data workflow."
+  ],
+  "expectedResult": "User can confirm customer context and safely navigate back without blocking order flow.",
+  "commonErrorsAndRecovery": [
+    {
+      "error": "Customer detail does not show expected business fields.",
+      "cause": "Current screen is a placeholder implementation.",
+      "recovery": [
+        "Return to order workflow.",
+        "Use customer maintenance process for authoritative data review.",
+        "Escalate enhancement requests to product owner."
+      ]
+    }
+  ],
+  "relatedTopics": [
+    "order-entry-create-and-maintain",
+    "order-list-overview"
+  ],
+  "lastValidatedOnUtc": "2026-02-28T00:00:00Z",
+  "validatedBy": "MES Product+Engineering",
+  "knownLimitations": [
+    "This page is a placeholder and does not yet include full customer attributes."
+  ],
+  "escalationPath": "Contact Setup/Admin owner for master-data corrections."
+}

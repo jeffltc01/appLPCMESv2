@@ -1,0 +1,59 @@
+{
+  "topicId": "order-entry-create-and-maintain",
+  "title": "Create and maintain a sales order draft",
+  "appliesToRoles": [
+    "Office",
+    "Supervisor",
+    "PlantManager",
+    "Admin"
+  ],
+  "appliesToPages": [
+    "/orders/:orderId"
+  ],
+  "purpose": "Enter and maintain order header and line details before advancing workflow status.",
+  "whenToUse": [
+    "You are creating a new order draft.",
+    "You are correcting header, line, or attachment data for an existing editable order."
+  ],
+  "prerequisites": [
+    "Customer, site, and order date are available.",
+    "For line edits, the order is still in an editable state."
+  ],
+  "stepByStepActions": [
+    "Complete required fields in Order Header.",
+    "Select Save Draft to persist header changes.",
+    "Add at least one order line with ordered quantity.",
+    "Review Validation Checklist before lifecycle advancement.",
+    "Upload relevant order attachments if required by policy."
+  ],
+  "expectedResult": "Order is saved with current draft data and remains ready for role-based lifecycle progression.",
+  "commonErrorsAndRecovery": [
+    {
+      "error": "Customer, Site, and Order Date are required.",
+      "cause": "One or more mandatory fields are blank.",
+      "recovery": [
+        "Fill each required field marked with an asterisk.",
+        "Save Draft again."
+      ]
+    },
+    {
+      "error": "Failed to save order.",
+      "cause": "Server-side validation, connectivity, or transient backend failure.",
+      "recovery": [
+        "Retry Save Draft.",
+        "Check field values for invalid data.",
+        "Escalate with the order ID and error time if issue persists."
+      ]
+    }
+  ],
+  "relatedTopics": [
+    "order-entry-lifecycle-and-holds",
+    "order-list-overview"
+  ],
+  "lastValidatedOnUtc": "2026-02-28T00:00:00Z",
+  "validatedBy": "MES Product+Engineering",
+  "knownLimitations": [
+    "Customer detail page is currently a placeholder and does not provide full master-data edits."
+  ],
+  "escalationPath": "Contact Office process owner first, then engineering support if behavior differs from spec."
+}

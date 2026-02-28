@@ -1,16 +1,58 @@
 import { render, screen } from "@testing-library/react";
 import App from "./App";
 
-vi.mock("./pages/TransportationBoardPage", () => ({
-  TransportationBoardPage: () => <div>Transportation Dispatch</div>,
+vi.mock("./services/orders", () => ({
+  ordersApi: {
+    list: vi.fn().mockResolvedValue({ items: [], totalCount: 0, page: 1, pageSize: 100 }),
+    get: vi.fn(),
+    submitInvoice: vi.fn(),
+    attachments: vi.fn().mockResolvedValue([]),
+    attachmentDownloadUrl: vi.fn().mockReturnValue("#"),
+  },
+  orderLookupsApi: {
+    activeCustomers: vi.fn().mockResolvedValue([]),
+    sites: vi.fn().mockResolvedValue([]),
+    salesPeople: vi.fn().mockResolvedValue([]),
+    paymentTerms: vi.fn().mockResolvedValue([]),
+    shipVias: vi.fn().mockResolvedValue([]),
+  },
+  orderLinesApi: {},
+  getSuggestedWorkspaceActions: vi.fn().mockReturnValue(["advanceInboundPlan"]),
+  getWorkspaceActionState: vi.fn().mockReturnValue({
+    enabled: true,
+    targetStatus: "InboundLogisticsPlanned",
+  }),
 }));
 
 describe("App routing", () => {
-  it("routes shipping to transportation dispatch screen", async () => {
-    window.history.pushState({}, "", "/shipping");
+  it("opens menu at root", async () => {
+    window.history.pushState({}, "", "/");
     render(<App />);
+    expect(await screen.findByText("LPC Order Ops")).toBeInTheDocument();
+  });
 
-    expect(await screen.findByText("Transportation Dispatch")).toBeInTheDocument();
+  it("opens new-order workspace route", async () => {
+    window.history.pushState({}, "", "/orders/new");
+    render(<App />);
+    expect(await screen.findByText("Create New Sales Order")).toBeInTheDocument();
+  });
+
+  it("opens customer detail placeholder route", async () => {
+    window.history.pushState({}, "", "/customers/123");
+    render(<App />);
+    expect(await screen.findByText("Customer Detail (Placeholder)")).toBeInTheDocument();
+    expect(screen.getByText("Customer ID: 123")).toBeInTheDocument();
+  });
+
+  it("opens invoice queue route", async () => {
+    window.history.pushState({}, "", "/invoices");
+    render(<App />);
+    expect(await screen.findByText("Invoice Queue")).toBeInTheDocument();
+  });
+
+  it("opens invoice workspace route", async () => {
+    window.history.pushState({}, "", "/invoices/123");
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Start Invoice Submission" })).toBeInTheDocument();
   });
 });
-

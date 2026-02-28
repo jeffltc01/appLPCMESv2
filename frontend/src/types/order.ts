@@ -39,6 +39,15 @@ export type HoldOverlayType =
   | "Cancelled"
   | "ReworkOpen";
 
+export type HoldOverlayCategory = "hold" | "exception" | "terminal";
+
+export interface HoldOverlayMetadata {
+  key: HoldOverlayType;
+  displayLabel: string;
+  category: HoldOverlayCategory;
+  blocksForwardTransitions: boolean;
+}
+
 export type OrderWorkspaceAction =
   | "advanceInboundPlan"
   | "advanceInboundTransit"
@@ -66,6 +75,22 @@ export const ORDER_WORKFLOW_STATUS_ORDER: OrderWorkflowStatus[] = [
   "Received",
   "Ready to Ship",
   "Ready to Invoice",
+  "Draft",
+  "PendingOrderEntryValidation",
+  "InboundLogisticsPlanned",
+  "InboundInTransit",
+  "ReceivedPendingReconciliation",
+  "ReadyForProduction",
+  "InProduction",
+  "ProductionCompletePendingApproval",
+  "ProductionComplete",
+  "OutboundLogisticsPlanned",
+  "DispatchedOrPickupReleased",
+  "InvoiceReady",
+  "Invoiced",
+];
+
+export const ORDER_LIFECYCLE_SEQUENCE: OrderWorkflowStatus[] = [
   "Draft",
   "PendingOrderEntryValidation",
   "InboundLogisticsPlanned",
@@ -201,6 +226,57 @@ export const ORDER_STATUS_METADATA: Record<OrderWorkflowStatus, OrderStatusMetad
   },
 };
 
+export const HOLD_OVERLAY_METADATA: Record<HoldOverlayType, HoldOverlayMetadata> = {
+  OnHoldCustomer: {
+    key: "OnHoldCustomer",
+    displayLabel: "On Hold: Customer",
+    category: "hold",
+    blocksForwardTransitions: true,
+  },
+  OnHoldQuality: {
+    key: "OnHoldQuality",
+    displayLabel: "On Hold: Quality",
+    category: "hold",
+    blocksForwardTransitions: true,
+  },
+  OnHoldLogistics: {
+    key: "OnHoldLogistics",
+    displayLabel: "On Hold: Logistics",
+    category: "hold",
+    blocksForwardTransitions: true,
+  },
+  ExceptionQuantityMismatch: {
+    key: "ExceptionQuantityMismatch",
+    displayLabel: "Exception: Quantity Mismatch",
+    category: "exception",
+    blocksForwardTransitions: true,
+  },
+  ExceptionDocumentation: {
+    key: "ExceptionDocumentation",
+    displayLabel: "Exception: Documentation",
+    category: "exception",
+    blocksForwardTransitions: true,
+  },
+  ExceptionErpReconcile: {
+    key: "ExceptionErpReconcile",
+    displayLabel: "Exception: ERP Reconcile",
+    category: "exception",
+    blocksForwardTransitions: true,
+  },
+  Cancelled: {
+    key: "Cancelled",
+    displayLabel: "Cancelled",
+    category: "terminal",
+    blocksForwardTransitions: true,
+  },
+  ReworkOpen: {
+    key: "ReworkOpen",
+    displayLabel: "Rework Open",
+    category: "exception",
+    blocksForwardTransitions: true,
+  },
+};
+
 export function isOrderWorkflowStatus(value: string): value is OrderWorkflowStatus {
   return ORDER_WORKFLOW_STATUS_ORDER.includes(value as OrderWorkflowStatus);
 }
@@ -219,6 +295,20 @@ export function getOrderStatusActorHint(status: string): string | null {
   }
 
   return ORDER_STATUS_METADATA[status].actorHint;
+}
+
+export function getHoldOverlayDisplayLabel(overlay: HoldOverlayType): string {
+  return HOLD_OVERLAY_METADATA[overlay].displayLabel;
+}
+
+export function getHoldOverlayMetadata(
+  overlay: HoldOverlayType | null | undefined
+): HoldOverlayMetadata | null {
+  if (!overlay) {
+    return null;
+  }
+
+  return HOLD_OVERLAY_METADATA[overlay] ?? null;
 }
 
 export interface OrderDraftListItem {
@@ -384,6 +474,8 @@ export interface OrderDraftDetail {
 export interface OrderDraftCreate {
   customerId: number;
   siteId: number;
+  inboundMode?: string | null;
+  outboundMode?: string | null;
   orderDate?: string | null;
   customerPoNo?: string | null;
   contact?: string | null;
@@ -404,6 +496,8 @@ export interface OrderDraftCreate {
 export interface OrderDraftUpdate {
   customerId: number;
   siteId: number;
+  inboundMode?: string | null;
+  outboundMode?: string | null;
   orderDate: string;
   customerPoNo: string | null;
   contact: string | null;
@@ -498,11 +592,21 @@ export interface TransportBoardItem {
   scheduledDate: string | null;
   transportationStatus: string | null;
   transportationNotes: string | null;
+  lines: TransportBoardLineItem[];
   isInboundComplete?: boolean;
   isProductionComplete?: boolean;
   isProductionCompleteForShipment?: boolean;
   isInvoiceComplete?: boolean;
   isReworkOpen?: boolean;
+}
+
+export interface TransportBoardLineItem {
+  lineId: number;
+  lineNo: number;
+  itemNo: string;
+  itemDescription: string;
+  productLine: string | null;
+  quantityOrdered: number;
 }
 
 export interface TransportBoardUpdate {
@@ -541,9 +645,11 @@ export interface ReceivingOrderLine {
   itemId: number;
   itemNo: string;
   itemDescription: string;
+  productLine: string;
   quantityAsOrdered: number;
   quantityAsReceived: number;
   isReceived: boolean;
+  receiptStatus: "Unknown" | "Received" | "NotReceived";
 }
 
 export interface ReceivingOrderDetail {
@@ -552,6 +658,7 @@ export interface ReceivingOrderDetail {
   orderStatus: string;
   customerName: string;
   pickUpAddress: string | null;
+  pickUpAddressStreet?: string | null;
   trailerNo: string | null;
   orderComments: string | null;
   receivedDate: string | null;
@@ -646,6 +753,7 @@ export interface ReceivingLineUpdate {
   lineId: number;
   isReceived: boolean;
   quantityAsReceived: number;
+  receiptStatus: "Unknown" | "Received" | "NotReceived";
 }
 
 export interface ReceivingAddLine {
@@ -669,6 +777,7 @@ export interface OrderItemLookup {
   id: number;
   itemNo: string;
   itemDescription: string | null;
+  productLine: string | null;
 }
 
 export interface SubmitInvoiceRequest {

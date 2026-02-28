@@ -48,7 +48,7 @@ internal static class RouteInstantiationService
         var routedLineIds = await db.OrderLineRouteInstances
             .Where(r => r.SalesOrderId == order.Id &&
                         lineIds.Contains(r.SalesOrderDetailId) &&
-                        !string.Equals(r.State, "Completed", StringComparison.OrdinalIgnoreCase))
+                        r.State != "Completed")
             .Select(r => r.SalesOrderDetailId)
             .ToHashSetAsync(cancellationToken);
 

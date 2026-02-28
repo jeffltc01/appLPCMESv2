@@ -2,6 +2,7 @@ using LPCylinderMES.Api.DTOs;
 using LPCylinderMES.Api.Models;
 using LPCylinderMES.Api.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Tests;
 
@@ -119,10 +120,48 @@ public class OrderLineServiceTests
         var service = new OrderLineService(db);
         var dto = new OrderLineCreateDto(32, 3, 4.5m, null, null, null, null, null, null, null, null, null);
         var created = await service.CreateAsync(30, dto);
+        var createdDetail = await db.SalesOrderDetails.SingleAsync(d => d.SalesOrderId == 30 && d.LineNo == 2);
 
         Assert.Equal(2m, created.LineNo);
         Assert.Equal(4.5m, created.UnitPrice);
         Assert.Equal(13.5m, created.Extension);
+        Assert.Equal(0m, createdDetail.QuantityAsReceived);
+        Assert.Equal(ReceiptStatusCatalog.Unknown, createdDetail.ReceiptStatus);
+    }
+
+    [Fact]
+    public async Task CreateAsync_InvoiceWorkflowOrder_AllowsLineMutation()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CreateAsync_InvoiceWorkflowOrder_AllowsLineMutation));
+
+        db.Items.Add(new Item
+        {
+            Id = 41,
+            ItemNo = "TNK-41",
+            ItemType = "Tank",
+            RequiresSerialNumbers = 0,
+            ItemDescription = "Tank 41",
+        });
+
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 40,
+            SalesOrderNo = "SO-40",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderLineService(db);
+        var dto = new OrderLineCreateDto(41, 2, 10m, null, null, null, null, null, null, null, null, null);
+
+        var created = await service.CreateAsync(40, dto);
+
+        Assert.Equal(1m, created.LineNo);
+        Assert.Equal(20m, created.Extension);
     }
 }
 

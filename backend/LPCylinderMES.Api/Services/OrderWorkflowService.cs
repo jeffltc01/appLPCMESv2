@@ -79,6 +79,19 @@ public class OrderWorkflowService(
                 StatusCodes.Status400BadRequest,
                 "ActingRole, AppliedByEmpNo, and ReasonCode are required.");
         }
+
+        var isRegisteredStatusReason = await db.StatusReasonCodes
+            .AsNoTracking()
+            .AnyAsync(
+                row => row.OverlayType == holdOverlay &&
+                       row.CodeName == reasonCode,
+                cancellationToken);
+        if (!isRegisteredStatusReason)
+        {
+            throw new ServiceException(
+                StatusCodes.Status400BadRequest,
+                $"ReasonCode '{reasonCode}' is not configured for overlay '{holdOverlay}'.");
+        }
         _rolePermissionService.EnsureApplyHoldAllowed(actingRole, holdOverlay);
 
         var lifecycleStatus = string.IsNullOrWhiteSpace(order.OrderLifecycleStatus)
