@@ -4,6 +4,11 @@ import {
   Card,
   Field,
   Input,
+  Menu,
+  MenuItem,
+  MenuList,
+  MenuPopover,
+  MenuTrigger,
   Select,
   Table,
   TableBody,
@@ -35,7 +40,13 @@ const NAV_ITEMS = [
   { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
   { key: "invoicing", label: "Invoicing", icon: <Receipt24Regular />, path: "/invoices" },
   { key: "plantManager", label: "Plant Manager", icon: <Board24Regular /> },
-  { key: "admin", label: "Admin Maintenance", icon: <Settings24Regular />, path: "/setup/production-lines" },
+];
+
+const ADMIN_MENU_ITEMS = [
+  { key: "product-lines", label: "Product Lines", path: "/setup/production-lines", enabled: true },
+  { key: "items", label: "Items", path: "/setup/items", enabled: true },
+  { key: "work-centers", label: "Work Centers (Coming Soon)", enabled: false },
+  { key: "users-roles", label: "Users & Roles (Coming Soon)", enabled: false },
 ];
 
 const useStyles = makeStyles({
@@ -376,6 +387,30 @@ export function MenuPage() {
                 {item.label}
               </Button>
             ))}
+            <Menu positioning="below-end">
+              <MenuTrigger disableButtonEnhancement>
+                <Button
+                  icon={<Settings24Regular />}
+                  appearance="secondary"
+                  className={styles.menuButton}
+                >
+                  Admin Maintenance
+                </Button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  {ADMIN_MENU_ITEMS.map((item) => (
+                    <MenuItem
+                      key={item.key}
+                      disabled={!item.enabled}
+                      onClick={item.enabled ? () => navigate(item.path) : undefined}
+                    >
+                      {item.label}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </MenuPopover>
+            </Menu>
           </div>
         </div>
 
@@ -393,7 +428,7 @@ export function MenuPage() {
             <Button
               className={styles.headerActionButton}
               appearance="primary"
-              onClick={() => navigate("/orders/new")}
+              onClick={() => navigate("/orders/new", { state: { backTo: "/" } })}
             >
               New Sales Order
             </Button>

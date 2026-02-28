@@ -116,6 +116,56 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/receiving");
   });
 
+  it("opens admin maintenance menu and navigates to product lines setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Product Lines$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/production-lines");
+  });
+
+  it("opens admin maintenance menu and navigates to items setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Items$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/items");
+  });
+
+  it("shows disabled coming soon admin maintenance options", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+
+    expect(await screen.findByRole("menuitem", { name: /Work Centers \(Coming Soon\)/i })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(await screen.findByRole("menuitem", { name: /Users & Roles \(Coming Soon\)/i })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
   it("calculates and renders metrics from loaded orders", async () => {
     render(
       <MemoryRouter>

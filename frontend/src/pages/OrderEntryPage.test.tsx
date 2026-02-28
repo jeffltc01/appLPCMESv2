@@ -111,6 +111,20 @@ describe("OrderEntryPage", () => {
     expect(screen.getAllByRole("button", { name: "Save Draft" })).toHaveLength(1);
   });
 
+  it("navigates back to dashboard for new order launched from dashboard", async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/orders/new", state: { backTo: "/" } }]}>
+        <Routes>
+          <Route path="/orders/:orderId" element={<OrderEntryPage />} />
+          <Route path="/" element={<div>Dashboard Route</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Back to Orders" }));
+    expect(await screen.findByText("Dashboard Route")).toBeInTheDocument();
+  });
+
   it("navigates back to invoice queue from invoice mode", async () => {
     vi.mocked(ordersApi.get).mockResolvedValue({
       id: 101,

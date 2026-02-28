@@ -144,6 +144,9 @@ export function ReceivingQueuePage() {
           </div>
           <div className={styles.headerActions}>
             <HelpEntryPoint route="/receiving" />
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Back to Dashboard
+            </Button>
             <Button
               appearance="secondary"
               icon={<ArrowClockwise24Regular />}

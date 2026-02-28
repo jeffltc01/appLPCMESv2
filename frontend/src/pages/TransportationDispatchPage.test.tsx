@@ -103,6 +103,7 @@ describe("TransportationDispatchPage", () => {
     const orderCell = await screen.findByText("SO-TD-101");
     fireEvent.click(orderCell);
 
+    expect(screen.getByRole("button", { name: "Back to Dashboard" })).toBeInTheDocument();
     expect(screen.getByText("Pickup Details:")).toBeInTheDocument();
     expect(screen.getByText("Cylinder 16in")).toBeInTheDocument();
     expect(screen.getByText("Refurb")).toBeInTheDocument();
@@ -185,5 +186,18 @@ describe("TransportationDispatchPage", () => {
       position: "sticky",
       top: "0",
     });
+  });
+
+  it("renders error banner when board load fails", async () => {
+    transportBoardMock.mockRejectedValueOnce(new Error("failed"));
+
+    render(
+      <MemoryRouter>
+        <TransportationDispatchPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Error")).toBeInTheDocument();
+    expect(screen.getByText("Unable to load transportation dispatch board.")).toBeInTheDocument();
   });
 });

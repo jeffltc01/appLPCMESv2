@@ -88,4 +88,17 @@ describe("ReceivingQueuePage", () => {
 
     expect(navigateMock).toHaveBeenCalledWith("/receiving/11");
   });
+
+  it("navigates back to dashboard from header action", async () => {
+    render(
+      <MemoryRouter>
+        <ReceivingQueuePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("SO-RCV-11");
+    fireEvent.click(screen.getByRole("button", { name: /Back to Dashboard/i }));
+
+    expect(navigateMock).toHaveBeenCalledWith("/");
+  });
 });

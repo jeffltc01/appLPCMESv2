@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Body1,
@@ -60,6 +60,27 @@ const useStyles = makeStyles({
   muted: {
     color: tokens.colorNeutralForeground2,
   },
+  errorBanner: {
+    border: "1px solid #e8b3b3",
+    borderRadius: "4px",
+    backgroundColor: "#fff5f5",
+    padding: "10px 12px",
+    marginBottom: "12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  errorTitle: {
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#8a2f2f",
+    marginRight: "4px",
+  },
+  errorMessage: {
+    fontSize: "13px",
+    color: "#8a2f2f",
+  },
   clickableRow: {
     cursor: "pointer",
   },
@@ -112,18 +133,18 @@ export function InvoicePage() {
     void loadOrders("");
   }, []);
 
-  const countLabel = useMemo(() => `${orders.length} order(s) in invoice queue`, [orders.length]);
-
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.header}>
           <div>
             <Title2>Invoice Queue</Title2>
-            <Body1 className={styles.muted}>{countLabel}</Body1>
           </div>
           <div className={styles.headerActions}>
             <HelpEntryPoint route="/invoices" />
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Back to Dashboard
+            </Button>
             <Button
               appearance="secondary"
               icon={<ArrowClockwise24Regular />}
@@ -135,7 +156,12 @@ export function InvoicePage() {
           </div>
         </div>
 
-        {error ? <Body1>{error}</Body1> : null}
+        {error ? (
+          <div className={styles.errorBanner}>
+            <span className={styles.errorTitle}>Error</span>
+            <span className={styles.errorMessage}>{error}</span>
+          </div>
+        ) : null}
 
         <Card className={styles.tableCard}>
           <div className={styles.controls}>

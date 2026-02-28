@@ -85,9 +85,11 @@ describe("InvoicePage", () => {
     );
 
     expect(await screen.findByText("Invoice Queue")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to Dashboard" })).toBeInTheDocument();
     expect(screen.getByText("SO-INV-1")).toBeInTheDocument();
     expect(screen.getByText("SO-DISPATCH-1")).toBeInTheDocument();
     expect(screen.queryByText("SO-OTHER-1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/order\(s\) in invoice queue/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Action" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Invoice Workspace" })).not.toBeInTheDocument();
   });
@@ -102,5 +104,18 @@ describe("InvoicePage", () => {
     await screen.findByText("SO-INV-1");
     fireEvent.click(screen.getByText("SO-INV-1"));
     expect(navigateMock).toHaveBeenCalledWith("/invoices/1");
+  });
+
+  it("renders error banner when queue load fails", async () => {
+    listMock.mockRejectedValueOnce(new Error("failed"));
+
+    render(
+      <MemoryRouter>
+        <InvoicePage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Error")).toBeInTheDocument();
+    expect(screen.getByText("Unable to load invoice queue.")).toBeInTheDocument();
   });
 });

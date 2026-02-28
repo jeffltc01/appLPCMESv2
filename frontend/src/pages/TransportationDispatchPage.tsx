@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Badge,
   Body1,
@@ -87,6 +88,27 @@ const useStyles = makeStyles({
   },
   muted: {
     color: tokens.colorNeutralForeground2,
+  },
+  errorBanner: {
+    border: "1px solid #e8b3b3",
+    borderRadius: "4px",
+    backgroundColor: "#fff5f5",
+    padding: "10px 12px",
+    marginBottom: "12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  errorTitle: {
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#8a2f2f",
+    marginRight: "4px",
+  },
+  errorMessage: {
+    fontSize: "13px",
+    color: "#8a2f2f",
   },
   editableInput: {
     minWidth: "112px",
@@ -255,6 +277,7 @@ function toLifecycleStatus(orderLifecycleStatus: string | null | undefined, orde
 
 export function TransportationDispatchPage() {
   const styles = useStyles();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<TransportBoardItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -411,6 +434,9 @@ export function TransportationDispatchPage() {
           </div>
           <div className={styles.headerActions}>
             <HelpEntryPoint route="/transportation" />
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Back to Dashboard
+            </Button>
             <Button appearance="secondary" icon={<ArrowClockwise24Regular />} onClick={() => void loadBoard()} disabled={loading || saving}>
               {loading ? "Refreshing..." : "Refresh"}
             </Button>
@@ -423,7 +449,12 @@ export function TransportationDispatchPage() {
           </div>
         </div>
 
-        {error ? <Body1>{error}</Body1> : null}
+        {error ? (
+          <div className={styles.errorBanner}>
+            <span className={styles.errorTitle}>Error</span>
+            <span className={styles.errorMessage}>{error}</span>
+          </div>
+        ) : null}
 
         <Card className={styles.tableCard}>
           <div className={styles.controls}>

@@ -28,7 +28,7 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Add20Regular,
   ArrowLeft24Regular,
@@ -576,6 +576,7 @@ const useStyles = makeStyles({
 export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   const { orderId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const styles = useStyles();
   const [order, setOrder] = useState<OrderDraftDetail | null>(null);
   const [form, setForm] = useState<OrderFormState>(createDefaultFormState);
@@ -646,6 +647,12 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
     () => (order?.lines ?? []).some((line) => line.requiresSerialNumbers),
     [order?.lines]
   );
+  const backTarget =
+    invoiceMode
+      ? "/invoices"
+      : typeof (location.state as { backTo?: unknown } | null)?.backTo === "string"
+      ? (location.state as { backTo: string }).backTo
+      : "/orders";
 
   const lineTotals = useMemo(() => {
     const lines = order?.lines ?? [];
@@ -1208,7 +1215,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
           <Button
             appearance="subtle"
             icon={<ArrowLeft24Regular />}
-            onClick={() => navigate(invoiceMode ? "/invoices" : "/orders")}
+            onClick={() => navigate(backTarget)}
           >
             Back to Orders
           </Button>
