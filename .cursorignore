@@ -1,0 +1,26 @@
+# Keep Cursor focused on source files, not generated artifacts.
+**/node_modules/**
+**/dist/**
+**/dist-ssr/**
+**/build/**
+**/.vite/**
+**/.cache/**
+**/.parcel-cache/**
+**/.turbo/**
+**/coverage/**
+**/TestResults/**
+**/bin/**
+**/obj/**
+**/*.log
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+
+# IDE / system metadata
+**/.vs/**
+**/.idea/**
+**/.DS_Store
+**/Thumbs.db
+
+# VCS internals
+.git/**

@@ -38,3 +38,19 @@ backend/_buildcheck/
 .alt-build/
 .alt-build-tests/
 backend/.alt-run-out*/
+
+# Test and coverage artifacts
+**/TestResults/
+**/coverage/
+**/*.trx
+**/*.coverage
+**/*.coveragexml
+
+# Frontend caches and generated outputs
+frontend/.cache/
+frontend/.eslintcache
+frontend/.parcel-cache/
+frontend/.turbo/
+frontend/.next/
+frontend/.nuxt/
+frontend/.output/
