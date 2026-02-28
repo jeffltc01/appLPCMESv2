@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import App from "./App";
+import { TABLET_SETUP_STORAGE_KEY } from "./features/tabletSetupStorage";
 
 vi.mock("./services/orders", () => ({
   ordersApi: {
@@ -12,6 +13,7 @@ vi.mock("./services/orders", () => ({
   orderLookupsApi: {
     activeCustomers: vi.fn().mockResolvedValue([]),
     sites: vi.fn().mockResolvedValue([]),
+    scrapReasons: vi.fn().mockResolvedValue([]),
     salesPeople: vi.fn().mockResolvedValue([]),
     paymentTerms: vi.fn().mockResolvedValue([]),
     shipVias: vi.fn().mockResolvedValue([]),
@@ -24,7 +26,17 @@ vi.mock("./services/orders", () => ({
   }),
 }));
 
+vi.mock("./services/setup", () => ({
+  setupApi: {
+    listWorkCenters: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 describe("App routing", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("opens menu at root", async () => {
     window.history.pushState({}, "", "/");
     render(<App />);
@@ -54,5 +66,18 @@ describe("App routing", () => {
     window.history.pushState({}, "", "/invoices/123");
     render(<App />);
     expect(await screen.findByRole("button", { name: "Start Invoice Submission" })).toBeInTheDocument();
+  });
+
+  it("opens tablet setup route", async () => {
+    window.history.pushState({}, "", "/setup/tablet");
+    render(<App />);
+    expect(await screen.findByText("Tablet Setup")).toBeInTheDocument();
+  });
+
+  it("redirects operator route to tablet setup when no setup cache exists", async () => {
+    window.history.pushState({}, "", "/operator/work-center");
+    window.localStorage.removeItem(TABLET_SETUP_STORAGE_KEY);
+    render(<App />);
+    expect(await screen.findByText("Tablet Setup")).toBeInTheDocument();
   });
 });

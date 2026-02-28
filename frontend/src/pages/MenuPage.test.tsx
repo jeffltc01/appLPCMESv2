@@ -121,6 +121,20 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/receiving");
   });
 
+  it("navigates to operator work center page from top menu", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Work Center$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/operator/work-center");
+  });
+
   it("opens admin maintenance menu and navigates to product lines setup", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
@@ -164,6 +178,36 @@ describe("MenuPage", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Work Centers$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/work-centers");
+  });
+
+  it("opens admin maintenance menu and navigates to route templates setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Route Templates$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/route-templates");
+  });
+
+  it("opens admin maintenance menu and navigates to tablet setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Tablet Setup$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/tablet");
   });
 
   it("opens admin maintenance menu and navigates to users and roles setup", async () => {

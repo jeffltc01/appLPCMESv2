@@ -13,6 +13,10 @@ import { ProductionLinesSetupPage } from "./pages/ProductionLinesSetupPage";
 import { ItemsSetupPage } from "./pages/ItemsSetupPage";
 import { WorkCentersSetupPage } from "./pages/WorkCentersSetupPage";
 import { UsersRolesSetupPage } from "./pages/UsersRolesSetupPage";
+import { RouteTemplatesSetupPage } from "./pages/RouteTemplatesSetupPage";
+import { RouteTemplateDetailPage } from "./pages/RouteTemplateDetailPage";
+import { TabletSetupPage } from "./pages/TabletSetupPage";
+import { WorkCenterOperatorPage } from "./pages/WorkCenterOperatorPage";
 
 export default function App() {
   return (
@@ -32,6 +36,10 @@ export default function App() {
           <Route path="/setup/items" element={<ItemsSetupPage />} />
           <Route path="/setup/work-centers" element={<WorkCentersSetupPage />} />
           <Route path="/setup/users-roles" element={<UsersRolesSetupPage />} />
+          <Route path="/setup/route-templates" element={<RouteTemplatesSetupPage />} />
+          <Route path="/setup/route-templates/:templateId" element={<RouteTemplateDetailPage />} />
+          <Route path="/setup/tablet" element={<TabletSetupPage />} />
+          <Route path="/operator/work-center" element={<WorkCenterOperatorPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

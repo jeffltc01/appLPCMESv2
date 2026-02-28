@@ -36,6 +36,7 @@ import type { HoldOverlayType, OrderDraftListItem } from "../types/order";
 
 const NAV_ITEMS = [
   { key: "orderEntry", label: "Order Entry", icon: <ClipboardTask24Regular />, path: "/orders" },
+  { key: "workCenter", label: "Work Center", icon: <Board24Regular />, path: "/operator/work-center" },
   { key: "transportation", label: "Transportation", icon: <VehicleTruckProfile24Regular />, path: "/transportation" },
   { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
   { key: "invoicing", label: "Invoicing", icon: <Receipt24Regular />, path: "/invoices" },
@@ -46,6 +47,8 @@ const ADMIN_MENU_ITEMS = [
   { key: "product-lines", label: "Product Lines", path: "/setup/production-lines", enabled: true },
   { key: "items", label: "Items", path: "/setup/items", enabled: true },
   { key: "work-centers", label: "Work Centers", path: "/setup/work-centers", enabled: true },
+  { key: "tablet-setup", label: "Tablet Setup", path: "/setup/tablet", enabled: true },
+  { key: "route-templates", label: "Route Templates", path: "/setup/route-templates", enabled: true },
   { key: "users-roles", label: "Users & Roles", path: "/setup/users-roles", enabled: true },
 ];
 
