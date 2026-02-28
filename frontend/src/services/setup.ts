@@ -1,5 +1,9 @@
 import { api } from "./api";
 import type {
+  AppRole,
+  AppRoleUpsert,
+  AppUser,
+  AppUserUpsert,
   ProductionLine,
   ProductionLineUpsert,
   RouteRuleSimulationRequest,
@@ -14,6 +18,18 @@ import type {
 } from "../types/setup";
 
 export const setupApi = {
+  listRoles: () => api.get<AppRole[]>("/setup/roles"),
+  getRole: (id: number) => api.get<AppRole>(`/setup/roles/${id}`),
+  createRole: (data: AppRoleUpsert) => api.post<AppRole>("/setup/roles", data),
+  updateRole: (id: number, data: AppRoleUpsert) => api.put<AppRole>(`/setup/roles/${id}`, data),
+  deleteRole: (id: number) => api.delete<void>(`/setup/roles/${id}`),
+
+  listUsers: () => api.get<AppUser[]>("/setup/users"),
+  getUser: (id: number) => api.get<AppUser>(`/setup/users/${id}`),
+  createUser: (data: AppUserUpsert) => api.post<AppUser>("/setup/users", data),
+  updateUser: (id: number, data: AppUserUpsert) => api.put<AppUser>(`/setup/users/${id}`, data),
+  deleteUser: (id: number) => api.delete<void>(`/setup/users/${id}`),
+
   listProductionLines: () => api.get<ProductionLine[]>("/setup/production-lines"),
   getProductionLine: (id: number) => api.get<ProductionLine>(`/setup/production-lines/${id}`),
   createProductionLine: (data: ProductionLineUpsert) =>

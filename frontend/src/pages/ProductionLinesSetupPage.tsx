@@ -185,6 +185,12 @@ export function ProductionLinesSetupPage() {
           <Button appearance="secondary" onClick={() => navigate("/setup/items")}>
             Items Setup
           </Button>
+          <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
+            Work Centers Setup
+          </Button>
+          <Button appearance="secondary" onClick={() => navigate("/setup/users-roles")}>
+            Users & Roles Setup
+          </Button>
           <Button appearance="secondary" onClick={() => navigate("/")}>
             Home
           </Button>

@@ -25,6 +25,49 @@ public record ProductionLineUpsertDto(
     string Name,
     List<string> ShowWhere);
 
+public record AppRoleDto(
+    int Id,
+    string RoleName,
+    string? Description,
+    bool IsActive,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc);
+
+public record AppRoleUpsertDto(
+    string RoleName,
+    string? Description,
+    bool IsActive);
+
+public record AppUserRoleAssignmentDto(
+    int RoleId,
+    string RoleName,
+    int? SiteId);
+
+public record AppUserRoleAssignmentUpsertDto(
+    int RoleId,
+    int? SiteId);
+
+public record AppUserDto(
+    int Id,
+    string? EmpNo,
+    string DisplayName,
+    string? Email,
+    int? DefaultSiteId,
+    string State,
+    bool IsActive,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc,
+    List<AppUserRoleAssignmentDto> Roles);
+
+public record AppUserUpsertDto(
+    string? EmpNo,
+    string DisplayName,
+    string? Email,
+    int? DefaultSiteId,
+    string State,
+    bool IsActive,
+    List<AppUserRoleAssignmentUpsertDto> Roles);
+
 public record WorkCenterUpsertDto(
     string WorkCenterCode,
     string WorkCenterName,

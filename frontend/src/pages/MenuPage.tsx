@@ -31,7 +31,7 @@ import {
 } from "@fluentui/react-icons";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ordersApi } from "../services/orders";
+import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
 import type { HoldOverlayType, OrderDraftListItem } from "../types/order";
 
 const NAV_ITEMS = [
@@ -45,8 +45,8 @@ const NAV_ITEMS = [
 const ADMIN_MENU_ITEMS = [
   { key: "product-lines", label: "Product Lines", path: "/setup/production-lines", enabled: true },
   { key: "items", label: "Items", path: "/setup/items", enabled: true },
-  { key: "work-centers", label: "Work Centers (Coming Soon)", enabled: false },
-  { key: "users-roles", label: "Users & Roles (Coming Soon)", enabled: false },
+  { key: "work-centers", label: "Work Centers", path: "/setup/work-centers", enabled: true },
+  { key: "users-roles", label: "Users & Roles", path: "/setup/users-roles", enabled: true },
 ];
 
 const useStyles = makeStyles({
@@ -248,7 +248,8 @@ const READY_TO_RELEASE_STATUSES = new Set(["ProductionComplete", "OutboundLogist
 const NON_RISK_OVERLAYS = new Set<HoldOverlayType>(["Cancelled"]);
 
 function getLifecycleStatus(order: OrderDraftListItem): string {
-  return order.orderLifecycleStatus ?? order.orderStatus;
+  const rawStatus = order.orderLifecycleStatus ?? order.orderStatus;
+  return getWorkspaceCurrentStatus(rawStatus);
 }
 
 export function MenuPage() {

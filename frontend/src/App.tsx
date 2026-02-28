@@ -11,6 +11,8 @@ import { ReceivingQueuePage } from "./pages/ReceivingQueuePage";
 import { ReceivingDetailPage } from "./pages/ReceivingDetailPage";
 import { ProductionLinesSetupPage } from "./pages/ProductionLinesSetupPage";
 import { ItemsSetupPage } from "./pages/ItemsSetupPage";
+import { WorkCentersSetupPage } from "./pages/WorkCentersSetupPage";
+import { UsersRolesSetupPage } from "./pages/UsersRolesSetupPage";
 
 export default function App() {
   return (
@@ -28,6 +30,8 @@ export default function App() {
           <Route path="/customers/:customerId" element={<CustomerDetailPage />} />
           <Route path="/setup/production-lines" element={<ProductionLinesSetupPage />} />
           <Route path="/setup/items" element={<ItemsSetupPage />} />
+          <Route path="/setup/work-centers" element={<WorkCentersSetupPage />} />
+          <Route path="/setup/users-roles" element={<UsersRolesSetupPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

@@ -4,11 +4,16 @@ import { MenuPage } from "./MenuPage";
 
 const listMock = vi.fn();
 
-vi.mock("../services/orders", () => ({
-  ordersApi: {
-    list: (...args: unknown[]) => listMock(...args),
-  },
-}));
+vi.mock("../services/orders", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/orders")>();
+  return {
+    ...actual,
+    ordersApi: {
+      ...actual.ordersApi,
+      list: (...args: unknown[]) => listMock(...args),
+    },
+  };
+});
 
 function LocationProbe() {
   const location = useLocation();
@@ -146,24 +151,34 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/items");
   });
 
-  it("shows disabled coming soon admin maintenance options", async () => {
+  it("opens admin maintenance menu and navigates to work centers setup", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <MenuPage />
+        <LocationProbe />
       </MemoryRouter>,
     );
 
     await screen.findByText("SO-1001");
     fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Work Centers$/i }));
 
-    expect(await screen.findByRole("menuitem", { name: /Work Centers \(Coming Soon\)/i })).toHaveAttribute(
-      "aria-disabled",
-      "true",
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/work-centers");
+  });
+
+  it("opens admin maintenance menu and navigates to users and roles setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
     );
-    expect(await screen.findByRole("menuitem", { name: /Users & Roles \(Coming Soon\)/i })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Users & Roles$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/users-roles");
   });
 
   it("calculates and renders metrics from loaded orders", async () => {
@@ -181,6 +196,56 @@ describe("MenuPage", () => {
     expect(screen.getByText("Low risk (1)")).toBeInTheDocument();
     expect(screen.getByText("Medium risk (1)")).toBeInTheDocument();
     expect(screen.getByText("High risk (1)")).toBeInTheDocument();
+  });
+
+  it("maps legacy workflow statuses into lifecycle metrics when lifecycle is missing", async () => {
+    listMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: 11,
+          salesOrderNo: "SO-2001",
+          orderDate: "2026-02-28",
+          orderStatus: "New",
+          customerId: 2,
+          customerName: "Acme Industrial",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 3,
+          holdOverlay: null,
+        },
+        {
+          id: 12,
+          salesOrderNo: "SO-2002",
+          orderDate: "2026-02-28",
+          orderStatus: "Ready to Ship",
+          customerId: 3,
+          customerName: "BlueLine Supply",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 2,
+          holdOverlay: null,
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("SO-2001")).toBeInTheDocument();
+    expect(screen.getByText("Needs Review").parentElement).toHaveTextContent("1");
+    expect(screen.getByText("Ready to Release").parentElement).toHaveTextContent("1");
   });
 
   it("applies filters to queue and metrics", async () => {

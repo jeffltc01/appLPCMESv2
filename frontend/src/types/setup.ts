@@ -11,6 +11,55 @@ export interface WorkCenter {
   updatedUtc: string;
 }
 
+export interface AppRole {
+  id: number;
+  roleName: string;
+  description: string | null;
+  isActive: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+}
+
+export interface AppRoleUpsert {
+  roleName: string;
+  description?: string | null;
+  isActive: boolean;
+}
+
+export interface AppUserRoleAssignment {
+  roleId: number;
+  roleName: string;
+  siteId: number | null;
+}
+
+export interface AppUserRoleAssignmentUpsert {
+  roleId: number;
+  siteId?: number | null;
+}
+
+export interface AppUser {
+  id: number;
+  empNo: string | null;
+  displayName: string;
+  email: string | null;
+  defaultSiteId: number | null;
+  state: "Active" | "Inactive" | "Locked";
+  isActive: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+  roles: AppUserRoleAssignment[];
+}
+
+export interface AppUserUpsert {
+  empNo?: string | null;
+  displayName: string;
+  email?: string | null;
+  defaultSiteId?: number | null;
+  state: "Active" | "Inactive" | "Locked";
+  isActive: boolean;
+  roles: AppUserRoleAssignmentUpsert[];
+}
+
 export type ProductionLineShowWhere =
   | "OrderComments"
   | "OrderProduct"

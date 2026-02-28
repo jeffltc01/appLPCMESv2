@@ -8,6 +8,128 @@ namespace LPCylinderMES.Api.Controllers;
 [Route("api/setup")]
 public class SetupController(ISetupRoutingService setupRoutingService) : ControllerBase
 {
+    [HttpGet("roles")]
+    public async Task<ActionResult<List<AppRoleDto>>> GetRoles(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetRolesAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpGet("roles/{id:int}")]
+    public async Task<ActionResult<AppRoleDto>> GetRole(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.GetRoleAsync(id, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("roles")]
+    public async Task<ActionResult<AppRoleDto>> CreateRole(AppRoleUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await setupRoutingService.CreateRoleAsync(dto, cancellationToken);
+            return CreatedAtAction(nameof(GetRole), new { id = created.Id }, created);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPut("roles/{id:int}")]
+    public async Task<ActionResult<AppRoleDto>> UpdateRole(int id, AppRoleUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateRoleAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("roles/{id:int}")]
+    public async Task<ActionResult> DeleteRole(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await setupRoutingService.DeleteRoleAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("users")]
+    public async Task<ActionResult<List<AppUserDto>>> GetUsers(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetUsersAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpGet("users/{id:int}")]
+    public async Task<ActionResult<AppUserDto>> GetUser(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.GetUserAsync(id, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("users")]
+    public async Task<ActionResult<AppUserDto>> CreateUser(AppUserUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await setupRoutingService.CreateUserAsync(dto, cancellationToken);
+            return CreatedAtAction(nameof(GetUser), new { id = created.Id }, created);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPut("users/{id:int}")]
+    public async Task<ActionResult<AppUserDto>> UpdateUser(int id, AppUserUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateUserAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("users/{id:int}")]
+    public async Task<ActionResult> DeleteUser(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await setupRoutingService.DeleteUserAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpGet("production-lines")]
     public async Task<ActionResult<List<ProductionLineDto>>> GetProductionLines(CancellationToken cancellationToken)
     {

@@ -4,6 +4,18 @@ namespace LPCylinderMES.Api.Services;
 
 public interface ISetupRoutingService
 {
+    Task<List<AppRoleDto>> GetRolesAsync(CancellationToken cancellationToken = default);
+    Task<AppRoleDto> GetRoleAsync(int id, CancellationToken cancellationToken = default);
+    Task<AppRoleDto> CreateRoleAsync(AppRoleUpsertDto dto, CancellationToken cancellationToken = default);
+    Task<AppRoleDto> UpdateRoleAsync(int id, AppRoleUpsertDto dto, CancellationToken cancellationToken = default);
+    Task DeleteRoleAsync(int id, CancellationToken cancellationToken = default);
+
+    Task<List<AppUserDto>> GetUsersAsync(CancellationToken cancellationToken = default);
+    Task<AppUserDto> GetUserAsync(int id, CancellationToken cancellationToken = default);
+    Task<AppUserDto> CreateUserAsync(AppUserUpsertDto dto, CancellationToken cancellationToken = default);
+    Task<AppUserDto> UpdateUserAsync(int id, AppUserUpsertDto dto, CancellationToken cancellationToken = default);
+    Task DeleteUserAsync(int id, CancellationToken cancellationToken = default);
+
     Task<List<ProductionLineDto>> GetProductionLinesAsync(CancellationToken cancellationToken = default);
     Task<ProductionLineDto> GetProductionLineAsync(int id, CancellationToken cancellationToken = default);
     Task<ProductionLineDto> CreateProductionLineAsync(ProductionLineUpsertDto dto, CancellationToken cancellationToken = default);

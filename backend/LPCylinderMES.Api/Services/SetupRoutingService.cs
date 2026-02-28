@@ -16,6 +16,7 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
     private static readonly string[] SupportedTimeCaptureModes = ["Automated", "Manual", "Hybrid"];
     private static readonly string[] SupportedDataCaptureModes = ["ElectronicRequired", "ElectronicOptional", "PaperOnly"];
     private static readonly string[] SupportedChecklistFailurePolicies = ["BlockCompletion", "AllowWithSupervisorOverride"];
+    private static readonly string[] SupportedUserStates = ["Active", "Inactive", "Locked"];
     private static readonly Dictionary<string, int> ShowWhereFlags = new(StringComparer.OrdinalIgnoreCase)
     {
         ["OrderComments"] = ShowWhereOrderComments,
@@ -23,6 +24,183 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
         ["OrderReceiving"] = ShowWhereOrderReceiving,
         ["JobMaterialUsed"] = ShowWhereJobMaterialUsed,
     };
+
+    public async Task<List<AppRoleDto>> GetRolesAsync(CancellationToken cancellationToken = default) =>
+        await db.AppRoles
+            .AsNoTracking()
+            .OrderBy(r => r.RoleName)
+            .Select(r => new AppRoleDto(
+                r.Id,
+                r.RoleName,
+                r.Description,
+                r.IsActive,
+                r.CreatedUtc,
+                r.UpdatedUtc))
+            .ToListAsync(cancellationToken);
+
+    public async Task<AppRoleDto> GetRoleAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var role = await db.AppRoles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+        if (role is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Role '{id}' was not found.");
+
+        return ToAppRoleDto(role);
+    }
+
+    public async Task<AppRoleDto> CreateRoleAsync(AppRoleUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        await ValidateRoleAsync(dto, null, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var role = new AppRole
+        {
+            RoleName = dto.RoleName.Trim(),
+            Description = NormalizeNullable(dto.Description),
+            IsActive = dto.IsActive,
+            CreatedUtc = now,
+            UpdatedUtc = now,
+        };
+
+        db.AppRoles.Add(role);
+        await db.SaveChangesAsync(cancellationToken);
+        return ToAppRoleDto(role);
+    }
+
+    public async Task<AppRoleDto> UpdateRoleAsync(int id, AppRoleUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var role = await db.AppRoles.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (role is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Role '{id}' was not found.");
+
+        await ValidateRoleAsync(dto, id, cancellationToken);
+
+        role.RoleName = dto.RoleName.Trim();
+        role.Description = NormalizeNullable(dto.Description);
+        role.IsActive = dto.IsActive;
+        role.UpdatedUtc = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+        return ToAppRoleDto(role);
+    }
+
+    public async Task DeleteRoleAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var role = await db.AppRoles.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (role is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Role '{id}' was not found.");
+
+        var inUse = await db.AppUserRoles.AnyAsync(ur => ur.RoleId == id, cancellationToken);
+        if (inUse)
+            throw new ServiceException(StatusCodes.Status409Conflict, "Cannot delete role because it is assigned to one or more users.");
+
+        db.AppRoles.Remove(role);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<List<AppUserDto>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var users = await db.AppUsers
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .OrderBy(u => u.DisplayName)
+            .ToListAsync(cancellationToken);
+
+        return users.Select(ToAppUserDto).ToList();
+    }
+
+    public async Task<AppUserDto> GetUserAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var user = await db.AppUsers
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+        if (user is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"User '{id}' was not found.");
+
+        return ToAppUserDto(user);
+    }
+
+    public async Task<AppUserDto> CreateUserAsync(AppUserUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        await ValidateUserAsync(dto, null, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var user = new AppUser
+        {
+            EmpNo = NormalizeNullable(dto.EmpNo),
+            DisplayName = dto.DisplayName.Trim(),
+            Email = NormalizeNullable(dto.Email),
+            DefaultSiteId = dto.DefaultSiteId,
+            State = dto.State.Trim(),
+            IsActive = dto.IsActive,
+            CreatedUtc = now,
+            UpdatedUtc = now,
+            UserRoles = dto.Roles
+                .Select(r => new AppUserRole
+                {
+                    RoleId = r.RoleId,
+                    SiteId = r.SiteId,
+                    CreatedUtc = now,
+                    CreatedBy = "setup-ui",
+                })
+                .ToList(),
+        };
+
+        db.AppUsers.Add(user);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetUserAsync(user.Id, cancellationToken);
+    }
+
+    public async Task<AppUserDto> UpdateUserAsync(int id, AppUserUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var user = await db.AppUsers
+            .Include(u => u.UserRoles)
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+        if (user is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"User '{id}' was not found.");
+
+        await ValidateUserAsync(dto, id, cancellationToken);
+
+        user.EmpNo = NormalizeNullable(dto.EmpNo);
+        user.DisplayName = dto.DisplayName.Trim();
+        user.Email = NormalizeNullable(dto.Email);
+        user.DefaultSiteId = dto.DefaultSiteId;
+        user.State = dto.State.Trim();
+        user.IsActive = dto.IsActive;
+        user.UpdatedUtc = DateTime.UtcNow;
+
+        db.AppUserRoles.RemoveRange(user.UserRoles);
+        user.UserRoles = dto.Roles
+            .Select(r => new AppUserRole
+            {
+                RoleId = r.RoleId,
+                SiteId = r.SiteId,
+                CreatedUtc = DateTime.UtcNow,
+                CreatedBy = "setup-ui",
+            })
+            .ToList();
+
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetUserAsync(id, cancellationToken);
+    }
+
+    public async Task DeleteUserAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var user = await db.AppUsers
+            .Include(u => u.UserRoles)
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+        if (user is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"User '{id}' was not found.");
+
+        db.AppUserRoles.RemoveRange(user.UserRoles);
+        db.AppUsers.Remove(user);
+        await db.SaveChangesAsync(cancellationToken);
+    }
 
     public async Task<List<ProductionLineDto>> GetProductionLinesAsync(CancellationToken cancellationToken = default) =>
         await db.ProductionLines
@@ -429,6 +607,80 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             ToRouteTemplateDetailDto(selectedTemplate));
     }
 
+    private async Task ValidateRoleAsync(AppRoleUpsertDto dto, int? existingId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.RoleName))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "RoleName is required.");
+
+        var normalizedName = dto.RoleName.Trim();
+        var duplicateName = await db.AppRoles.AnyAsync(
+            r => r.RoleName == normalizedName && (!existingId.HasValue || r.Id != existingId.Value),
+            cancellationToken);
+        if (duplicateName)
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Role '{normalizedName}' already exists.");
+    }
+
+    private async Task ValidateUserAsync(AppUserUpsertDto dto, int? existingId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.DisplayName))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "DisplayName is required.");
+        if (string.IsNullOrWhiteSpace(dto.State) || !SupportedUserStates.Contains(dto.State.Trim()))
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"State must be one of: {string.Join(", ", SupportedUserStates)}.");
+        if (dto.Roles is null)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Roles is required.");
+
+        var normalizedEmpNo = NormalizeNullable(dto.EmpNo);
+        if (!string.IsNullOrWhiteSpace(normalizedEmpNo))
+        {
+            var duplicateEmpNo = await db.AppUsers.AnyAsync(
+                u => u.EmpNo == normalizedEmpNo && (!existingId.HasValue || u.Id != existingId.Value),
+                cancellationToken);
+            if (duplicateEmpNo)
+                throw new ServiceException(StatusCodes.Status409Conflict, $"EmpNo '{normalizedEmpNo}' already exists.");
+        }
+
+        if (dto.DefaultSiteId.HasValue)
+        {
+            var defaultSiteExists = await db.Sites.AnyAsync(s => s.Id == dto.DefaultSiteId.Value, cancellationToken);
+            if (!defaultSiteExists)
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid DefaultSiteId '{dto.DefaultSiteId.Value}'.");
+        }
+
+        var duplicateAssignments = dto.Roles
+            .GroupBy(r => new { r.RoleId, r.SiteId })
+            .Any(g => g.Count() > 1);
+        if (duplicateAssignments)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Role assignments must be unique by role and site.");
+
+        var roleIds = dto.Roles.Select(r => r.RoleId).Distinct().ToList();
+        if (roleIds.Count > 0)
+        {
+            var knownRoleIds = await db.AppRoles
+                .Where(r => roleIds.Contains(r.Id))
+                .Select(r => r.Id)
+                .ToListAsync(cancellationToken);
+            var unknownRoleIds = roleIds.Except(knownRoleIds).ToList();
+            if (unknownRoleIds.Count > 0)
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"Unknown RoleId values: {string.Join(", ", unknownRoleIds)}.");
+        }
+
+        var siteIds = dto.Roles
+            .Where(r => r.SiteId.HasValue)
+            .Select(r => r.SiteId!.Value)
+            .Distinct()
+            .ToList();
+        if (siteIds.Count > 0)
+        {
+            var knownSiteIds = await db.Sites
+                .Where(s => siteIds.Contains(s.Id))
+                .Select(s => s.Id)
+                .ToListAsync(cancellationToken);
+            var unknownSiteIds = siteIds.Except(knownSiteIds).ToList();
+            if (unknownSiteIds.Count > 0)
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"Unknown SiteId values in role assignments: {string.Join(", ", unknownSiteIds)}.");
+        }
+    }
+
     private async Task ValidateWorkCenterAsync(WorkCenterUpsertDto dto, int? existingId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dto.WorkCenterCode))
@@ -633,6 +885,32 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
 
         return values;
     }
+
+    private static AppRoleDto ToAppRoleDto(AppRole role) =>
+        new(
+            role.Id,
+            role.RoleName,
+            role.Description,
+            role.IsActive,
+            role.CreatedUtc,
+            role.UpdatedUtc);
+
+    private static AppUserDto ToAppUserDto(AppUser user) =>
+        new(
+            user.Id,
+            user.EmpNo,
+            user.DisplayName,
+            user.Email,
+            user.DefaultSiteId,
+            user.State,
+            user.IsActive,
+            user.CreatedUtc,
+            user.UpdatedUtc,
+            user.UserRoles
+                .OrderBy(ur => ur.Role.RoleName)
+                .ThenBy(ur => ur.SiteId)
+                .Select(ur => new AppUserRoleAssignmentDto(ur.RoleId, ur.Role.RoleName, ur.SiteId))
+                .ToList());
 
     private static ProductionLineDto ToProductionLineDto(ProductionLine productionLine) =>
         new(

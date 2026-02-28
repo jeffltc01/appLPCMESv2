@@ -221,6 +221,88 @@ public class SetupRoutingServiceTests
         Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task CreateRoleAsync_DuplicateName_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CreateRoleAsync_DuplicateName_ThrowsConflict));
+        db.AppRoles.Add(new AppRole
+        {
+            Id = 1,
+            RoleName = "Admin",
+            IsActive = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CreateRoleAsync(new AppRoleUpsertDto("Admin", null, true)));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_WithRoleAssignments_CreatesUserWithRoles()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CreateUserAsync_WithRoleAssignments_CreatesUserWithRoles));
+        SeedCommonLookups(db);
+        db.AppRoles.AddRange(
+            new AppRole { Id = 1000, RoleName = "Admin", IsActive = true, CreatedUtc = DateTime.UtcNow, UpdatedUtc = DateTime.UtcNow },
+            new AppRole { Id = 1001, RoleName = "Setup", IsActive = true, CreatedUtc = DateTime.UtcNow, UpdatedUtc = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var created = await service.CreateUserAsync(new AppUserUpsertDto(
+            "EMP100",
+            "Test User",
+            "test.user@example.com",
+            1,
+            "Active",
+            true,
+            [
+                new AppUserRoleAssignmentUpsertDto(1000, null),
+                new AppUserRoleAssignmentUpsertDto(1001, 1),
+            ]));
+
+        Assert.Equal("EMP100", created.EmpNo);
+        Assert.Equal("Test User", created.DisplayName);
+        Assert.Equal(2, created.Roles.Count);
+        Assert.Contains(created.Roles, r => r.RoleName == "Admin" && r.SiteId is null);
+        Assert.Contains(created.Roles, r => r.RoleName == "Setup" && r.SiteId == 1);
+    }
+
+    [Fact]
+    public async Task DeleteRoleAsync_WhenAssignedToUser_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(DeleteRoleAsync_WhenAssignedToUser_ThrowsConflict));
+        SeedCommonLookups(db);
+        db.AppRoles.Add(new AppRole { Id = 11, RoleName = "Admin", IsActive = true, CreatedUtc = DateTime.UtcNow, UpdatedUtc = DateTime.UtcNow });
+        db.AppUsers.Add(new AppUser
+        {
+            Id = 21,
+            EmpNo = "EMP-21",
+            DisplayName = "Assigned User",
+            State = "Active",
+            IsActive = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.AppUserRoles.Add(new AppUserRole
+        {
+            Id = 31,
+            UserId = 21,
+            RoleId = 11,
+            CreatedUtc = DateTime.UtcNow,
+            CreatedBy = "test",
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.DeleteRoleAsync(11));
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+    }
+
     private static void SeedCommonLookups(LpcAppsDbContext db)
     {
         db.Sites.Add(new Site { Id = 1, Name = "Main", SiteCode = "MAIN" });
