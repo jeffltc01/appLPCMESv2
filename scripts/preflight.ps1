@@ -43,8 +43,19 @@ if (-not (Test-Path $frontendDir)) {
 Invoke-Step -Title "Run backend unit tests" -Action {
     Push-Location $backendDir
     try {
-        Invoke-CommandChecked -FailureMessage "Backend unit tests failed" -Command {
-            dotnet test "LPCylinderMES.sln" --configuration Release --nologo
+        $priorUseInMemory = $env:Testing__UseInMemoryDatabase
+        try {
+            $env:Testing__UseInMemoryDatabase = "true"
+            Invoke-CommandChecked -FailureMessage "Backend unit tests failed" -Command {
+                dotnet test "LPCylinderMES.sln" --configuration Release --nologo
+            }
+        }
+        finally {
+            if ($null -eq $priorUseInMemory) {
+                Remove-Item Env:Testing__UseInMemoryDatabase -ErrorAction SilentlyContinue
+            } else {
+                $env:Testing__UseInMemoryDatabase = $priorUseInMemory
+            }
         }
     }
     finally {
