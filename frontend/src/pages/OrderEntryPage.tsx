@@ -675,6 +675,11 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       currentStatus === "Ready to Invoice" ||
       order?.orderLifecycleStatus === "InvoiceReady" ||
       order?.orderStatus === "Ready to Invoice");
+  const isInvoiceReadyForSubmit =
+    currentStatus === "InvoiceReady" ||
+    currentStatus === "Ready to Invoice" ||
+    order?.orderLifecycleStatus === "InvoiceReady" ||
+    order?.orderStatus === "Ready to Invoice";
   const hasSerialRequiredLines = useMemo(
     () => (order?.lines ?? []).some((line) => line.requiresSerialNumbers ?? false),
     [order?.lines]
@@ -689,7 +694,14 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   const lineTotals = useMemo(() => {
     const lines = order?.lines ?? [];
     const subtotal = lines.reduce((sum, line) => sum + (line.extension ?? 0), 0);
-    const qty = lines.reduce((sum, line) => sum + line.quantityAsOrdered, 0);
+    const qty = lines.reduce(
+      (sum, line) =>
+        sum +
+        (invoiceMode
+          ? (line.quantityAsShipped ?? line.quantityAsReceived ?? 0)
+          : line.quantityAsOrdered),
+      0
+    );
     const tax = subtotal * 0.0825;
     const freight = subtotal > 0 ? 150 : 0;
     return {
@@ -1231,6 +1243,12 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
     if (!order) {
       return;
     }
+    if (!isInvoiceReadyForSubmit) {
+      setInvoiceWizardError(
+        "This order is not InvoiceReady yet. Move it to InvoiceReady before submitting."
+      );
+      return;
+    }
     setIsSubmittingInvoice(true);
     setInvoiceWizardError(null);
     try {
@@ -1255,9 +1273,12 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       setInvoiceWizardOpen(false);
       await Promise.all([refreshOrder(order.id), refreshAttachments(order.id)]);
       await refreshOrderAuditTrail(order.id, 1);
-    } catch {
+    } catch (error) {
+      const apiMessage = extractApiMessage(error);
       setInvoiceWizardError(
-        "Invoice submission failed. The order remains in queue. Please retry and check integration diagnostics."
+        apiMessage
+          ? `Invoice submission failed: ${apiMessage}`
+          : "Invoice submission failed. The order remains in queue. Please retry and check integration diagnostics."
       );
     } finally {
       setIsSubmittingInvoice(false);
@@ -1687,7 +1708,14 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                         <TableHeaderCell>Line</TableHeaderCell>
                         <TableHeaderCell>Item No</TableHeaderCell>
                         <TableHeaderCell>Description</TableHeaderCell>
-                        <TableHeaderCell>Qty Ordered</TableHeaderCell>
+                        {invoiceMode ? (
+                          <>
+                            <TableHeaderCell>Qty Received</TableHeaderCell>
+                            <TableHeaderCell>Qty Shipped</TableHeaderCell>
+                          </>
+                        ) : (
+                          <TableHeaderCell>Qty Ordered</TableHeaderCell>
+                        )}
                         <TableHeaderCell>Unit Price</TableHeaderCell>
                         <TableHeaderCell>Actions</TableHeaderCell>
                       </TableRow>
@@ -1698,7 +1726,14 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                           <TableCell>{line.lineNo}</TableCell>
                           <TableCell>{line.itemNo}</TableCell>
                           <TableCell>{line.itemDescription}</TableCell>
-                          <TableCell>{line.quantityAsOrdered}</TableCell>
+                          {invoiceMode ? (
+                            <>
+                              <TableCell>{line.quantityAsReceived ?? 0}</TableCell>
+                              <TableCell>{line.quantityAsShipped ?? line.quantityAsReceived ?? 0}</TableCell>
+                            </>
+                          ) : (
+                            <TableCell>{line.quantityAsOrdered}</TableCell>
+                          )}
                           <TableCell>{line.unitPrice ?? "-"}</TableCell>
                           <TableCell>
                             <div className={styles.rowActions}>
@@ -1988,7 +2023,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
 
               {invoiceWizardStep === 2 ? (
                 <div>
-                  <Body1>Step 2 of 3 - Attachment Email</Body1>
+                  <Body1 block>Step 2 of 3 - Attachment Email</Body1>
                   {hasInvoiceAttachments ? (
                     <>
                       {attachments.map((attachment) => (
@@ -2013,31 +2048,33 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                           placeholder="billing@customer.com, ops@customer.com"
                         />
                       </Field>
-                      <Field label="Skip email reason (required only when skipping)">
-                        <Textarea
-                          value={invoiceAttachmentSkipReason}
-                          onChange={(_, data) => setInvoiceAttachmentSkipReason(data.value)}
-                        />
-                      </Field>
                     </>
                   ) : (
-                    <Body1>No attachments found. This step can be skipped.</Body1>
+                    <Body1 block>No attachments found. This step can be skipped.</Body1>
                   )}
+                  <Field label="Skip email reason (required when skipping)">
+                    <Textarea
+                      value={invoiceAttachmentSkipReason}
+                      onChange={(_, data) => setInvoiceAttachmentSkipReason(data.value)}
+                    />
+                  </Field>
                 </div>
               ) : null}
 
               {invoiceWizardStep === 3 ? (
                 <div>
-                  <Body1>Step 3 of 3 - ERP Submission Confirmation</Body1>
-                  <Body1>
+                  <Body1 block>Step 3 of 3 - ERP Submission Confirmation</Body1>
+                  <Body1 block>
                     Submission sends invoice data to ERP staging and cannot be reversed from this dialog.
                   </Body1>
-                  <Body1>
+                  <Body1 block>
                     Attachment email: {invoiceSendAttachmentEmail ? "Send before submit" : "Skipped"}
                   </Body1>
-                  <Body1>
-                    Ensure this order is in <strong>InvoiceReady</strong> status before submitting.
-                  </Body1>
+                  {!isInvoiceReadyForSubmit ? (
+                    <Body1 block>
+                      This order is not in <strong>InvoiceReady</strong> status yet.
+                    </Body1>
+                  ) : null}
                 </div>
               ) : null}
 

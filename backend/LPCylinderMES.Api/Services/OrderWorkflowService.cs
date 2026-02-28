@@ -285,6 +285,7 @@ public class OrderWorkflowService(
 
         var order = await db.SalesOrders
             .Include(o => o.OrderAttachments)
+            .Include(o => o.SalesOrderDetails)
             .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
         if (order is null)
         {
@@ -449,6 +450,12 @@ public class OrderWorkflowService(
         }
 
         var now = DateTime.UtcNow;
+        foreach (var line in order.SalesOrderDetails)
+        {
+            var effectiveQuantityShipped = line.QuantityAsShipped ?? line.QuantityAsReceived ?? 0m;
+            line.Extension = (line.UnitPrice ?? 0m) * effectiveQuantityShipped;
+        }
+
         order.InvoiceReviewCompletedUtc = now;
         order.InvoiceReviewCompletedByEmpNo = TrimToNull(dto.ReviewCompletedByEmpNo) ?? TrimToNull(dto.SubmittedByEmpNo);
         order.InvoiceSubmissionRequestedUtc = now;
@@ -1363,13 +1370,17 @@ public class OrderWorkflowService(
         {
             var attachmentStepCompleted = (order.AttachmentEmailSent ?? false) ||
                                           !string.IsNullOrWhiteSpace(order.AttachmentEmailSkipReason);
+            var hasSuccessfulStagingHandoff =
+                string.Equals(order.InvoiceStagingResult, "PendingAck", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(order.InvoiceStagingResult, "Success", StringComparison.OrdinalIgnoreCase);
             if (!order.InvoiceReviewCompletedUtc.HasValue ||
                 !attachmentStepCompleted ||
-                string.IsNullOrWhiteSpace(order.InvoiceSubmissionCorrelationId))
+                string.IsNullOrWhiteSpace(order.InvoiceSubmissionCorrelationId) ||
+                !hasSuccessfulStagingHandoff)
             {
                 throw new ServiceException(
                     StatusCodes.Status409Conflict,
-                    "InvoiceReady -> Invoiced requires review completion, attachment step completion, and ERP correlation id.");
+                    "InvoiceReady -> Invoiced requires review completion, attachment step completion, successful ERP staging handoff, and ERP correlation id.");
             }
         }
 

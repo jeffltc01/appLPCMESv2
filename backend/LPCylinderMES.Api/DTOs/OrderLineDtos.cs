@@ -7,6 +7,8 @@ public record OrderLineDto(
     string ItemNo,
     string ItemDescription,
     decimal QuantityAsOrdered,
+    decimal? QuantityAsReceived,
+    decimal? QuantityAsShipped,
     decimal? UnitPrice,
     decimal? Extension,
     string? Notes,

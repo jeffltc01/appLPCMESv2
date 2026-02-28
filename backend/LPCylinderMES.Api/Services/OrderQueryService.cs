@@ -442,6 +442,8 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             detail.Item.ItemNo,
             detail.Item.ItemDescription ?? detail.Item.ItemNo,
             detail.QuantityAsOrdered,
+            detail.QuantityAsReceived,
+            detail.QuantityAsShipped,
             detail.UnitPrice,
             detail.Extension,
             detail.Notes,

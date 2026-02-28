@@ -560,6 +560,9 @@ describe("OrderEntryPage", () => {
 
     renderInvoiceModeOrderPage();
 
+    expect(await screen.findByRole("columnheader", { name: "Qty Received" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Qty Shipped" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Qty Ordered" })).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Add Line" })).toBeEnabled();
     expect(screen.getByLabelText("Edit line 1")).toBeEnabled();
     expect(screen.getByLabelText("Delete line 1")).toBeEnabled();

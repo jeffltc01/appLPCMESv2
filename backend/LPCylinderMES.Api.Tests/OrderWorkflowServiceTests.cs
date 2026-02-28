@@ -330,6 +330,68 @@ public class OrderWorkflowServiceTests
     }
 
     [Fact]
+    public async Task SubmitInvoiceAsync_RecalculatesLineExtensionUsingShippedOrReceivedQuantity()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(SubmitInvoiceAsync_RecalculatesLineExtensionUsingShippedOrReceivedQuantity));
+        db.Items.Add(new Item
+        {
+            Id = 2301,
+            ItemNo = "ITEM-2301",
+            ItemDescription = "Invoice line",
+            ItemType = "1",
+            RequiresSerialNumbers = 0,
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 230,
+            SalesOrderNo = "SO-INV-230",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+            CustomerId = 1,
+            SiteId = 1,
+            SalesOrderDetails =
+            {
+                new SalesOrderDetail
+                {
+                    Id = 23001,
+                    LineNo = 1,
+                    ItemId = 2301,
+                    QuantityAsOrdered = 10,
+                    QuantityAsReceived = 4,
+                    QuantityAsShipped = null,
+                    UnitPrice = 25m,
+                    Extension = 999m,
+                    Notes = "line",
+                },
+            },
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService(), new FakeInvoiceStagingService());
+
+        await service.SubmitInvoiceAsync(230, new SubmitInvoiceDto(
+            true,
+            true,
+            true,
+            true,
+            false,
+            null,
+            null,
+            null,
+            "corr-test-230",
+            "EMP001",
+            "EMP001"));
+
+        var line = await db.SalesOrderDetails.FirstAsync(d => d.Id == 23001);
+        Assert.Equal(100m, line.Extension);
+    }
+
+    [Fact]
     public async Task AdvanceStatusAsync_LifecycleTransition_UpdatesLifecycleAndLegacyStatus()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_LifecycleTransition_UpdatesLifecycleAndLegacyStatus));
@@ -618,6 +680,7 @@ public class OrderWorkflowServiceTests
             InvoiceReviewCompletedUtc = DateTime.UtcNow,
             AttachmentEmailSent = true,
             InvoiceSubmissionCorrelationId = "corr-123",
+            InvoiceStagingResult = "PendingAck",
             CustomerId = 1,
             SiteId = 1,
         });
@@ -633,6 +696,35 @@ public class OrderWorkflowServiceTests
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 13);
         Assert.Equal(OrderStatusCatalog.Invoiced, order.OrderLifecycleStatus);
+    }
+
+    [Fact]
+    public async Task AdvanceStatusAsync_InvoicedRequiresSuccessfulStagingHandoff()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_InvoicedRequiresSuccessfulStagingHandoff));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 130,
+            SalesOrderNo = "SO-LIFE-130",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
+            OrderLifecycleStatus = OrderStatusCatalog.InvoiceReady,
+            InvoiceReviewCompletedUtc = DateTime.UtcNow,
+            AttachmentEmailSent = true,
+            InvoiceSubmissionCorrelationId = "corr-130",
+            InvoiceStagingResult = "Failed",
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdvanceStatusAsync(130, OrderStatusCatalog.Invoiced));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        var order = await db.SalesOrders.FirstAsync(o => o.Id == 130);
+        Assert.Equal(OrderStatusCatalog.InvoiceReady, order.OrderLifecycleStatus);
     }
 
     [Fact]

@@ -1,0 +1,9 @@
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.csproj.AssemblyReference.cache
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\rpswa.dswa.cache.json
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.AssemblyInfoInputs.cache
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.AssemblyInfo.cs
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.csproj.CoreCompileInputs.cache
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.MvcApplicationPartsAssemblyInfo.cs
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.MvcApplicationPartsAssemblyInfo.cache
+C:\Users\zosim\appLPCMESv2\.tmp-dotnet-obj\Debug\net9.0\LPCylinderMES.Api.sourcelink.json

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using LPCylinderMES.Api.Data;
@@ -11,7 +12,8 @@ public sealed class InvoiceStagingService(
     LpcAppsDbContext db,
     IConfiguration configuration,
     ILogger<InvoiceStagingService> logger,
-    IHttpClientFactory? httpClientFactory = null) : IInvoiceStagingService
+    IHttpClientFactory? httpClientFactory = null,
+    IInvoiceStagingAccessTokenProvider? accessTokenProvider = null) : IInvoiceStagingService
 {
     public async Task<InvoiceStagingSubmissionResult> SubmitToStagingAsync(
         SalesOrder order,
@@ -79,8 +81,30 @@ public sealed class InvoiceStagingService(
                 ? configuredTimeoutSeconds
                 : 30;
             client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint.Trim())
+            {
+                Content = JsonContent.Create(payload),
+            };
+            var sharedAccessHeaderValue = configuration["InvoiceStaging:SharedAccess:HeaderValue"]?.Trim();
+            if (!string.IsNullOrWhiteSpace(sharedAccessHeaderValue))
+            {
+                var sharedAccessHeaderName = configuration["InvoiceStaging:SharedAccess:HeaderName"]?.Trim();
+                if (string.IsNullOrWhiteSpace(sharedAccessHeaderName))
+                {
+                    sharedAccessHeaderName = "x-lpc-key";
+                }
 
-            using var response = await client.PostAsJsonAsync(endpoint.Trim(), payload, cancellationToken);
+                request.Headers.TryAddWithoutValidation(sharedAccessHeaderName, sharedAccessHeaderValue);
+            }
+            var accessToken = accessTokenProvider is null
+                ? null
+                : await accessTokenProvider.GetAccessTokenAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(accessToken))
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            }
+
+            using var response = await client.SendAsync(request, cancellationToken);
             if (response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Accepted)
             {
                 return new InvoiceStagingSubmissionResult(true, "PendingAck", null, null);
@@ -155,6 +179,8 @@ public sealed class InvoiceStagingService(
                             .Select(sn => new InvoiceLineSerialPayload(sn.SerialNumber.Trim()))
                             .ToList()
                         : [];
+                    var effectiveQuantityShipped = line.QuantityAsShipped ?? line.QuantityAsReceived ?? 0m;
+                    var effectiveUnitPrice = line.UnitPrice ?? 0m;
                     return new InvoiceLinePayload(
                         linekey: line.LineNo.ToString("0.##"),
                         itemcode: mappedItemCode,
@@ -166,9 +192,9 @@ public sealed class InvoiceStagingService(
                         revision: string.Empty,
                         comments: line.Notes ?? string.Empty,
                         quantityordered: line.QuantityAsOrdered,
-                        quantityshipped: line.QuantityAsShipped ?? line.QuantityAsOrdered,
-                        unitprice: line.UnitPrice ?? 0m,
-                        extensionamt: line.Extension ?? 0m,
+                        quantityshipped: effectiveQuantityShipped,
+                        unitprice: effectiveUnitPrice,
+                        extensionamt: effectiveQuantityShipped * effectiveUnitPrice,
                         serialnumbers: serials.Count == 0 ? null : serials);
                 })
                 .ToList());

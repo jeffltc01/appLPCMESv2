@@ -22,6 +22,7 @@ import { WorkCenterOperatorPage } from "./pages/WorkCenterOperatorPage";
 import { OrderAuditLogPage } from "./pages/OrderAuditLogPage";
 import { FeatureFlagsSitePoliciesSetupPage } from "./pages/FeatureFlagsSitePoliciesSetupPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MicrosoftPopupCompletePage } from "./pages/MicrosoftPopupCompletePage";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/popup-complete" element={<MicrosoftPopupCompletePage />} />
             <Route
               path="/"
               element={
