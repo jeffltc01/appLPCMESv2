@@ -12,6 +12,19 @@ public record WorkCenterDto(
     DateTime CreatedUtc,
     DateTime UpdatedUtc);
 
+public record ProductionLineDto(
+    int Id,
+    string Code,
+    string Name,
+    List<string> ShowWhere,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc);
+
+public record ProductionLineUpsertDto(
+    string Code,
+    string Name,
+    List<string> ShowWhere);
+
 public record WorkCenterUpsertDto(
     string WorkCenterCode,
     string WorkCenterName,

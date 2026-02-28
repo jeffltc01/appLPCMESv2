@@ -8,9 +8,90 @@ namespace LPCylinderMES.Api.Services;
 
 public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingService
 {
+    private const int ShowWhereOrderComments = 1;
+    private const int ShowWhereOrderProduct = 2;
+    private const int ShowWhereOrderReceiving = 4;
+    private const int ShowWhereJobMaterialUsed = 8;
+
     private static readonly string[] SupportedTimeCaptureModes = ["Automated", "Manual", "Hybrid"];
     private static readonly string[] SupportedDataCaptureModes = ["ElectronicRequired", "ElectronicOptional", "PaperOnly"];
     private static readonly string[] SupportedChecklistFailurePolicies = ["BlockCompletion", "AllowWithSupervisorOverride"];
+    private static readonly Dictionary<string, int> ShowWhereFlags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["OrderComments"] = ShowWhereOrderComments,
+        ["OrderProduct"] = ShowWhereOrderProduct,
+        ["OrderReceiving"] = ShowWhereOrderReceiving,
+        ["JobMaterialUsed"] = ShowWhereJobMaterialUsed,
+    };
+
+    public async Task<List<ProductionLineDto>> GetProductionLinesAsync(CancellationToken cancellationToken = default) =>
+        await db.ProductionLines
+            .AsNoTracking()
+            .OrderBy(p => p.Code)
+            .Select(p => ToProductionLineDto(p))
+            .ToListAsync(cancellationToken);
+
+    public async Task<ProductionLineDto> GetProductionLineAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var productionLine = await db.ProductionLines
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (productionLine is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Production line '{id}' was not found.");
+
+        return ToProductionLineDto(productionLine);
+    }
+
+    public async Task<ProductionLineDto> CreateProductionLineAsync(ProductionLineUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        await ValidateProductionLineAsync(dto, null, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var productionLine = new ProductionLine
+        {
+            Code = dto.Code.Trim(),
+            Name = dto.Name.Trim(),
+            ShowWhereMask = BuildShowWhereMask(dto.ShowWhere),
+            CreatedUtc = now,
+            UpdatedUtc = now,
+        };
+
+        db.ProductionLines.Add(productionLine);
+        await db.SaveChangesAsync(cancellationToken);
+        return ToProductionLineDto(productionLine);
+    }
+
+    public async Task<ProductionLineDto> UpdateProductionLineAsync(int id, ProductionLineUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var productionLine = await db.ProductionLines.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (productionLine is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Production line '{id}' was not found.");
+
+        await ValidateProductionLineAsync(dto, id, cancellationToken);
+
+        productionLine.Code = dto.Code.Trim();
+        productionLine.Name = dto.Name.Trim();
+        productionLine.ShowWhereMask = BuildShowWhereMask(dto.ShowWhere);
+        productionLine.UpdatedUtc = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+        return ToProductionLineDto(productionLine);
+    }
+
+    public async Task DeleteProductionLineAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var productionLine = await db.ProductionLines.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (productionLine is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Production line '{id}' was not found.");
+
+        var isReferenced = await db.Items.AnyAsync(i => i.ProductLine != null && i.ProductLine.Trim() == productionLine.Code, cancellationToken);
+        if (isReferenced)
+            throw new ServiceException(StatusCodes.Status409Conflict, "Cannot delete production line because it is referenced by items.");
+
+        db.ProductionLines.Remove(productionLine);
+        await db.SaveChangesAsync(cancellationToken);
+    }
 
     public async Task<List<WorkCenterDto>> GetWorkCentersAsync(CancellationToken cancellationToken = default) =>
         await db.WorkCenters
@@ -368,6 +449,37 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
             throw new ServiceException(StatusCodes.Status409Conflict, $"Work center code '{dto.WorkCenterCode}' already exists.");
     }
 
+    private async Task ValidateProductionLineAsync(ProductionLineUpsertDto dto, int? existingId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Code))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Code is required.");
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Name is required.");
+        if (dto.ShowWhere is null || dto.ShowWhere.Count == 0)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "At least one ShowWhere value is required.");
+
+        var normalizedCode = dto.Code.Trim();
+        var normalizedName = dto.Name.Trim();
+        var invalidValues = dto.ShowWhere
+            .Where(v => !ShowWhereFlags.ContainsKey(v))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (invalidValues.Count > 0)
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid ShowWhere values: {string.Join(", ", invalidValues)}.");
+
+        var duplicateCode = await db.ProductionLines.AnyAsync(
+            p => p.Code == normalizedCode && (!existingId.HasValue || p.Id != existingId.Value),
+            cancellationToken);
+        if (duplicateCode)
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Production line code '{normalizedCode}' already exists.");
+
+        var duplicateName = await db.ProductionLines.AnyAsync(
+            p => p.Name == normalizedName && (!existingId.HasValue || p.Id != existingId.Value),
+            cancellationToken);
+        if (duplicateName)
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Production line name '{normalizedName}' already exists.");
+    }
+
     private async Task ValidateRouteTemplateAsync(RouteTemplateUpsertDto dto, int? existingId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dto.RouteTemplateCode))
@@ -494,6 +606,42 @@ public sealed class SetupRoutingService(LpcAppsDbContext db) : ISetupRoutingServ
 
     private static string? NormalizeNullable(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static int BuildShowWhereMask(IEnumerable<string> showWhereValues)
+    {
+        var mask = 0;
+        foreach (var value in showWhereValues
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (ShowWhereFlags.TryGetValue(value, out var flag))
+                mask |= flag;
+        }
+
+        return mask;
+    }
+
+    private static List<string> ExtractShowWhereValues(int showWhereMask)
+    {
+        var values = new List<string>();
+
+        if ((showWhereMask & ShowWhereOrderComments) != 0) values.Add("OrderComments");
+        if ((showWhereMask & ShowWhereOrderProduct) != 0) values.Add("OrderProduct");
+        if ((showWhereMask & ShowWhereOrderReceiving) != 0) values.Add("OrderReceiving");
+        if ((showWhereMask & ShowWhereJobMaterialUsed) != 0) values.Add("JobMaterialUsed");
+
+        return values;
+    }
+
+    private static ProductionLineDto ToProductionLineDto(ProductionLine productionLine) =>
+        new(
+            productionLine.Id,
+            productionLine.Code,
+            productionLine.Name,
+            ExtractShowWhereValues(productionLine.ShowWhereMask),
+            productionLine.CreatedUtc,
+            productionLine.UpdatedUtc);
 
     private static WorkCenterDto ToWorkCenterDto(WorkCenter workCenter) =>
         new(

@@ -21,9 +21,12 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
     [InlineData("/api/sites")]
     [InlineData("/api/lookups/colors")]
     [InlineData("/api/lookups/sites")]
+    [InlineData("/api/lookups/product-lines")]
+    [InlineData("/api/lookups/product-lines?showWhere=OrderReceiving")]
     [InlineData("/api/orders/statuses")]
     [InlineData("/api/orders/receiving")]
     [InlineData("/api/orders/production")]
+    [InlineData("/api/setup/production-lines")]
     [InlineData("/api/help/topics?route=/orders")]
     public async Task Get_EndpointRespondsSuccessfully(string endpoint)
     {

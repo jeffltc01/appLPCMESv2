@@ -97,12 +97,16 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
         if (await db.Items.AnyAsync(i => i.ItemNo == dto.ItemNo))
             return Conflict(new { message = $"Item number '{dto.ItemNo}' already exists." });
 
+        var (isProductLineValid, productLineCode, productLineError) = await ValidateProductLineCodeAsync(dto.ProductLine);
+        if (!isProductLineValid)
+            return BadRequest(new { message = productLineError });
+
         var item = new Item
         {
             ItemNo = dto.ItemNo,
             ItemDescription = dto.ItemDescription,
             ItemType = dto.ItemType,
-            ProductLine = dto.ProductLine,
+            ProductLine = productLineCode,
             ItemSize = dto.ItemSizeId,
             RequiresSerialNumbers = 0,
         };
@@ -123,10 +127,14 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
         if (item.ItemNo != dto.ItemNo && await db.Items.AnyAsync(i => i.ItemNo == dto.ItemNo && i.Id != id))
             return Conflict(new { message = $"Item number '{dto.ItemNo}' already exists." });
 
+        var (isProductLineValid, productLineCode, productLineError) = await ValidateProductLineCodeAsync(dto.ProductLine);
+        if (!isProductLineValid)
+            return BadRequest(new { message = productLineError });
+
         item.ItemNo = dto.ItemNo;
         item.ItemDescription = dto.ItemDescription;
         item.ItemType = dto.ItemType;
-        item.ProductLine = dto.ProductLine;
+        item.ProductLine = productLineCode;
         item.ItemSize = dto.ItemSizeId;
         item.SystemCode = dto.SystemCode;
         item.RequiresSerialNumbers = dto.RequiresSerialNumbers;
@@ -163,5 +171,18 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
         var result = await Get(id);
         return ((OkObjectResult)result.Result!).Value as ItemDetailDto
             ?? throw new InvalidOperationException("Failed to load item detail");
+    }
+
+    private async Task<(bool IsValid, string? Code, string? Error)> ValidateProductLineCodeAsync(string? productLine)
+    {
+        if (string.IsNullOrWhiteSpace(productLine))
+            return (true, null, null);
+
+        var normalizedCode = productLine.Trim();
+        var exists = await db.ProductionLines.AnyAsync(pl => pl.Code == normalizedCode);
+        if (!exists)
+            return (false, null, $"Product line code '{normalizedCode}' does not exist.");
+
+        return (true, normalizedCode, null);
     }
 }

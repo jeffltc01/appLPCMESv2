@@ -1,5 +1,7 @@
 import { api } from "./api";
 import type {
+  ProductionLine,
+  ProductionLineUpsert,
   RouteRuleSimulationRequest,
   RouteRuleSimulationResponse,
   RouteTemplateAssignment,
@@ -12,6 +14,14 @@ import type {
 } from "../types/setup";
 
 export const setupApi = {
+  listProductionLines: () => api.get<ProductionLine[]>("/setup/production-lines"),
+  getProductionLine: (id: number) => api.get<ProductionLine>(`/setup/production-lines/${id}`),
+  createProductionLine: (data: ProductionLineUpsert) =>
+    api.post<ProductionLine>("/setup/production-lines", data),
+  updateProductionLine: (id: number, data: ProductionLineUpsert) =>
+    api.put<ProductionLine>(`/setup/production-lines/${id}`, data),
+  deleteProductionLine: (id: number) => api.delete<void>(`/setup/production-lines/${id}`),
+
   listWorkCenters: () => api.get<WorkCenter[]>("/setup/workcenters"),
   getWorkCenter: (id: number) => api.get<WorkCenter>(`/setup/workcenters/${id}`),
   createWorkCenter: (data: WorkCenterUpsert) => api.post<WorkCenter>("/setup/workcenters", data),

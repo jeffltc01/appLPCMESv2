@@ -9,6 +9,14 @@ namespace LPCylinderMES.Api.Controllers;
 [Route("api/[controller]")]
 public class LookupsController(LpcAppsDbContext db) : ControllerBase
 {
+    private static readonly Dictionary<string, int> ProductLineShowWhereFlags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["OrderComments"] = 1,
+        ["OrderProduct"] = 2,
+        ["OrderReceiving"] = 4,
+        ["JobMaterialUsed"] = 8,
+    };
+
     [HttpGet("colors")]
     public async Task<ActionResult<List<LookupDto>>> GetColors()
     {
@@ -91,14 +99,20 @@ public class LookupsController(LpcAppsDbContext db) : ControllerBase
     }
 
     [HttpGet("product-lines")]
-    public async Task<ActionResult<List<string>>> GetProductLines()
+    public async Task<ActionResult<List<string>>> GetProductLines([FromQuery] string? showWhere = null)
     {
-        var lines = await db.Items
-            .Where(i => i.ProductLine != null && i.ProductLine != "")
-            .Select(i => i.ProductLine!)
-            .Distinct()
-            .OrderBy(l => l)
+        var query = db.ProductionLines.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(showWhere) && ProductLineShowWhereFlags.TryGetValue(showWhere.Trim(), out var flag))
+        {
+            query = query.Where(p => (p.ShowWhereMask & flag) != 0);
+        }
+
+        var lines = await query
+            .OrderBy(p => p.Name)
+            .Select(p => p.Code)
             .ToListAsync();
+
         return Ok(lines);
     }
 

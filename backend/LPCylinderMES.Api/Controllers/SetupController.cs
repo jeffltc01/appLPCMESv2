@@ -8,6 +8,67 @@ namespace LPCylinderMES.Api.Controllers;
 [Route("api/setup")]
 public class SetupController(ISetupRoutingService setupRoutingService) : ControllerBase
 {
+    [HttpGet("production-lines")]
+    public async Task<ActionResult<List<ProductionLineDto>>> GetProductionLines(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetProductionLinesAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpGet("production-lines/{id:int}")]
+    public async Task<ActionResult<ProductionLineDto>> GetProductionLine(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.GetProductionLineAsync(id, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPost("production-lines")]
+    public async Task<ActionResult<ProductionLineDto>> CreateProductionLine(ProductionLineUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await setupRoutingService.CreateProductionLineAsync(dto, cancellationToken);
+            return CreatedAtAction(nameof(GetProductionLine), new { id = created.Id }, created);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPut("production-lines/{id:int}")]
+    public async Task<ActionResult<ProductionLineDto>> UpdateProductionLine(int id, ProductionLineUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateProductionLineAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("production-lines/{id:int}")]
+    public async Task<ActionResult> DeleteProductionLine(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await setupRoutingService.DeleteProductionLineAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpGet("workcenters")]
     public async Task<ActionResult<List<WorkCenterDto>>> GetWorkCenters(CancellationToken cancellationToken)
     {

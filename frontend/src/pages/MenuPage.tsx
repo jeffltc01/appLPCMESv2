@@ -2,6 +2,9 @@ import {
   Body1,
   Button,
   Card,
+  Field,
+  Input,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -21,7 +24,10 @@ import {
   Board24Regular,
   Settings24Regular,
 } from "@fluentui/react-icons";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ordersApi } from "../services/orders";
+import type { HoldOverlayType, OrderDraftListItem } from "../types/order";
 
 const NAV_ITEMS = [
   { key: "orderEntry", label: "Order Entry", icon: <ClipboardTask24Regular />, path: "/orders" },
@@ -29,7 +35,7 @@ const NAV_ITEMS = [
   { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
   { key: "invoicing", label: "Invoicing", icon: <Receipt24Regular />, path: "/invoices" },
   { key: "plantManager", label: "Plant Manager", icon: <Board24Regular /> },
-  { key: "admin", label: "Admin Maintenance", icon: <Settings24Regular /> },
+  { key: "admin", label: "Admin Maintenance", icon: <Settings24Regular />, path: "/setup/production-lines" },
 ];
 
 const useStyles = makeStyles({
@@ -87,9 +93,20 @@ const useStyles = makeStyles({
   headerActions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+    alignItems: "center",
   },
   headerActionButton: {
     minHeight: "32px",
+  },
+  filterPanel: {
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 1.5fr) minmax(180px, 1fr) auto auto",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+    padding: tokens.spacingVerticalS,
+    backgroundColor: "#FFFFFF",
+    borderRadius: "4px",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   body: {
     display: "grid",
@@ -151,6 +168,12 @@ const useStyles = makeStyles({
     gridTemplateColumns: "1.1fr 1fr",
     gap: tokens.spacingHorizontalM,
   },
+  clickableRow: {
+    cursor: "pointer",
+  },
+  muted: {
+    color: tokens.colorNeutralForeground2,
+  },
   riskWrap: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
@@ -196,9 +219,140 @@ const useStyles = makeStyles({
   },
 });
 
+type FilterState = {
+  search: string;
+  status: string;
+};
+
+const LIFECYCLE_STAGE_KEYS = [
+  "Draft",
+  "PendingOrderEntryValidation",
+  "InboundLogisticsPlanned",
+  "ReadyForProduction",
+  "InvoiceReady",
+] as const;
+
+const NEEDS_REVIEW_STATUSES = new Set(["Draft", "PendingOrderEntryValidation"]);
+const READY_TO_RELEASE_STATUSES = new Set(["ProductionComplete", "OutboundLogisticsPlanned"]);
+const NON_RISK_OVERLAYS = new Set<HoldOverlayType>(["Cancelled"]);
+
+function getLifecycleStatus(order: OrderDraftListItem): string {
+  return order.orderLifecycleStatus ?? order.orderStatus;
+}
+
 export function MenuPage() {
   const styles = useStyles();
   const navigate = useNavigate();
+  const [orders, setOrders] = useState<OrderDraftListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [pendingFilters, setPendingFilters] = useState<FilterState>({ search: "", status: "all" });
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>({ search: "", status: "all" });
+
+  useEffect(() => {
+    const loadOrders = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await ordersApi.list({ page: 1, pageSize: 200 });
+        setOrders(response.items);
+      } catch {
+        setError("Unable to load order metrics.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void loadOrders();
+  }, []);
+
+  const filteredOrders = useMemo(() => {
+    const search = appliedFilters.search.trim().toLowerCase();
+    return orders.filter((order) => {
+      const lifecycleStatus = getLifecycleStatus(order);
+      const statusMatches =
+        appliedFilters.status === "all" || lifecycleStatus === appliedFilters.status;
+      const searchMatches =
+        !search ||
+        order.salesOrderNo.toLowerCase().includes(search) ||
+        order.customerName.toLowerCase().includes(search) ||
+        lifecycleStatus.toLowerCase().includes(search);
+
+      return statusMatches && searchMatches;
+    });
+  }, [orders, appliedFilters]);
+
+  const kpis = useMemo(() => {
+    const openOrders = filteredOrders.length;
+    const needsReview = filteredOrders.filter((order) =>
+      NEEDS_REVIEW_STATUSES.has(getLifecycleStatus(order))
+    ).length;
+    const lateRisk = filteredOrders.filter((order) => {
+      if (!order.holdOverlay) {
+        return false;
+      }
+      return !NON_RISK_OVERLAYS.has(order.holdOverlay);
+    }).length;
+    const readyToRelease = filteredOrders.filter((order) =>
+      READY_TO_RELEASE_STATUSES.has(getLifecycleStatus(order))
+    ).length;
+
+    return { openOrders, needsReview, lateRisk, readyToRelease };
+  }, [filteredOrders]);
+
+  const intakeRows = useMemo(() => {
+    const counts = LIFECYCLE_STAGE_KEYS.map((status) => ({
+      name:
+        status === "PendingOrderEntryValidation"
+          ? "Pending Validation"
+          : status === "InboundLogisticsPlanned"
+          ? "Inbound Planned"
+          : status === "ReadyForProduction"
+          ? "Production Ready"
+          : status === "InvoiceReady"
+          ? "Invoice Ready"
+          : status,
+      count: filteredOrders.filter((order) => getLifecycleStatus(order) === status).length,
+    }));
+    const maxCount = Math.max(1, ...counts.map((row) => row.count));
+    return counts.map((row) => ({
+      ...row,
+      widthPercent: Math.round((row.count / maxCount) * 100),
+    }));
+  }, [filteredOrders]);
+
+  const riskMix = useMemo(() => {
+    const total = filteredOrders.length;
+    if (total === 0) {
+      return { low: 0, medium: 0, high: 0, total: 0 };
+    }
+
+    const high = filteredOrders.filter((order) => Boolean(order.holdOverlay)).length;
+    const medium = filteredOrders.filter(
+      (order) =>
+        !order.holdOverlay && NEEDS_REVIEW_STATUSES.has(getLifecycleStatus(order))
+    ).length;
+    const low = Math.max(0, total - high - medium);
+
+    return { low, medium, high, total };
+  }, [filteredOrders]);
+
+  const queueRows = useMemo(() => filteredOrders.slice(0, 5), [filteredOrders]);
+  const hasAnyData = orders.length > 0;
+  const hasFilteredData = filteredOrders.length > 0;
+  const riskLowEnd = riskMix.total === 0 ? 0 : Math.round((riskMix.low / riskMix.total) * 100);
+  const riskMediumEnd =
+    riskMix.total === 0
+      ? 0
+      : riskLowEnd + Math.round((riskMix.medium / riskMix.total) * 100);
+  const donutGradient = `conic-gradient(#2B3B84 0 ${riskLowEnd}%, #017CC5 ${riskLowEnd}% ${riskMediumEnd}%, #0095EB ${riskMediumEnd}% 100%)`;
+
+  const applyFilters = () => setAppliedFilters(pendingFilters);
+  const resetFilters = () => {
+    const reset = { search: "", status: "all" };
+    setPendingFilters(reset);
+    setAppliedFilters(reset);
+  };
 
   return (
     <div className={styles.page}>
@@ -228,32 +382,79 @@ export function MenuPage() {
         <div className={styles.headerBar}>
           <Title1>Order Entry Workspace</Title1>
           <div className={styles.headerActions}>
-            <Button className={styles.headerActionButton} appearance="secondary" icon={<Filter24Regular />}>
+            <Button
+              className={styles.headerActionButton}
+              appearance="secondary"
+              icon={<Filter24Regular />}
+              onClick={() => setShowFilters((current) => !current)}
+            >
               Filters
             </Button>
-            <Button className={styles.headerActionButton} appearance="primary">
+            <Button
+              className={styles.headerActionButton}
+              appearance="primary"
+              onClick={() => navigate("/orders/new")}
+            >
               New Sales Order
             </Button>
           </div>
         </div>
 
         <section className={styles.body}>
+          {showFilters ? (
+            <div className={styles.filterPanel}>
+              <Field label="Search">
+                <Input
+                  value={pendingFilters.search}
+                  onChange={(_, data) =>
+                    setPendingFilters((current) => ({ ...current, search: data.value }))
+                  }
+                  placeholder="SO, customer, status"
+                />
+              </Field>
+              <Field label="Lifecycle Status">
+                <Select
+                  value={pendingFilters.status}
+                  onChange={(event) =>
+                    setPendingFilters((current) => ({ ...current, status: event.target.value }))
+                  }
+                >
+                  <option value="all">All statuses</option>
+                  {LIFECYCLE_STAGE_KEYS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button appearance="primary" onClick={applyFilters}>
+                Apply
+              </Button>
+              <Button appearance="secondary" onClick={resetFilters}>
+                Reset
+              </Button>
+            </div>
+          ) : null}
+
+          {isLoading ? <Body1>Loading metrics...</Body1> : null}
+          {error ? <Body1>{error}</Body1> : null}
+
           <div className={styles.kpiStrip}>
             <Card className={styles.kpiCard}>
               <Body1>Open Orders</Body1>
-              <div className={styles.kpiValue}>142</div>
+              <div className={styles.kpiValue}>{kpis.openOrders}</div>
             </Card>
             <Card className={styles.kpiCard}>
               <Body1>Needs Review</Body1>
-              <div className={styles.kpiValue}>18</div>
+              <div className={styles.kpiValue}>{kpis.needsReview}</div>
             </Card>
             <Card className={styles.kpiCard}>
               <Body1>Late Risk</Body1>
-              <div className={styles.kpiValue}>9</div>
+              <div className={styles.kpiValue}>{kpis.lateRisk}</div>
             </Card>
             <Card className={styles.kpiCard}>
               <Body1>Ready to Release</Body1>
-              <div className={styles.kpiValue}>37</div>
+              <div className={styles.kpiValue}>{kpis.readyToRelease}</div>
             </Card>
           </div>
 
@@ -263,19 +464,13 @@ export function MenuPage() {
               <Body1>Last 24 hours</Body1>
             </div>
             <div className={styles.itemList}>
-              {[
-                { name: "Draft", value: 42 },
-                { name: "Pending Validation", value: 33 },
-                { name: "Inbound Logistics Planned", value: 57 },
-                { name: "Production Ready", value: 28 },
-                { name: "Invoice Ready", value: 19 },
-              ].map((row) => (
+              {intakeRows.map((row) => (
                 <div key={row.name} className={styles.barRow}>
                   <span>{row.name}</span>
                   <div className={styles.barTrack}>
-                    <div className={styles.barFill} style={{ width: `${row.value}%` }} />
+                    <div className={styles.barFill} style={{ width: `${row.widthPercent}%` }} />
                   </div>
-                  <span>{row.value}</span>
+                  <span>{row.count}</span>
                 </div>
               ))}
             </div>
@@ -285,7 +480,7 @@ export function MenuPage() {
             <Card className={styles.card}>
               <div className={styles.cardHeader}>
                 <Title3>Open Order Queue</Title3>
-                <Body1>Top Priority</Body1>
+                <Body1>{hasFilteredData ? "Filtered result set" : "No orders in view"}</Body1>
               </div>
               <Table>
                 <TableHeader>
@@ -293,28 +488,30 @@ export function MenuPage() {
                     <TableHeaderCell>Order</TableHeaderCell>
                     <TableHeaderCell>Customer</TableHeaderCell>
                     <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell>Priority</TableHeaderCell>
+                    <TableHeaderCell>Site</TableHeaderCell>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell>SO-40112</TableCell>
-                    <TableCell>Acme Industrial</TableCell>
-                    <TableCell>Draft</TableCell>
-                    <TableCell>High</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>SO-40109</TableCell>
-                    <TableCell>Northeast Gas</TableCell>
-                    <TableCell>Pending Validation</TableCell>
-                    <TableCell>Med</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>SO-40103</TableCell>
-                    <TableCell>BlueLine Supply</TableCell>
-                    <TableCell>Inbound Planned</TableCell>
-                    <TableCell>Low</TableCell>
-                  </TableRow>
+                  {queueRows.map((order) => (
+                    <TableRow
+                      key={order.id}
+                      className={styles.clickableRow}
+                      onClick={() => navigate(`/orders/${order.id}`)}
+                    >
+                      <TableCell>{order.salesOrderNo}</TableCell>
+                      <TableCell>{order.customerName}</TableCell>
+                      <TableCell>{getLifecycleStatus(order)}</TableCell>
+                      <TableCell>{order.siteName}</TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && !hasFilteredData ? (
+                    <TableRow>
+                      <TableCell>-</TableCell>
+                      <TableCell>-</TableCell>
+                      <TableCell>No matching orders.</TableCell>
+                      <TableCell>-</TableCell>
+                    </TableRow>
+                  ) : null}
                 </TableBody>
               </Table>
             </Card>
@@ -324,25 +521,26 @@ export function MenuPage() {
                 <Title3>Order Risk Mix</Title3>
               </div>
               <div className={styles.riskWrap}>
-                <div className={styles.donut}>
+                <div className={styles.donut} style={{ backgroundImage: donutGradient }}>
                   <div className={styles.donutInner}>
-                    <div>548</div>
+                    <div>{riskMix.total}</div>
                     <div style={{ fontSize: "11px", fontWeight: 500 }}>Total</div>
                   </div>
                 </div>
                 <div className={styles.legend}>
                   <div className={styles.legendItem}>
                     <span className={styles.dot} style={{ backgroundColor: "#2B3B84" }} />
-                    <span>Low risk</span>
+                    <span>Low risk ({riskMix.low})</span>
                   </div>
                   <div className={styles.legendItem}>
                     <span className={styles.dot} style={{ backgroundColor: "#017CC5" }} />
-                    <span>Medium risk</span>
+                    <span>Medium risk ({riskMix.medium})</span>
                   </div>
                   <div className={styles.legendItem}>
                     <span className={styles.dot} style={{ backgroundColor: "#0095EB" }} />
-                    <span>High risk</span>
+                    <span>High risk ({riskMix.high})</span>
                   </div>
+                  {!hasAnyData ? <span className={styles.muted}>No order data available.</span> : null}
                 </div>
               </div>
             </Card>

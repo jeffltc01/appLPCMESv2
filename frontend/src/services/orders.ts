@@ -575,7 +575,8 @@ export const orderLookupsApi = {
     return api.get<AddressLookup[]>(`/lookups/customers/${customerId}/addresses${qs}`);
   },
   items: () => api.get<OrderItemLookup[]>("/lookups/order-items"),
-  productLines: () => api.get<string[]>("/lookups/product-lines"),
+  productLines: (showWhere?: "OrderComments" | "OrderProduct" | "OrderReceiving" | "JobMaterialUsed") =>
+    api.get<string[]>(`/lookups/product-lines${showWhere ? `?showWhere=${encodeURIComponent(showWhere)}` : ""}`),
   sites: () => api.get<Lookup[]>("/lookups/sites"),
   paymentTerms: () => api.get<Lookup[]>("/lookups/payment-terms"),
   shipVias: () => api.get<Lookup[]>("/lookups/ship-vias"),

@@ -87,6 +87,7 @@ describe("ReceivingDetailPage", () => {
     renderPage();
 
     expect(await screen.findByText("Receiving Detail")).toBeInTheDocument();
+    expect(productLinesMock).toHaveBeenCalledWith("OrderReceiving");
     expect(screen.getByText("Order Number")).toBeInTheDocument();
     expect(screen.getByText("Customer")).toBeInTheDocument();
     expect(screen.getByText("Address")).toBeInTheDocument();

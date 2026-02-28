@@ -43,6 +43,7 @@ public partial class LpcAppsDbContext : DbContext
 
     public virtual DbSet<PromiseReasonPolicy> PromiseReasonPolicies { get; set; }
     public virtual DbSet<StatusReasonCode> StatusReasonCodes { get; set; }
+    public virtual DbSet<ProductionLine> ProductionLines { get; set; }
 
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
 
@@ -1691,6 +1692,19 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
             entity.Property(e => e.UpdatedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("updated_by_emp_no");
             entity.HasIndex(e => new { e.OverlayType, e.CodeName }).IsUnique();
+        });
+
+        modelBuilder.Entity<ProductionLine>(entity =>
+        {
+            entity.ToTable("production_lines");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(40).IsUnicode(false).HasColumnName("code");
+            entity.Property(e => e.Name).HasMaxLength(120).IsUnicode(false).HasColumnName("name");
+            entity.Property(e => e.ShowWhereMask).HasColumnName("show_where_mask");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.Name).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);

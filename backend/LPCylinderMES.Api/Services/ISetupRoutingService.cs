@@ -4,6 +4,12 @@ namespace LPCylinderMES.Api.Services;
 
 public interface ISetupRoutingService
 {
+    Task<List<ProductionLineDto>> GetProductionLinesAsync(CancellationToken cancellationToken = default);
+    Task<ProductionLineDto> GetProductionLineAsync(int id, CancellationToken cancellationToken = default);
+    Task<ProductionLineDto> CreateProductionLineAsync(ProductionLineUpsertDto dto, CancellationToken cancellationToken = default);
+    Task<ProductionLineDto> UpdateProductionLineAsync(int id, ProductionLineUpsertDto dto, CancellationToken cancellationToken = default);
+    Task DeleteProductionLineAsync(int id, CancellationToken cancellationToken = default);
+
     Task<List<WorkCenterDto>> GetWorkCentersAsync(CancellationToken cancellationToken = default);
     Task<WorkCenterDto> GetWorkCenterAsync(int id, CancellationToken cancellationToken = default);
     Task<WorkCenterDto> CreateWorkCenterAsync(WorkCenterUpsertDto dto, CancellationToken cancellationToken = default);

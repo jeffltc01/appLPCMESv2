@@ -11,6 +11,27 @@ export interface WorkCenter {
   updatedUtc: string;
 }
 
+export type ProductionLineShowWhere =
+  | "OrderComments"
+  | "OrderProduct"
+  | "OrderReceiving"
+  | "JobMaterialUsed";
+
+export interface ProductionLine {
+  id: number;
+  code: string;
+  name: string;
+  showWhere: ProductionLineShowWhere[];
+  createdUtc: string;
+  updatedUtc: string;
+}
+
+export interface ProductionLineUpsert {
+  code: string;
+  name: string;
+  showWhere: ProductionLineShowWhere[];
+}
+
 export interface WorkCenterUpsert {
   workCenterCode: string;
   workCenterName: string;

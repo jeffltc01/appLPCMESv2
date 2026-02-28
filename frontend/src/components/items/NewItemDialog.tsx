@@ -48,12 +48,18 @@ export function NewItemDialog({ open, onClose, onCreated }: NewItemDialogProps) 
   const [productLine, setProductLine] = useState("");
   const [itemSizeId, setItemSizeId] = useState<string>("");
   const [sizes, setSizes] = useState<ItemSizeLookup[]>([]);
+  const [productLines, setProductLines] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      itemLookupsApi.itemSizes().then(setSizes);
+      Promise.all([itemLookupsApi.itemSizes(), itemLookupsApi.productLines("OrderProduct")]).then(
+        ([sizeValues, productLineValues]) => {
+          setSizes(sizeValues);
+          setProductLines(productLineValues);
+        }
+      );
     }
   }, [open]);
 
@@ -136,10 +142,18 @@ export function NewItemDialog({ open, onClose, onCreated }: NewItemDialogProps) 
               </Field>
               <div className={styles.row}>
                 <Field label="Product Line">
-                  <Input
+                  <Dropdown
                     value={productLine}
-                    onChange={(_, d) => setProductLine(d.value)}
-                  />
+                    selectedOptions={productLine ? [productLine] : []}
+                    onOptionSelect={(_, d) => setProductLine(d.optionValue ?? "")}
+                    clearable
+                  >
+                    {productLines.map((line) => (
+                      <Option key={line} value={line}>
+                        {line}
+                      </Option>
+                    ))}
+                  </Dropdown>
                 </Field>
                 <Field label="Size">
                   <Dropdown

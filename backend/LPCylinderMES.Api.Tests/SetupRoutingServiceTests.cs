@@ -9,6 +9,64 @@ namespace LPCylinderMES.Api.Tests;
 public class SetupRoutingServiceTests
 {
     [Fact]
+    public async Task CreateProductionLineAsync_ValidPayload_CreatesRecord()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CreateProductionLineAsync_ValidPayload_CreatesRecord));
+        var service = new SetupRoutingService(db);
+
+        var created = await service.CreateProductionLineAsync(new ProductionLineUpsertDto(
+            "PL-REFURB",
+            "Refurb",
+            ["OrderProduct", "OrderReceiving"]));
+
+        Assert.Equal("PL-REFURB", created.Code);
+        Assert.Equal("Refurb", created.Name);
+        Assert.Contains("OrderProduct", created.ShowWhere);
+        Assert.Contains("OrderReceiving", created.ShowWhere);
+    }
+
+    [Fact]
+    public async Task CreateProductionLineAsync_WithoutShowWhere_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CreateProductionLineAsync_WithoutShowWhere_ThrowsBadRequest));
+        var service = new SetupRoutingService(db);
+
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.CreateProductionLineAsync(
+            new ProductionLineUpsertDto("PL-EMPTY", "Empty", [])));
+
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteProductionLineAsync_WhenReferencedByItem_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(DeleteProductionLineAsync_WhenReferencedByItem_ThrowsConflict));
+        db.ProductionLines.Add(new ProductionLine
+        {
+            Id = 1,
+            Code = "PL-USED",
+            Name = "Used",
+            ShowWhereMask = 15,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.Items.Add(new Item
+        {
+            Id = 10,
+            ItemNo = "IT-10",
+            ItemType = "Tank",
+            ProductLine = "PL-USED",
+            RequiresSerialNumbers = 0,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.DeleteProductionLineAsync(1));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateRouteTemplateAsync_DuplicateStepSequence_ThrowsBadRequest()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CreateRouteTemplateAsync_DuplicateStepSequence_ThrowsBadRequest));

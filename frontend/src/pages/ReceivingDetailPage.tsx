@@ -494,7 +494,7 @@ export function ReceivingDetailPage() {
 
   useEffect(() => {
     let isActive = true;
-    Promise.all([orderLookupsApi.items(), orderLookupsApi.productLines()])
+    Promise.all([orderLookupsApi.items(), orderLookupsApi.productLines("OrderReceiving")])
       .then(([items, productLines]) => {
         if (!isActive) {
           return;

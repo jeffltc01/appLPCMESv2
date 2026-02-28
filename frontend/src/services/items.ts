@@ -78,5 +78,6 @@ export const crossRefsApi = {
 export const itemLookupsApi = {
   itemSizes: () => api.get<ItemSizeLookup[]>("/lookups/item-sizes"),
   itemTypes: () => api.get<string[]>("/lookups/item-types"),
-  productLines: () => api.get<string[]>("/lookups/product-lines"),
+  productLines: (showWhere?: "OrderComments" | "OrderProduct" | "OrderReceiving" | "JobMaterialUsed") =>
+    api.get<string[]>(`/lookups/product-lines${showWhere ? `?showWhere=${encodeURIComponent(showWhere)}` : ""}`),
 };
