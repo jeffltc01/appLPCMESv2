@@ -21,7 +21,6 @@ function getClient() {
       clientId,
       authority,
       redirectUri: `${window.location.origin}/auth/popup-complete`,
-      navigateToLoginRequestUrl: false,
     },
     cache: {
       cacheLocation: "sessionStorage",
