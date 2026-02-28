@@ -681,7 +681,7 @@ export function LifecycleNavigator({
                       {getOrderStatusDisplayLabel(stage)}
                     </span>
                     {hasTransition && !transitionState?.enabled ? (
-                      <Caption1>{transitionState.reason ?? "Transition blocked."}</Caption1>
+                      <Caption1>{transitionState?.reason ?? "Transition blocked."}</Caption1>
                     ) : null}
                     {isCurrent && !holdOverlay && (onApplyOverlay || onClearOverlay) ? (
                       <Button

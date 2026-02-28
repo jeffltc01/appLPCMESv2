@@ -183,9 +183,10 @@ export function LoginPage() {
                 >
                   {assignments.map((assignment) => {
                     const key = `${assignment.siteId}:${assignment.workCenterId}`;
+                    const label = `${assignment.siteName} - ${assignment.workCenterCode} (${assignment.workCenterName})`;
                     return (
-                      <Option key={key} value={key}>
-                        {assignment.siteName} - {assignment.workCenterCode} ({assignment.workCenterName})
+                      <Option key={key} value={key} text={label}>
+                        {label}
                       </Option>
                     );
                   })}

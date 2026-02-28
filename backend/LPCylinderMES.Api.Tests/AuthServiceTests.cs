@@ -83,6 +83,20 @@ public sealed class AuthServiceTests
         Assert.Null(login.WorkCenterId);
     }
 
+    [Fact]
+    public async Task GetOperatorPreLoginAsync_AllowsAdminRole()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GetOperatorPreLoginAsync_AllowsAdminRole));
+        SeedOperatorContext(db, withPassword: false, roleName: "Admin");
+        await db.SaveChangesAsync();
+
+        var service = new AuthService(db, BuildConfig(operatorHours: 8), new FakeMicrosoftTokenValidator());
+        var response = await service.GetOperatorPreLoginAsync(new OperatorPreLoginRequestDto("EMP001"));
+
+        Assert.Equal("EMP001", response.EmpNo);
+        Assert.NotEmpty(response.Assignments);
+    }
+
     private static IConfiguration BuildConfig(int operatorHours)
     {
         return new ConfigurationBuilder()
@@ -93,7 +107,7 @@ public sealed class AuthServiceTests
             .Build();
     }
 
-    private static void SeedOperatorContext(LpcAppsDbContext db, bool withPassword)
+    private static void SeedOperatorContext(LpcAppsDbContext db, bool withPassword, string roleName = "Production")
     {
         db.Sites.Add(new Site { Id = 1, Name = "Main Site", SiteCode = "MAIN" });
         db.WorkCenters.Add(new WorkCenter
@@ -109,7 +123,7 @@ public sealed class AuthServiceTests
         db.AppRoles.Add(new AppRole
         {
             Id = 100,
-            RoleName = "Production",
+            RoleName = roleName,
             IsActive = true,
             CreatedUtc = DateTime.UtcNow,
             UpdatedUtc = DateTime.UtcNow,

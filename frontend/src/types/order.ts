@@ -378,6 +378,9 @@ export interface OrderLine {
   itemNo: string;
   itemDescription: string;
   quantityAsOrdered: number;
+  quantityAsReceived?: number;
+  quantityAsShipped?: number;
+  quantityAsScrapped?: number;
   unitPrice: number | null;
   extension: number | null;
   notes: string | null;
@@ -391,6 +394,8 @@ export interface OrderLine {
   needDecals: boolean | null;
   valveType: string | null;
   gauges: string | null;
+  requiresSerialNumbers?: boolean;
+  serialNumbers?: ProductionSerialNumber[];
 }
 
 export interface OrderDraftDetail {

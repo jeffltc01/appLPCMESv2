@@ -13,7 +13,7 @@ public sealed class AuthService(
     IConfiguration configuration,
     IMicrosoftTokenValidator microsoftTokenValidator) : IAuthService
 {
-    private static readonly string[] AllowedOperatorRoles = ["Production", "Supervisor", "PlantManager", "Quality"];
+    private static readonly string[] AllowedOperatorRoles = ["Admin", "Production", "Supervisor", "PlantManager", "Quality"];
 
     public async Task<OperatorPreLoginResponseDto> GetOperatorPreLoginAsync(OperatorPreLoginRequestDto dto, CancellationToken cancellationToken = default)
     {

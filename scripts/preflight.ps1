@@ -64,13 +64,11 @@ Invoke-Step -Title "Validate backend publish output" -Action {
     }
 }
 
-Invoke-Step -Title "Install frontend dependencies (if needed)" -Action {
+Invoke-Step -Title "Install frontend dependencies (clean install)" -Action {
     Push-Location $frontendDir
     try {
-        if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-            Invoke-CommandChecked -FailureMessage "Frontend dependency installation failed" -Command {
-                npm ci
-            }
+        Invoke-CommandChecked -FailureMessage "Frontend dependency installation failed" -Command {
+            npm ci
         }
     }
     finally {

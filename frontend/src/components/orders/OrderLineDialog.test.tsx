@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ApiError } from "../../services/api";
-import { orderLinesApi, orderLookupsApi } from "../../services/orders";
+import { orderLinesApi } from "../../services/orders";
 import { OrderLineDialog } from "./OrderLineDialog";
 
 vi.mock("../../services/orders", () => ({

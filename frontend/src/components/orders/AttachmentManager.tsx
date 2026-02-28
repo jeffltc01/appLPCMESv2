@@ -173,7 +173,6 @@ interface AttachmentManagerProps {
   onSelectedCategoryChange: (value: string) => void;
   onSelectedFileChange: (file: File | null) => void;
   onUpload: () => Promise<boolean> | boolean;
-  onUpdateCategory: (attachmentId: number, category: string) => void;
   onDelete: (attachmentId: number) => Promise<void> | void;
   getDownloadUrl: (attachmentId: number) => string;
 }
@@ -188,7 +187,6 @@ export function AttachmentManager({
   onSelectedCategoryChange,
   onSelectedFileChange,
   onUpload,
-  onUpdateCategory,
   onDelete,
   getDownloadUrl,
 }: AttachmentManagerProps) {

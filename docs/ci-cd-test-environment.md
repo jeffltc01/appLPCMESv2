@@ -3,7 +3,7 @@
 This repository uses two GitHub Actions workflows:
 
 - `CI` (`.github/workflows/ci.yml`) for validation on pull requests and pushes to `main`.
-- `Deploy Test` (`.github/workflows/deploy-test.yml`) for Azure Test deployment after successful CI on `main` (and manual dispatch).
+- `Deploy Test` (`.github/workflows/deploy-test.yml`) for Azure Test deployment only after successful CI on `main`.
 
 ## 1) Configure GitHub Environment `test`
 
@@ -45,10 +45,10 @@ Run this locally before opening PRs or pushing to `main`:
 powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/preflight.ps1
 ```
 
-Preflight now mirrors CI checks:
+Preflight now mirrors CI checks and always performs a clean frontend install:
 - backend tests (`dotnet test`)
 - backend publish validation (`dotnet publish`)
-- frontend dependency install (`npm ci`)
+- frontend dependency install (`npm ci`, always)
 - frontend tests (`npm test`)
 - frontend typecheck (`npm run typecheck`)
 - frontend build validation (`npm run build`)

@@ -655,9 +655,10 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   const isNewOrderRoute = orderId === "new";
   const parsedOrderId = orderId && orderId !== "new" ? Number(orderId) : null;
   const canMutateOrder = Boolean(order?.id);
+  const currentOrderId = order?.id ?? null;
   const canMutateLines =
-    Boolean(order?.id) &&
-    (order.orderStatus === "New" ||
+    Boolean(currentOrderId) &&
+    (order?.orderStatus === "New" ||
       (invoiceMode && INVOICE_MUTABLE_LINE_STATUSES.has(currentStatus)));
   const hasFailedValidations =
     !form.customerId ||
@@ -675,7 +676,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       order?.orderLifecycleStatus === "InvoiceReady" ||
       order?.orderStatus === "Ready to Invoice");
   const hasSerialRequiredLines = useMemo(
-    () => (order?.lines ?? []).some((line) => line.requiresSerialNumbers),
+    () => (order?.lines ?? []).some((line) => line.requiresSerialNumbers ?? false),
     [order?.lines]
   );
   const backTarget =
@@ -1144,27 +1145,6 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       return false;
     } finally {
       setIsUploadingAttachment(false);
-    }
-  };
-
-  const handleUpdateAttachmentCategory = async (
-    attachmentId: number,
-    category: string
-  ) => {
-    if (!order?.id) {
-      return;
-    }
-    try {
-      await ordersApi.updateAttachmentCategory(
-        order.id,
-        attachmentId,
-        category,
-        ACTING_ROLE,
-        ACTING_EMP_NO
-      );
-      await refreshAttachments(order.id);
-    } catch {
-      setError("Unable to update attachment category.");
     }
   };
 
@@ -1811,9 +1791,6 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                   onSelectedCategoryChange={setSelectedAttachmentCategory}
                   onSelectedFileChange={setSelectedFile}
                   onUpload={handleUploadAttachment}
-                  onUpdateCategory={(attachmentId, category) =>
-                    void handleUpdateAttachmentCategory(attachmentId, category)
-                  }
                   onDelete={(attachmentId) => void handleDeleteAttachment(attachmentId)}
                   getDownloadUrl={(attachmentId) =>
                     order ? ordersApi.attachmentDownloadUrl(order.id, attachmentId) : "#"
@@ -1966,7 +1943,7 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
         </section>
 
       </main>
-      {canMutateLines ? (
+      {order && canMutateLines ? (
         <OrderLineDialog
           open={lineDialogOpen}
           orderId={order.id}
