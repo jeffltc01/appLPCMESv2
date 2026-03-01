@@ -4,6 +4,7 @@ import { TransportationDispatchPage } from "./TransportationDispatchPage";
 
 const transportBoardMock = vi.fn();
 const saveTransportBoardMock = vi.fn();
+const advanceStatusMock = vi.fn();
 
 vi.mock("../services/orders", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/orders")>();
@@ -13,6 +14,7 @@ vi.mock("../services/orders", async (importOriginal) => {
       ...actual.ordersApi,
       transportBoard: (...args: unknown[]) => transportBoardMock(...args),
       saveTransportBoard: (...args: unknown[]) => saveTransportBoardMock(...args),
+      advanceStatus: (...args: unknown[]) => advanceStatusMock(...args),
     },
   };
 });
@@ -67,8 +69,10 @@ describe("TransportationDispatchPage", () => {
   beforeEach(() => {
     transportBoardMock.mockReset();
     saveTransportBoardMock.mockReset();
+    advanceStatusMock.mockReset();
     transportBoardMock.mockResolvedValue(transportBoardResponse);
     saveTransportBoardMock.mockResolvedValue(transportBoardResponse.items);
+    advanceStatusMock.mockResolvedValue(transportBoardResponse.items[0]);
   });
 
   it("maps Delivery filter to Shipment query value", async () => {
@@ -151,6 +155,40 @@ describe("TransportationDispatchPage", () => {
           trailerNo: "TR-99",
         }),
       ]);
+    });
+  });
+
+  it("allows Transportation to advance lifecycle from dispatch panel", async () => {
+    transportBoardMock.mockResolvedValueOnce({
+      ...transportBoardResponse,
+      items: [
+        {
+          ...transportBoardResponse.items[0],
+          orderStatus: "Ready for Pickup",
+          orderLifecycleStatus: "InboundLogisticsPlanned",
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <TransportationDispatchPage />
+      </MemoryRouter>
+    );
+
+    const orderCell = await screen.findByText("SO-TD-101");
+    fireEvent.click(orderCell);
+    fireEvent.click(screen.getByRole("button", { name: "Advance to InboundInTransit" }));
+
+    await waitFor(() => {
+      expect(advanceStatusMock).toHaveBeenCalledWith(
+        101,
+        "InboundInTransit",
+        expect.objectContaining({
+          actingRole: "Transportation",
+          actingEmpNo: "EMP001",
+        })
+      );
     });
   });
 

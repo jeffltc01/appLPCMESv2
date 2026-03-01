@@ -42,6 +42,7 @@ import type {
   CaptureTrailerRequest,
   VerifySerialLoadRequest,
   GenerateStepDocumentRequest,
+  RecordStepProgressRequest,
   StepMaterialUsageCreateRequest,
   StepScrapEntryCreateRequest,
   StepSerialCaptureCreateRequest,
@@ -518,6 +519,9 @@ export const ordersApi = {
 
   scanOut: (orderId: number, lineId: number, stepId: number, data: OperatorScanOutRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/scan-out`, data),
+
+  recordStepProgress: (orderId: number, lineId: number, stepId: number, data: RecordStepProgressRequest) =>
+    api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/progress`, data),
 
   addStepUsage: (orderId: number, lineId: number, stepId: number, data: StepMaterialUsageCreateRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/usage`, data),

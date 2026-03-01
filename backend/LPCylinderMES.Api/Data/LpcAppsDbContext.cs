@@ -1456,6 +1456,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.Description).HasMaxLength(500).IsUnicode(false).HasColumnName("description");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.DefaultTimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("default_time_capture_mode");
+            entity.Property(e => e.DefaultProcessingMode).HasMaxLength(30).IsUnicode(false).HasColumnName("default_processing_mode");
             entity.Property(e => e.RequiresScanByDefault).HasColumnName("requires_scan_by_default");
             entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
             entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
@@ -1489,6 +1490,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.IsRequired).HasColumnName("is_required");
             entity.Property(e => e.DataCaptureMode).HasMaxLength(30).IsUnicode(false).HasColumnName("data_capture_mode");
             entity.Property(e => e.TimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("time_capture_mode");
+            entity.Property(e => e.ProcessingModeOverride).HasMaxLength(30).IsUnicode(false).HasColumnName("processing_mode_override");
             entity.Property(e => e.RequiresScan).HasColumnName("requires_scan");
             entity.Property(e => e.RequiresUsageEntry).HasColumnName("requires_usage_entry");
             entity.Property(e => e.RequiresScrapEntry).HasColumnName("requires_scrap_entry");
@@ -1582,6 +1584,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.IsRequired).HasColumnName("is_required");
             entity.Property(e => e.DataCaptureMode).HasMaxLength(30).IsUnicode(false).HasColumnName("data_capture_mode");
             entity.Property(e => e.TimeCaptureMode).HasMaxLength(20).IsUnicode(false).HasColumnName("time_capture_mode");
+            entity.Property(e => e.ProcessingMode).HasMaxLength(30).IsUnicode(false).HasColumnName("processing_mode");
             entity.Property(e => e.RequiresScan).HasColumnName("requires_scan");
             entity.Property(e => e.RequiresUsageEntry).HasColumnName("requires_usage_entry");
             entity.Property(e => e.RequiresScrapEntry).HasColumnName("requires_scrap_entry");

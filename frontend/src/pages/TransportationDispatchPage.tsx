@@ -26,6 +26,7 @@ import { ordersApi } from "../services/orders";
 import type {
   ApplyHoldRequest,
   ClearHoldRequest,
+  OrderWorkflowStatus,
   OrderWorkspaceRole,
   TransportBoardItem,
   TransportBoardUpdate,
@@ -282,6 +283,7 @@ export function TransportationDispatchPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [overlayMutatingOrderId, setOverlayMutatingOrderId] = useState<number | null>(null);
+  const [advancingOrderId, setAdvancingOrderId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [dirtyOrderIds, setDirtyOrderIds] = useState<Set<number>>(new Set());
@@ -416,6 +418,22 @@ export function TransportationDispatchPage() {
       setError("Unable to clear hold overlay.");
     } finally {
       setOverlayMutatingOrderId((prev) => (prev === orderId ? null : prev));
+    }
+  };
+
+  const handleAdvanceStatus = async (orderId: number, targetStatus: OrderWorkflowStatus) => {
+    setAdvancingOrderId(orderId);
+    setError(null);
+    try {
+      await ordersApi.advanceStatus(orderId, targetStatus, {
+        actingRole: ACTING_ROLE,
+        actingEmpNo: ACTING_EMP_NO,
+      });
+      await loadBoard();
+    } catch {
+      setError("Unable to advance lifecycle status.");
+    } finally {
+      setAdvancingOrderId((prev) => (prev === orderId ? null : prev));
     }
   };
 
@@ -674,8 +692,10 @@ export function TransportationDispatchPage() {
                                 <div className={styles.lifecyclePanel}>
                                   <LifecycleNavigator
                                     currentStatus={lifecycleStatus}
-                                    canAdvance={false}
+                                    canAdvance={!loading && !saving && overlayMutatingOrderId !== order.id}
+                                    isAdvancing={advancingOrderId === order.id}
                                     showCurrentStageCard={false}
+                                    onAdvanceStatus={(targetStatus) => handleAdvanceStatus(order.id, targetStatus)}
                                     onApplyOverlay={(payload) => handleApplyOverlay(order.id, payload)}
                                     onClearOverlay={(payload) => handleClearOverlay(order.id, payload)}
                                     actingRole={ACTING_ROLE}

@@ -13,13 +13,7 @@ import {
   Input,
   MessageBar,
   MessageBarBody,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  Title2,
+  Title1,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -30,18 +24,92 @@ import { ApiError } from "../services/api";
 
 const useStyles = makeStyles({
   page: {
-    padding: tokens.spacingHorizontalL,
-    display: "grid",
-    gap: tokens.spacingVerticalM,
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
   },
-  header: {
+  main: {
+    display: "grid",
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    minWidth: 0,
+  },
+  utilityBar: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  nav: {
+  headerActions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "auto",
+  },
+  contentStack: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+  },
+  tableContainer: {
+    maxHeight: "72vh",
+    overflow: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  gridHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "10% 20% 50% 20%",
+    width: "100%",
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
+    alignItems: "center",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    fontWeight: 600,
+    backgroundColor: tokens.colorNeutralBackground1,
+    minWidth: "900px",
+  },
+  gridBody: {
+    minWidth: "900px",
+  },
+  gridBodyRow: {
+    display: "grid",
+    gridTemplateColumns: "10% 20% 50% 20%",
+    width: "100%",
+    alignItems: "start",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  codeColumn: {
+    width: "100%",
+  },
+  nameColumn: {
+    width: "100%",
+  },
+  showWhereColumn: {
+    width: "100%",
+  },
+  actionsColumn: {
+    width: "100%",
+  },
+  gridCell: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    minWidth: 0,
   },
   form: {
     display: "grid",
@@ -54,6 +122,25 @@ const useStyles = makeStyles({
   actions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+  },
+  showWhereInline: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "center",
+    width: "100%",
+  },
+  showWhereOption: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXS,
+    minWidth: 0,
+  },
+  showWhereOptionLabel: {
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 });
 
@@ -86,8 +173,9 @@ export function ProductionLinesSetupPage() {
   const [editing, setEditing] = useState<ProductionLine | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [savingShowWhereIds, setSavingShowWhereIds] = useState<Set<number>>(new Set());
 
-  const title = useMemo(() => (editing ? "Edit Production Line" : "Add Production Line"), [editing]);
+  const title = useMemo(() => (editing ? "Edit Product Line" : "Add Product Line"), [editing]);
 
   const load = async () => {
     setLoading(true);
@@ -177,72 +265,136 @@ export function ProductionLinesSetupPage() {
     }
   };
 
+  const updateShowWhereFromList = async (
+    row: ProductionLine,
+    value: ProductionLineShowWhere,
+    checked: boolean
+  ) => {
+    const nextShowWhere = checked
+      ? [...new Set([...row.showWhere, value])]
+      : row.showWhere.filter((entry) => entry !== value);
+    if (nextShowWhere.length === 0) {
+      setError("Select at least one Show Where option.");
+      return;
+    }
+
+    const previousShowWhere = row.showWhere;
+    setError(null);
+    setRows((currentRows) =>
+      currentRows.map((currentRow) =>
+        currentRow.id === row.id ? { ...currentRow, showWhere: nextShowWhere } : currentRow
+      )
+    );
+    setSavingShowWhereIds((current) => {
+      const next = new Set(current);
+      next.add(row.id);
+      return next;
+    });
+
+    try {
+      await setupApi.updateProductionLine(row.id, {
+        code: row.code,
+        name: row.name,
+        showWhere: nextShowWhere,
+      });
+    } catch (err: unknown) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { detail?: string; message?: string } | undefined;
+      setRows((currentRows) =>
+        currentRows.map((currentRow) =>
+          currentRow.id === row.id ? { ...currentRow, showWhere: previousShowWhere } : currentRow
+        )
+      );
+      setError(body?.message ?? body?.detail ?? "Failed to update Show Where.");
+    } finally {
+      setSavingShowWhereIds((current) => {
+        const next = new Set(current);
+        next.delete(row.id);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <Title2>Setup - Production Lines</Title2>
-        <div className={styles.nav}>
-          <Button appearance="secondary" onClick={() => navigate("/setup/items")}>
-            Items Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
-            Work Centers Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/users-roles")}>
-            Users & Roles Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/")}>
-            Home
-          </Button>
-          <Button appearance="primary" onClick={openCreate}>
-            Add Production Line
-          </Button>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <span>Order Analyst</span>
+          <span>Site: Houston</span>
         </div>
-      </div>
 
-      {error && (
-        <MessageBar intent="error">
-          <MessageBarBody>{error}</MessageBarBody>
-        </MessageBar>
-      )}
+        <header className={styles.headerBar}>
+          <Title1 style={{ color: "#ffffff" }}>Product Lines Maintenance</Title1>
+          <div className={styles.headerActions}>
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Home
+            </Button>
+            <Button appearance="primary" onClick={openCreate}>
+              Add Product Line
+            </Button>
+          </div>
+        </header>
 
-      {loading ? (
-        <Body1>Loading...</Body1>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell>Code</TableHeaderCell>
-              <TableHeaderCell>Name</TableHeaderCell>
-              <TableHeaderCell>Show Where</TableHeaderCell>
-              <TableHeaderCell>Actions</TableHeaderCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{row.code}</TableCell>
-                <TableCell>{row.name}</TableCell>
-                <TableCell>
-                  {row.showWhere
-                    .map((value) => SHOW_WHERE_OPTIONS.find((opt) => opt.value === value)?.label ?? value)
-                    .join(", ")}
-                </TableCell>
-                <TableCell>
-                  <div className={styles.actions}>
-                    <Button appearance="secondary" onClick={() => openEdit(row)}>
-                      Edit
-                    </Button>
-                    <Button appearance="secondary" onClick={() => void remove(row)}>
-                      Delete
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+        <section className={styles.content}>
+          <div className={styles.contentStack}>
+            {error && (
+              <MessageBar intent="error">
+                <MessageBarBody>{error}</MessageBarBody>
+              </MessageBar>
+            )}
+
+            {loading ? (
+              <Body1>Loading...</Body1>
+            ) : (
+              <div className={styles.tableContainer}>
+                <div className={styles.gridHeaderRow}>
+                  <div className={`${styles.gridCell} ${styles.codeColumn}`}>Code</div>
+                  <div className={`${styles.gridCell} ${styles.nameColumn}`}>Name</div>
+                  <div className={`${styles.gridCell} ${styles.showWhereColumn}`}>Show Where</div>
+                  <div className={`${styles.gridCell} ${styles.actionsColumn}`}>Actions</div>
+                </div>
+                <div className={styles.gridBody}>
+                  {rows.map((row) => (
+                    <div key={row.id} className={styles.gridBodyRow}>
+                      <div className={`${styles.gridCell} ${styles.codeColumn}`}>{row.code}</div>
+                      <div className={`${styles.gridCell} ${styles.nameColumn}`}>{row.name}</div>
+                      <div className={`${styles.gridCell} ${styles.showWhereColumn}`}>
+                        <div className={styles.showWhereInline}>
+                          {SHOW_WHERE_OPTIONS.map((option) => (
+                            <div key={`${row.id}-${option.value}`} className={styles.showWhereOption}>
+                              <Checkbox
+                                aria-label={option.label}
+                                checked={row.showWhere.includes(option.value)}
+                                disabled={savingShowWhereIds.has(row.id)}
+                                onChange={(_, data) =>
+                                  void updateShowWhereFromList(row, option.value, Boolean(data.checked))
+                                }
+                              />
+                              <span className={styles.showWhereOptionLabel} title={option.label}>
+                                {option.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className={`${styles.gridCell} ${styles.actionsColumn}`}>
+                        <div className={styles.actions}>
+                          <Button appearance="secondary" onClick={() => openEdit(row)}>
+                            Edit
+                          </Button>
+                          <Button appearance="secondary" onClick={() => void remove(row)}>
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
 
       <Dialog open={dialogOpen} onOpenChange={(_, data) => setDialogOpen(data.open)}>
         <DialogSurface>

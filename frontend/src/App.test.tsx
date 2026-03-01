@@ -95,6 +95,12 @@ describe("App routing", () => {
     expect(await screen.findByText("Invoice Queue")).toBeInTheDocument();
   });
 
+  it("opens microsoft popup callback route", async () => {
+    window.history.pushState({}, "", "/auth/popup-callback");
+    render(<App />);
+    expect(await screen.findByText("Completing Microsoft sign-in...")).toBeInTheDocument();
+  });
+
   it("opens invoice workspace route", async () => {
     window.history.pushState({}, "", "/invoices/123");
     render(<App />);

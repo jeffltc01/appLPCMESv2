@@ -63,6 +63,12 @@ internal static class RouteInstantiationService
                 (!a.EffectiveFromUtc.HasValue || a.EffectiveFromUtc <= now) &&
                 (!a.EffectiveToUtc.HasValue || a.EffectiveToUtc >= now))
             .ToListAsync(cancellationToken);
+        var workCenterModeById = await db.WorkCenters
+            .AsNoTracking()
+            .ToDictionaryAsync(
+                wc => wc.Id,
+                wc => string.IsNullOrWhiteSpace(wc.DefaultProcessingMode) ? "BatchQuantity" : wc.DefaultProcessingMode.Trim(),
+                cancellationToken);
 
         foreach (var line in lines)
         {
@@ -126,6 +132,7 @@ internal static class RouteInstantiationService
                     IsRequired = step.IsRequired,
                     DataCaptureMode = step.DataCaptureMode,
                     TimeCaptureMode = step.TimeCaptureMode,
+                    ProcessingMode = ResolveProcessingMode(step.ProcessingModeOverride, workCenterModeById.GetValueOrDefault(step.WorkCenterId, "BatchQuantity")),
                     RequiresScan = step.RequiresScan,
                     RequiresUsageEntry = step.RequiresUsageEntry,
                     RequiresScrapEntry = step.RequiresScrapEntry,
@@ -254,5 +261,15 @@ internal static class RouteInstantiationService
         }
 
         return null;
+    }
+
+    private static string ResolveProcessingMode(string? processingModeOverride, string workCenterDefaultMode)
+    {
+        if (!string.IsNullOrWhiteSpace(processingModeOverride))
+        {
+            return processingModeOverride.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(workCenterDefaultMode) ? "BatchQuantity" : workCenterDefaultMode.Trim();
     }
 }

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -70,6 +72,66 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Contains("TopicNotFound", payload, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Post_CreateOrder_CanAdvanceToInboundPlanned()
+    {
+        var createResponse = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            customerId = 1,
+            siteId = 1,
+            inboundMode = "LpcArrangedPickup",
+            outboundMode = "LpcArrangedDelivery",
+        });
+        var createPayload = await createResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        using var createDoc = JsonDocument.Parse(createPayload);
+        var orderId = createDoc.RootElement.GetProperty("id").GetInt32();
+        var salesOrderNo = createDoc.RootElement.GetProperty("salesOrderNo").GetString();
+        Assert.NotNull(salesOrderNo);
+        Assert.Matches(@"^\d{7}$", salesOrderNo!);
+
+        var advanceResponse = await _client.PostAsJsonAsync($"/api/orders/{orderId}/advance-status", new
+        {
+            targetStatus = "InboundLogisticsPlanned",
+            actingRole = "Office",
+            actingEmpNo = "EMP001",
+        });
+        var advancePayload = await advanceResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, advanceResponse.StatusCode);
+        Assert.Contains("\"orderLifecycleStatus\":\"InboundLogisticsPlanned\"", advancePayload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_CreateOrder_AssignsSequentialLegacyOrderNumbers()
+    {
+        async Task<string> CreateOrderAndGetNo()
+        {
+            var response = await _client.PostAsJsonAsync("/api/orders", new
+            {
+                customerId = 1,
+                siteId = 1,
+                inboundMode = "LpcArrangedPickup",
+                outboundMode = "LpcArrangedDelivery",
+            });
+            var payload = await response.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+            using var doc = JsonDocument.Parse(payload);
+            var orderNo = doc.RootElement.GetProperty("salesOrderNo").GetString();
+            Assert.NotNull(orderNo);
+            return orderNo!;
+        }
+
+        var first = await CreateOrderAndGetNo();
+        var second = await CreateOrderAndGetNo();
+
+        Assert.Matches(@"^\d{7}$", first);
+        Assert.Matches(@"^\d{7}$", second);
+        Assert.Equal(int.Parse(first) + 1, int.Parse(second));
+    }
 }
 
 public sealed class ApiSmokeWebApplicationFactory : WebApplicationFactory<Program>
@@ -111,6 +173,11 @@ public sealed class ApiSmokeWebApplicationFactory : WebApplicationFactory<Progra
             Id = 1,
             Name = "Main Site",
             SiteCode = "MAIN",
+        });
+        db.Customers.Add(new Customer
+        {
+            Id = 1,
+            Name = "Test Customer",
         });
         db.Colors.Add(new Color
         {

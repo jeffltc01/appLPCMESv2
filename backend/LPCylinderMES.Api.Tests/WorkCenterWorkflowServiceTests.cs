@@ -38,6 +38,46 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
+    public async Task RecordProgressAsync_WhenBatchMode_UpdatesLineQuantities()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(RecordProgressAsync_WhenBatchMode_UpdatesLineQuantities));
+        SeedRouteWithTwoSteps(db, orderId: 6060, lineId: 60601, routeId: 61600, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var response = await service.RecordProgressAsync(
+            6060,
+            60601,
+            61602,
+            new RecordStepProgressDto(1m, 0m, "EMP6060", "batch progress", "Production"));
+
+        var route = Assert.Single(response.Routes);
+        Assert.Equal(1m, route.QuantityCompleted);
+        Assert.Equal(0m, route.QuantityScrapped);
+    }
+
+    [Fact]
+    public async Task RecordProgressAsync_WhenSingleUnitModeAndQuantityNotOne_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(RecordProgressAsync_WhenSingleUnitModeAndQuantityNotOne_ThrowsConflict));
+        SeedRouteWithTwoSteps(db, orderId: 6061, lineId: 60611, routeId: 61610, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+        var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 61612);
+        step.ProcessingMode = "SingleUnit";
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.RecordProgressAsync(
+                6061,
+                60611,
+                61612,
+                new RecordStepProgressDto(2m, null, "EMP6061", "invalid qty", "Production")));
+
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+    }
+
+    [Fact]
     public async Task CompleteStepAsync_WhenChecklistBlockPolicyFails_ThrowsConflict()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistBlockPolicyFails_ThrowsConflict));

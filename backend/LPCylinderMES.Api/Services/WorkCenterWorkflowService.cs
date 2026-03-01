@@ -92,6 +92,52 @@ public class WorkCenterWorkflowService(
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
     }
 
+    public async Task<OrderRouteExecutionDto> RecordProgressAsync(int orderId, int lineId, long stepId, RecordStepProgressDto dto, CancellationToken cancellationToken = default)
+    {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "record work-center progress");
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        if (!string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Step must be in progress before recording quantity progress.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.EmpNo))
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "EmpNo is required.");
+        }
+
+        if (dto.QuantityCompleted <= 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "QuantityCompleted must be greater than zero.");
+        }
+
+        var isSingleUnitMode = string.Equals(step.ProcessingMode, "SingleUnit", StringComparison.OrdinalIgnoreCase);
+        if (isSingleUnitMode && dto.QuantityCompleted != 1)
+        {
+            throw new ServiceException(StatusCodes.Status409Conflict, "Single unit mode only allows QuantityCompleted = 1.");
+        }
+
+        if (dto.QuantityScrapped.HasValue && dto.QuantityScrapped.Value < 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "QuantityScrapped cannot be negative.");
+        }
+
+        var line = await db.SalesOrderDetails.FirstOrDefaultAsync(l => l.Id == lineId, cancellationToken)
+            ?? throw new ServiceException(StatusCodes.Status404NotFound, "Order line not found.");
+        var newCompleted = (line.QuantityAsShipped ?? 0m) + dto.QuantityCompleted;
+        line.QuantityAsShipped = newCompleted;
+        if (dto.QuantityScrapped.HasValue)
+        {
+            line.QuantityAsScrapped = (line.QuantityAsScrapped ?? 0m) + dto.QuantityScrapped.Value;
+        }
+
+        var notes = $"mode={step.ProcessingMode};qtyCompleted={dto.QuantityCompleted};qtyScrapped={dto.QuantityScrapped?.ToString() ?? "0"};note={dto.Notes ?? string.Empty}";
+        await AddActivityAsync(step, dto.EmpNo.Trim(), "UnitProgress", null, notes, cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
     public async Task<OrderRouteExecutionDto> AddUsageAsync(int orderId, int lineId, long stepId, StepMaterialUsageCreateDto dto, CancellationToken cancellationToken = default)
     {
         EnsureRoleProvided(dto.ActingRole);
@@ -433,7 +479,8 @@ public class WorkCenterWorkflowService(
                 s.OrderLineRouteInstance.SalesOrder.PromisedDateUtc,
                 s.OrderLineRouteInstance.SalesOrder.Priority,
                 s.OrderLineRouteInstance.SalesOrderDetail.Notes,
-                s.OrderLineRouteInstance.SalesOrder.Comments))
+                s.OrderLineRouteInstance.SalesOrder.Comments,
+                s.OrderLineRouteInstance.SalesOrderDetail.QuantityAsReceived))
             .ToListAsync(cancellationToken);
     }
 
@@ -477,6 +524,7 @@ public class WorkCenterWorkflowService(
                         s.RequiresScan,
                         s.DataCaptureMode,
                         s.TimeCaptureMode,
+                        s.ProcessingMode,
                         s.ScanInUtc,
                         s.ScanOutUtc,
                         s.CompletedUtc,

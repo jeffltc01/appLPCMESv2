@@ -54,7 +54,7 @@ describe("RouteTemplatesSetupPage", () => {
       expect(listRouteTemplatesMock).toHaveBeenCalled();
     });
 
-    expect(screen.getByText("Route Template Setup")).toBeInTheDocument();
+    expect(screen.getByText("Route Template Maintenance")).toBeInTheDocument();
     expect(screen.getByText("RT-FILL-STD")).toBeInTheDocument();
     expect(screen.getByText("Legacy Refurb Route")).toBeInTheDocument();
   });

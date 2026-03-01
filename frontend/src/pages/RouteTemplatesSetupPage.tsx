@@ -84,10 +84,24 @@ const useStyles = makeStyles({
   },
   filters: {
     display: "grid",
-    gridTemplateColumns: "minmax(220px, 1fr) 180px auto auto",
+    gridTemplateColumns: "6fr 3fr 1fr",
     gap: tokens.spacingHorizontalS,
     alignItems: "end",
     backgroundColor: "#ffffff",
+  },
+  searchField: {
+    minWidth: 0,
+  },
+  statusField: {
+    minWidth: 0,
+  },
+  statusDropdown: {
+    width: "100%",
+  },
+  filterActions: {
+    display: "flex",
+    alignItems: "end",
+    minWidth: 0,
   },
   actions: {
     display: "flex",
@@ -142,17 +156,8 @@ export function RouteTemplatesSetupPage() {
         </div>
 
         <header className={styles.headerBar}>
-          <Title1 style={{ color: "#ffffff" }}>Route Template Setup</Title1>
+          <Title1 style={{ color: "#ffffff" }}>Route Template Maintenance</Title1>
           <div className={styles.headerActions}>
-            <Button appearance="secondary" onClick={() => navigate("/setup/production-lines")}>
-              Production Lines Setup
-            </Button>
-            <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
-              Work Centers Setup
-            </Button>
-            <Button appearance="secondary" onClick={() => navigate("/setup/users-roles")}>
-              Users & Roles Setup
-            </Button>
             <Button appearance="secondary" onClick={() => navigate("/")}>
               Home
             </Button>
@@ -172,15 +177,16 @@ export function RouteTemplatesSetupPage() {
 
             <Card className={styles.card}>
               <div className={styles.filters}>
-                <Field label="Search">
+                <Field label="Search" className={styles.searchField}>
                   <Input
                     value={filters.search}
                     onChange={(_, data) => setFilters((current) => ({ ...current, search: data.value }))}
                     placeholder="Code or name"
                   />
                 </Field>
-                <Field label="Status">
+                <Field label="Status" className={styles.statusField}>
                   <Dropdown
+                    className={styles.statusDropdown}
                     value={
                       filters.status === "all"
                         ? "All"
@@ -201,12 +207,14 @@ export function RouteTemplatesSetupPage() {
                     <Option value="inactive">Inactive</Option>
                   </Dropdown>
                 </Field>
-                <Button
-                  appearance="secondary"
-                  onClick={() => setFilters({ search: "", status: "all" })}
-                >
-                  Reset
-                </Button>
+                <div className={styles.filterActions}>
+                  <Button
+                    appearance="secondary"
+                    onClick={() => setFilters({ search: "", status: "all" })}
+                  >
+                    Reset
+                  </Button>
+                </div>
               </div>
             </Card>
 

@@ -485,7 +485,7 @@ describe("OrderEntryPage", () => {
     expect(await screen.findByLabelText("Site *")).toBeDisabled();
     expect(screen.getByLabelText("Order Date *")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Salesperson")).toBeDisabled();
-    expect(screen.getByLabelText("Priority")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Priority")).toBeDisabled();
     expect(screen.getByRole("switch", { name: "Customer Dropoff" })).toBeDisabled();
     expect(screen.getByRole("switch", { name: "Customer Pickup" })).toBeDisabled();
     expect(screen.getByLabelText("Pickup Via")).toBeDisabled();

@@ -8,6 +8,7 @@ import {
   MessageBar,
   MessageBarBody,
   Select,
+  Switch,
   Title2,
   makeStyles,
   tokens,
@@ -71,6 +72,7 @@ export function TabletSetupPage() {
   const [workCenterId, setWorkCenterId] = useState("");
   const [operatorEmpNo, setOperatorEmpNo] = useState("");
   const [deviceId, setDeviceId] = useState("");
+  const [lockOperatorToLoggedInUser, setLockOperatorToLoggedInUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export function TabletSetupPage() {
       setWorkCenterId(String(stored.workCenterId));
       setOperatorEmpNo(stored.operatorEmpNo);
       setDeviceId(stored.deviceId);
+      setLockOperatorToLoggedInUser(stored.lockOperatorToLoggedInUser);
     }
   }, []);
 
@@ -136,6 +139,7 @@ export function TabletSetupPage() {
         workCenterName: selectedWorkCenter.workCenterName,
         operatorEmpNo: operatorEmpNo.trim(),
         deviceId: deviceId.trim(),
+        lockOperatorToLoggedInUser,
       });
       setInfo("Tablet setup saved.");
       navigate("/operator/work-center");
@@ -150,6 +154,7 @@ export function TabletSetupPage() {
     setWorkCenterId("");
     setOperatorEmpNo("");
     setDeviceId("");
+    setLockOperatorToLoggedInUser(false);
     setInfo("Saved tablet setup cleared.");
     setError(null);
   };
@@ -205,12 +210,20 @@ export function TabletSetupPage() {
               </Select>
             </Field>
 
-            <Field label="Default Operator Employee # (optional)">
+            <Field label="Default Operator (fallback, optional)">
               <Input value={operatorEmpNo} onChange={(_, data) => setOperatorEmpNo(data.value)} />
             </Field>
 
             <Field label="Device ID (optional)">
               <Input value={deviceId} onChange={(_, data) => setDeviceId(data.value)} />
+            </Field>
+
+            <Field label="Operator Identity Lock">
+              <Switch
+                checked={lockOperatorToLoggedInUser}
+                onChange={(_, data) => setLockOperatorToLoggedInUser(data.checked)}
+                label="Lock operator to logged-in user (no manual override)"
+              />
             </Field>
 
             <div className={styles.actionRow}>

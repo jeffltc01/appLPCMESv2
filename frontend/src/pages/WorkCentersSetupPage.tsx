@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
-  Title2,
+  Title1,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -34,18 +34,46 @@ import type { Lookup } from "../types/customer";
 
 const useStyles = makeStyles({
   page: {
-    padding: tokens.spacingHorizontalL,
-    display: "grid",
-    gap: tokens.spacingVerticalM,
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
   },
-  header: {
+  main: {
+    display: "grid",
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    minWidth: 0,
+  },
+  utilityBar: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  nav: {
+  headerActions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "auto",
+  },
+  contentStack: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
   },
   form: {
     display: "grid",
@@ -63,6 +91,7 @@ const useStyles = makeStyles({
 });
 
 type TimeCaptureMode = "Automated" | "Manual" | "Hybrid";
+type ProcessingMode = "BatchQuantity" | "SingleUnit";
 
 interface FormState {
   workCenterCode: string;
@@ -71,6 +100,7 @@ interface FormState {
   description: string;
   isActive: boolean;
   defaultTimeCaptureMode: TimeCaptureMode;
+  defaultProcessingMode: ProcessingMode;
   requiresScanByDefault: boolean;
 }
 
@@ -81,6 +111,7 @@ const EMPTY_FORM: FormState = {
   description: "",
   isActive: true,
   defaultTimeCaptureMode: "Automated",
+  defaultProcessingMode: "BatchQuantity",
   requiresScanByDefault: true,
 };
 
@@ -136,6 +167,7 @@ export function WorkCentersSetupPage() {
       description: row.description ?? "",
       isActive: row.isActive,
       defaultTimeCaptureMode: row.defaultTimeCaptureMode,
+      defaultProcessingMode: row.defaultProcessingMode,
       requiresScanByDefault: row.requiresScanByDefault,
     });
     setDialogOpen(true);
@@ -161,6 +193,7 @@ export function WorkCentersSetupPage() {
         description: form.description.trim() || null,
         isActive: form.isActive,
         defaultTimeCaptureMode: form.defaultTimeCaptureMode,
+        defaultProcessingMode: form.defaultProcessingMode,
         requiresScanByDefault: form.requiresScanByDefault,
       };
       if (editing) {
@@ -194,67 +227,74 @@ export function WorkCentersSetupPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <Title2>Setup - Work Centers</Title2>
-        <div className={styles.nav}>
-          <Button appearance="secondary" onClick={() => navigate("/setup/production-lines")}>
-            Production Lines Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/users-roles")}>
-            Users & Roles Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/")}>
-            Home
-          </Button>
-          <Button appearance="primary" onClick={openCreate}>
-            Add Work Center
-          </Button>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <span>Order Analyst</span>
+          <span>Site: Houston</span>
         </div>
-      </div>
 
-      {error && (
-        <MessageBar intent="error">
-          <MessageBarBody>{error}</MessageBarBody>
-        </MessageBar>
-      )}
+        <header className={styles.headerBar}>
+          <Title1 style={{ color: "#ffffff" }}>Work Center Maintenance</Title1>
+          <div className={styles.headerActions}>
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Home
+            </Button>
+            <Button appearance="primary" onClick={openCreate}>
+              Add Work Center
+            </Button>
+          </div>
+        </header>
 
-      {loading ? (
-        <Body1>Loading...</Body1>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell>Code</TableHeaderCell>
-              <TableHeaderCell>Name</TableHeaderCell>
-              <TableHeaderCell>Site</TableHeaderCell>
-              <TableHeaderCell>Time Capture Mode</TableHeaderCell>
-              <TableHeaderCell>Active</TableHeaderCell>
-              <TableHeaderCell>Actions</TableHeaderCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{row.workCenterCode}</TableCell>
-                <TableCell>{row.workCenterName}</TableCell>
-                <TableCell>{siteNameById.get(row.siteId) ?? `Site ${row.siteId}`}</TableCell>
-                <TableCell>{row.defaultTimeCaptureMode}</TableCell>
-                <TableCell>{row.isActive ? "Yes" : "No"}</TableCell>
-                <TableCell>
-                  <div className={styles.actions}>
-                    <Button appearance="secondary" onClick={() => openEdit(row)}>
-                      Edit
-                    </Button>
-                    <Button appearance="secondary" onClick={() => void remove(row)}>
-                      Delete
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+        <section className={styles.content}>
+          <div className={styles.contentStack}>
+            {error && (
+              <MessageBar intent="error">
+                <MessageBarBody>{error}</MessageBarBody>
+              </MessageBar>
+            )}
+
+            {loading ? (
+              <Body1>Loading...</Body1>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHeaderCell>Code</TableHeaderCell>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Site</TableHeaderCell>
+                    <TableHeaderCell>Time Capture Mode</TableHeaderCell>
+                    <TableHeaderCell>Processing Mode</TableHeaderCell>
+                    <TableHeaderCell>Active</TableHeaderCell>
+                    <TableHeaderCell>Actions</TableHeaderCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>{row.workCenterCode}</TableCell>
+                      <TableCell>{row.workCenterName}</TableCell>
+                      <TableCell>{siteNameById.get(row.siteId) ?? `Site ${row.siteId}`}</TableCell>
+                      <TableCell>{row.defaultTimeCaptureMode}</TableCell>
+                      <TableCell>{row.defaultProcessingMode}</TableCell>
+                      <TableCell>{row.isActive ? "Yes" : "No"}</TableCell>
+                      <TableCell>
+                        <div className={styles.actions}>
+                          <Button appearance="secondary" onClick={() => openEdit(row)}>
+                            Edit
+                          </Button>
+                          <Button appearance="secondary" onClick={() => void remove(row)}>
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </section>
+      </main>
 
       <Dialog open={dialogOpen} onOpenChange={(_, data) => setDialogOpen(data.open)}>
         <DialogSurface>
@@ -309,6 +349,25 @@ export function WorkCentersSetupPage() {
                       <Option value="Hybrid">Hybrid</Option>
                     </Dropdown>
                   </Field>
+                </div>
+
+                <div className={styles.formRow}>
+                  <Field label="Default Processing Mode" required>
+                    <Dropdown
+                      value={form.defaultProcessingMode}
+                      selectedOptions={[form.defaultProcessingMode]}
+                      onOptionSelect={(_, data) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          defaultProcessingMode: (data.optionValue as ProcessingMode) ?? "BatchQuantity",
+                        }))
+                      }
+                    >
+                      <Option value="BatchQuantity">BatchQuantity</Option>
+                      <Option value="SingleUnit">SingleUnit</Option>
+                    </Dropdown>
+                  </Field>
+                  <div />
                 </div>
 
                 <Field label="Description">

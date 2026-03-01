@@ -70,6 +70,7 @@ const ATTACHMENT_CATEGORIES = [
   "Other",
 ];
 const ORDER_AUDIT_PAGE_SIZE = 25;
+const ORDER_PRIORITY_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1));
 const INVOICE_MUTABLE_LINE_STATUSES = new Set<OrderWorkflowStatus>([
   "Ready to Invoice",
   "DispatchedOrPickupReleased",
@@ -1548,12 +1549,19 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                     </Select>
                   </Field>
                   <Field label="Priority">
-                    <Input
+                    <Select
                       value={form.priority != null ? String(form.priority) : ""}
-                      onChange={(_, data) => handleInput("priority", data.value)}
+                      onChange={(event) => handleInput("priority", event.target.value)}
                       className={styles.formControl}
-                      readOnly={invoiceMode}
-                    />
+                      disabled={invoiceMode}
+                    >
+                      <option value="">Select Priority</option>
+                      {ORDER_PRIORITY_OPTIONS.map((priority) => (
+                        <option key={`order-priority-${priority}`} value={priority}>
+                          {priority}
+                        </option>
+                      ))}
+                    </Select>
                   </Field>
                   <Field label="Payment Terms">
                     <Select
@@ -1765,73 +1773,6 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                 </div>
               </Card>
 
-            </div>
-
-            <div className={styles.rightColumn}>
-              <Card className={styles.card}>
-                <div className={styles.cardTitle}>Order Summary</div>
-                <div className={styles.summaryList}>
-                  <div className={styles.summaryRow}>
-                    <span>Subtotal:</span>
-                    <span>${lineTotals.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className={styles.summaryRow}>
-                    <span>Tax (8.25%):</span>
-                    <span>${lineTotals.tax.toFixed(2)}</span>
-                  </div>
-                  <div className={styles.summaryRow}>
-                    <span>Freight:</span>
-                    <span>${lineTotals.freight.toFixed(2)}</span>
-                  </div>
-                  <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
-                    <span>Total:</span>
-                    <span>${lineTotals.total.toFixed(2)}</span>
-                  </div>
-                  <div className={styles.summaryRow}>
-                    <span>Total Qty:</span>
-                    <Badge appearance="outline">{lineTotals.qty} EA</Badge>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className={styles.card}>
-                <LifecycleNavigator
-                  currentStatus={currentStatus}
-                  canAdvance={canAdvance}
-                  isAdvancing={isAdvancing}
-                  holdOverlay={holdOverlay}
-                  statusReasonCode={statusReasonCode}
-                  statusOwnerRole={statusOwnerRole}
-                  statusNote={statusNote}
-                  onAdvanceStatus={handleAdvanceStatus}
-                  onApplyOverlay={handleApplyOverlay}
-                  onClearOverlay={handleClearOverlay}
-                  actingRole={ACTING_ROLE}
-                  actingEmpNo={ACTING_EMP_NO}
-                  isMutatingOverlay={isMutatingOverlay}
-                  overlayReasonOptions={overlayReasonOptions}
-                  onCreateReasonCode={handleCreateReasonCode}
-                  onUpdateReasonCode={handleUpdateReasonCode}
-                  onDeleteReasonCode={handleDeleteReasonCode}
-                />
-              </Card>
-              <Card className={styles.card}>
-                <AttachmentManager
-                  attachments={attachments}
-                  categories={ATTACHMENT_CATEGORIES}
-                  canMutate={canMutateOrder}
-                  selectedCategory={selectedAttachmentCategory}
-                  selectedFile={selectedFile}
-                  isUploading={isUploadingAttachment}
-                  onSelectedCategoryChange={setSelectedAttachmentCategory}
-                  onSelectedFileChange={setSelectedFile}
-                  onUpload={handleUploadAttachment}
-                  onDelete={(attachmentId) => void handleDeleteAttachment(attachmentId)}
-                  getDownloadUrl={(attachmentId) =>
-                    order ? ordersApi.attachmentDownloadUrl(order.id, attachmentId) : "#"
-                  }
-                />
-              </Card>
               <Card className={styles.card}>
                 <div className={styles.cardTitle}>Order Audit Trail</div>
                 <div className={styles.auditFilterGrid}>
@@ -1972,6 +1913,74 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                     </div>
                   </>
                 ) : null}
+              </Card>
+
+            </div>
+
+            <div className={styles.rightColumn}>
+              <Card className={styles.card}>
+                <div className={styles.cardTitle}>Order Summary</div>
+                <div className={styles.summaryList}>
+                  <div className={styles.summaryRow}>
+                    <span>Subtotal:</span>
+                    <span>${lineTotals.subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className={styles.summaryRow}>
+                    <span>Tax (8.25%):</span>
+                    <span>${lineTotals.tax.toFixed(2)}</span>
+                  </div>
+                  <div className={styles.summaryRow}>
+                    <span>Freight:</span>
+                    <span>${lineTotals.freight.toFixed(2)}</span>
+                  </div>
+                  <div className={`${styles.summaryRow} ${styles.summaryTotal}`}>
+                    <span>Total:</span>
+                    <span>${lineTotals.total.toFixed(2)}</span>
+                  </div>
+                  <div className={styles.summaryRow}>
+                    <span>Total Qty:</span>
+                    <Badge appearance="outline">{lineTotals.qty} EA</Badge>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className={styles.card}>
+                <LifecycleNavigator
+                  currentStatus={currentStatus}
+                  canAdvance={canAdvance}
+                  isAdvancing={isAdvancing}
+                  holdOverlay={holdOverlay}
+                  statusReasonCode={statusReasonCode}
+                  statusOwnerRole={statusOwnerRole}
+                  statusNote={statusNote}
+                  onAdvanceStatus={handleAdvanceStatus}
+                  onApplyOverlay={handleApplyOverlay}
+                  onClearOverlay={handleClearOverlay}
+                  actingRole={ACTING_ROLE}
+                  actingEmpNo={ACTING_EMP_NO}
+                  isMutatingOverlay={isMutatingOverlay}
+                  overlayReasonOptions={overlayReasonOptions}
+                  onCreateReasonCode={handleCreateReasonCode}
+                  onUpdateReasonCode={handleUpdateReasonCode}
+                  onDeleteReasonCode={handleDeleteReasonCode}
+                />
+              </Card>
+              <Card className={styles.card}>
+                <AttachmentManager
+                  attachments={attachments}
+                  categories={ATTACHMENT_CATEGORIES}
+                  canMutate={canMutateOrder}
+                  selectedCategory={selectedAttachmentCategory}
+                  selectedFile={selectedFile}
+                  isUploading={isUploadingAttachment}
+                  onSelectedCategoryChange={setSelectedAttachmentCategory}
+                  onSelectedFileChange={setSelectedFile}
+                  onUpload={handleUploadAttachment}
+                  onDelete={(attachmentId) => void handleDeleteAttachment(attachmentId)}
+                  getDownloadUrl={(attachmentId) =>
+                    order ? ordersApi.attachmentDownloadUrl(order.id, attachmentId) : "#"
+                  }
+                />
               </Card>
             </div>
           </div>

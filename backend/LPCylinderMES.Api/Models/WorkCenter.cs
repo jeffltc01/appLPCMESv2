@@ -9,6 +9,7 @@ public partial class WorkCenter
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public string DefaultTimeCaptureMode { get; set; } = "Automated";
+    public string DefaultProcessingMode { get; set; } = "BatchQuantity";
     public bool RequiresScanByDefault { get; set; } = true;
     public DateTime CreatedUtc { get; set; }
     public DateTime UpdatedUtc { get; set; }

@@ -1059,6 +1059,7 @@ export interface WorkCenterQueueItem {
   priority?: number | null;
   lineNotes?: string | null;
   orderComments?: string | null;
+  quantityAsReceived?: number | null;
 }
 
 export interface RouteStepExecution {
@@ -1073,6 +1074,7 @@ export interface RouteStepExecution {
   requiresScan: boolean;
   dataCaptureMode: string;
   timeCaptureMode: string;
+  processingMode: "BatchQuantity" | "SingleUnit";
   scanInUtc: string | null;
   scanOutUtc: string | null;
   completedUtc: string | null;
@@ -1167,6 +1169,14 @@ export interface StepMaterialUsageCreateRequest {
   quantityUsed: number;
   uom?: string | null;
   recordedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
+}
+
+export interface RecordStepProgressRequest {
+  quantityCompleted: number;
+  quantityScrapped?: number | null;
+  empNo: string;
+  notes?: string | null;
   actingRole: OrderWorkspaceRole;
 }
 

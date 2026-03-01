@@ -53,17 +53,17 @@ Preflight now mirrors CI checks and always performs a clean frontend install:
 - frontend typecheck (`npm run typecheck`)
 - frontend build validation (`npm run build`)
 
-## 4) Optional Local Pre-Push Hook
+## 4) Required Local Pre-Push Hook
 
 This repo includes `.githooks/pre-push`, which runs `scripts/preflight.ps1`.
 
-To enable it locally:
+Enable it once per clone:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-If preflight fails, push is blocked locally.
+If preflight fails, push is blocked locally. `scripts/preflight.ps1` now also fails fast if `core.hooksPath` is not `.githooks`.
 
 ## 5) Branch Protection Recommendation
 

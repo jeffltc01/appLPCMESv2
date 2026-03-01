@@ -3,6 +3,7 @@ using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.Models;
 using LPCylinderMES.Api.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace LPCylinderMES.Api.Tests;
 
@@ -90,8 +91,8 @@ public class SetupRoutingServiceTests
             true,
             1,
             [
-                new RouteTemplateStepUpsertDto(1, "STEP-1", "Step 1", 100, true, "ElectronicRequired", "Automated", true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
-                new RouteTemplateStepUpsertDto(1, "STEP-2", "Step 2", 100, true, "ElectronicRequired", "Automated", true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
+                new RouteTemplateStepUpsertDto(1, "STEP-1", "Step 1", 100, true, "ElectronicRequired", "Automated", null, true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
+                new RouteTemplateStepUpsertDto(1, "STEP-2", "Step 2", 100, true, "ElectronicRequired", "Automated", null, true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
             ]);
 
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.CreateRouteTemplateAsync(dto));
@@ -215,7 +216,7 @@ public class SetupRoutingServiceTests
         await db.SaveChangesAsync();
 
         var service = new SetupRoutingService(db);
-        var dto = new WorkCenterUpsertDto("WC-BAD", "Bad", 1, null, true, "MachineFeed", true);
+        var dto = new WorkCenterUpsertDto("WC-BAD", "Bad", 1, null, true, "MachineFeed", "BatchQuantity", true);
 
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.CreateWorkCenterAsync(dto));
         Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
@@ -240,6 +241,154 @@ public class SetupRoutingServiceTests
             service.CreateRoleAsync(new AppRoleUpsertDto("Admin", null, true)));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateWorkCenterAsync_ChangingDefaultProcessingMode_UpdatesOpenStepInstancesWithoutOverride()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateWorkCenterAsync_ChangingDefaultProcessingMode_UpdatesOpenStepInstancesWithoutOverride));
+        SeedCommonLookups(db);
+
+        db.WorkCenters.Add(new WorkCenter
+        {
+            Id = 910,
+            WorkCenterCode = "WC-910",
+            WorkCenterName = "Fill",
+            SiteId = 1,
+            IsActive = true,
+            DefaultTimeCaptureMode = "Automated",
+            DefaultProcessingMode = "BatchQuantity",
+            RequiresScanByDefault = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+
+        db.RouteTemplates.Add(new RouteTemplate
+        {
+            Id = 920,
+            RouteTemplateCode = "RT-920",
+            RouteTemplateName = "Mode Sync Template",
+            IsActive = true,
+            VersionNo = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+            Steps =
+            {
+                new RouteTemplateStep
+                {
+                    Id = 921,
+                    StepSequence = 1,
+                    StepCode = "STEP-1",
+                    StepName = "No Override",
+                    WorkCenterId = 910,
+                    IsRequired = true,
+                    DataCaptureMode = "ElectronicRequired",
+                    TimeCaptureMode = "Automated",
+                    ProcessingModeOverride = null,
+                    RequiresScan = true,
+                    ChecklistFailurePolicy = "BlockCompletion",
+                },
+                new RouteTemplateStep
+                {
+                    Id = 922,
+                    StepSequence = 2,
+                    StepCode = "STEP-2",
+                    StepName = "Batch Override",
+                    WorkCenterId = 910,
+                    IsRequired = true,
+                    DataCaptureMode = "ElectronicRequired",
+                    TimeCaptureMode = "Automated",
+                    ProcessingModeOverride = "BatchQuantity",
+                    RequiresScan = true,
+                    ChecklistFailurePolicy = "BlockCompletion",
+                },
+            },
+        });
+
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 930,
+            SalesOrderNo = "SO-930",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.Received,
+            OrderLifecycleStatus = OrderStatusCatalog.InProduction,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        db.SalesOrderDetails.Add(new SalesOrderDetail
+        {
+            Id = 931,
+            SalesOrderId = 930,
+            LineNo = 1,
+            ItemId = 10,
+            QuantityAsOrdered = 5,
+            QuantityAsReceived = 5,
+            SiteId = 1,
+        });
+        db.OrderLineRouteInstances.Add(new OrderLineRouteInstance
+        {
+            Id = 940,
+            SalesOrderId = 930,
+            SalesOrderDetailId = 931,
+            RouteTemplateId = 920,
+            RouteTemplateVersionNo = 1,
+            State = "Active",
+            StartedUtc = DateTime.UtcNow,
+        });
+        db.OrderLineRouteStepInstances.AddRange(
+            new OrderLineRouteStepInstance
+            {
+                Id = 941,
+                OrderLineRouteInstanceId = 940,
+                SalesOrderDetailId = 931,
+                StepSequence = 1,
+                StepCode = "STEP-1",
+                StepName = "No Override",
+                WorkCenterId = 910,
+                State = "InProgress",
+                ProcessingMode = "BatchQuantity",
+                IsRequired = true,
+            },
+            new OrderLineRouteStepInstance
+            {
+                Id = 942,
+                OrderLineRouteInstanceId = 940,
+                SalesOrderDetailId = 931,
+                StepSequence = 2,
+                StepCode = "STEP-2",
+                StepName = "Batch Override",
+                WorkCenterId = 910,
+                State = "Pending",
+                ProcessingMode = "BatchQuantity",
+                IsRequired = true,
+            },
+            new OrderLineRouteStepInstance
+            {
+                Id = 943,
+                OrderLineRouteInstanceId = 940,
+                SalesOrderDetailId = 931,
+                StepSequence = 1,
+                StepCode = "STEP-1",
+                StepName = "Completed Step",
+                WorkCenterId = 910,
+                State = "Completed",
+                ProcessingMode = "BatchQuantity",
+                IsRequired = true,
+            });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        await service.UpdateWorkCenterAsync(
+            910,
+            new WorkCenterUpsertDto("WC-910", "Fill", 1, null, true, "Automated", "SingleUnit", true));
+
+        var updatedNoOverride = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 941);
+        var updatedWithOverride = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 942);
+        var completedStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 943);
+
+        Assert.Equal("SingleUnit", updatedNoOverride.ProcessingMode);
+        Assert.Equal("BatchQuantity", updatedWithOverride.ProcessingMode);
+        Assert.Equal("BatchQuantity", completedStep.ProcessingMode);
     }
 
     [Fact]

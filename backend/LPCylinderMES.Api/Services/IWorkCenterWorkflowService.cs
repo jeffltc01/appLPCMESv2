@@ -6,6 +6,7 @@ public interface IWorkCenterWorkflowService
 {
     Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> ScanOutAsync(int orderId, int lineId, long stepId, OperatorScanOutDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> RecordProgressAsync(int orderId, int lineId, long stepId, RecordStepProgressDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddUsageAsync(int orderId, int lineId, long stepId, StepMaterialUsageCreateDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddScrapAsync(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddSerialAsync(int orderId, int lineId, long stepId, StepSerialCaptureCreateDto dto, CancellationToken cancellationToken = default);

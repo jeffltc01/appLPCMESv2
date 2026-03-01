@@ -6,6 +6,7 @@ export interface TabletSetupConfig {
   workCenterName: string;
   operatorEmpNo: string;
   deviceId: string;
+  lockOperatorToLoggedInUser: boolean;
   updatedAt: string;
 }
 
@@ -19,6 +20,8 @@ export function readTabletSetup(): TabletSetupConfig | null {
 
   try {
     const parsed = JSON.parse(raw) as Partial<TabletSetupConfig>;
+    const lockOperatorToLoggedInUser =
+      typeof parsed.lockOperatorToLoggedInUser === "boolean" ? parsed.lockOperatorToLoggedInUser : false;
     if (
       parsed.version !== 1 ||
       typeof parsed.siteId !== "number" ||
@@ -31,7 +34,17 @@ export function readTabletSetup(): TabletSetupConfig | null {
     ) {
       return null;
     }
-    return parsed as TabletSetupConfig;
+    return {
+      version: 1,
+      siteId: parsed.siteId,
+      workCenterId: parsed.workCenterId,
+      workCenterCode: parsed.workCenterCode,
+      workCenterName: parsed.workCenterName,
+      operatorEmpNo: parsed.operatorEmpNo,
+      deviceId: parsed.deviceId,
+      lockOperatorToLoggedInUser,
+      updatedAt: parsed.updatedAt,
+    };
   } catch {
     return null;
   }

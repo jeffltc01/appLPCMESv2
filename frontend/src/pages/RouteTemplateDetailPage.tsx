@@ -28,12 +28,23 @@ import {
 } from "@fluentui/react-components";
 import { useNavigate, useParams } from "react-router-dom";
 import { ApiError } from "../services/api";
+import { itemLookupsApi } from "../services/items";
+import { orderLookupsApi } from "../services/orders";
 import { setupApi } from "../services/setup";
-import type { RouteTemplateDetail, RouteTemplateStep, RouteTemplateStepUpsert } from "../types/setup";
+import type { Lookup } from "../types/customer";
+import type { OrderItemLookup } from "../types/order";
+import type {
+  RouteTemplateAssignment,
+  RouteTemplateAssignmentUpsert,
+  RouteTemplateDetail,
+  RouteTemplateStep,
+  RouteTemplateStepUpsert,
+} from "../types/setup";
 
 type WorkCenter = { id: number; workCenterCode: string; workCenterName: string };
 type DataCaptureMode = "ElectronicRequired" | "ElectronicOptional" | "PaperOnly";
 type TimeCaptureMode = "Automated" | "Manual" | "Hybrid";
+type ProcessingMode = "BatchQuantity" | "SingleUnit";
 type ChecklistFailurePolicy = "BlockCompletion" | "AllowWithSupervisorOverride";
 
 interface StepFormState extends RouteTemplateStepUpsert {
@@ -52,6 +63,26 @@ interface TemplateFormState {
 interface StepEditorState extends RouteTemplateStepUpsert {
   checklistTemplateIdText: string;
   slaMinutesText: string;
+}
+
+type SupervisorGateOverrideState = "default" | "yes" | "no";
+
+interface AssignmentFormState {
+  assignmentName: string;
+  priority: string;
+  revisionNo: string;
+  isActive: boolean;
+  customerIdText: string;
+  siteIdText: string;
+  itemIdText: string;
+  itemType: string;
+  orderPriorityMinText: string;
+  orderPriorityMaxText: string;
+  pickUpViaIdText: string;
+  shipToViaIdText: string;
+  supervisorGateOverride: SupervisorGateOverrideState;
+  effectiveFromUtcText: string;
+  effectiveToUtcText: string;
 }
 
 const useStyles = makeStyles({
@@ -143,6 +174,9 @@ const useStyles = makeStyles({
     border: "1px solid #e8e8e8",
     borderRadius: "4px",
   },
+  assignmentHint: {
+    color: tokens.colorNeutralForeground2,
+  },
 });
 
 const EMPTY_STEP_EDITOR: StepEditorState = {
@@ -153,6 +187,7 @@ const EMPTY_STEP_EDITOR: StepEditorState = {
   isRequired: true,
   dataCaptureMode: "ElectronicRequired",
   timeCaptureMode: "Automated",
+  processingModeOverride: null,
   requiresScan: true,
   requiresUsageEntry: false,
   requiresScrapEntry: false,
@@ -182,6 +217,24 @@ const EMPTY_TEMPLATE_FORM: TemplateFormState = {
   steps: [],
 };
 
+const EMPTY_ASSIGNMENT_FORM: AssignmentFormState = {
+  assignmentName: "",
+  priority: "1000",
+  revisionNo: "1",
+  isActive: true,
+  customerIdText: "__any",
+  siteIdText: "__any",
+  itemIdText: "__any",
+  itemType: "__any",
+  orderPriorityMinText: "__any",
+  orderPriorityMaxText: "__any",
+  pickUpViaIdText: "__any",
+  shipToViaIdText: "__any",
+  supervisorGateOverride: "default",
+  effectiveFromUtcText: "",
+  effectiveToUtcText: "",
+};
+
 function createLocalId() {
   return `step-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -196,6 +249,7 @@ function toStepForm(step: RouteTemplateStep): StepFormState {
     isRequired: step.isRequired,
     dataCaptureMode: step.dataCaptureMode,
     timeCaptureMode: step.timeCaptureMode,
+    processingModeOverride: step.processingModeOverride,
     requiresScan: step.requiresScan,
     requiresUsageEntry: step.requiresUsageEntry,
     requiresScrapEntry: step.requiresScrapEntry,
@@ -230,6 +284,47 @@ function parseOptionalInteger(value: string): number | null {
   return Number.isInteger(parsed) ? parsed : Number.NaN;
 }
 
+function toAssignmentForm(assignment: RouteTemplateAssignment): AssignmentFormState {
+  return {
+    assignmentName: assignment.assignmentName,
+    priority: String(assignment.priority),
+    revisionNo: String(assignment.revisionNo),
+    isActive: assignment.isActive,
+    customerIdText: assignment.customerId != null ? String(assignment.customerId) : "__any",
+    siteIdText: assignment.siteId != null ? String(assignment.siteId) : "__any",
+    itemIdText: assignment.itemId != null ? String(assignment.itemId) : "__any",
+    itemType: assignment.itemType ?? "__any",
+    orderPriorityMinText: assignment.orderPriorityMin != null ? String(assignment.orderPriorityMin) : "__any",
+    orderPriorityMaxText: assignment.orderPriorityMax != null ? String(assignment.orderPriorityMax) : "__any",
+    pickUpViaIdText: assignment.pickUpViaId != null ? String(assignment.pickUpViaId) : "__any",
+    shipToViaIdText: assignment.shipToViaId != null ? String(assignment.shipToViaId) : "__any",
+    supervisorGateOverride:
+      assignment.supervisorGateOverride == null ? "default" : assignment.supervisorGateOverride ? "yes" : "no",
+    effectiveFromUtcText: assignment.effectiveFromUtc ? assignment.effectiveFromUtc.slice(0, 16) : "",
+    effectiveToUtcText: assignment.effectiveToUtc ? assignment.effectiveToUtc.slice(0, 16) : "",
+  };
+}
+
+function parseOptionalUtcTimestamp(value: string): string | null | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
+
+function buildAssignmentScope(assignment: RouteTemplateAssignment): string {
+  const parts: string[] = [];
+  if (assignment.customerId != null) parts.push(`Customer ${assignment.customerId}`);
+  if (assignment.siteId != null) parts.push(`Site ${assignment.siteId}`);
+  if (assignment.itemId != null) parts.push(`Item ${assignment.itemId}`);
+  if (assignment.itemType) parts.push(`Item Type ${assignment.itemType}`);
+  return parts.length > 0 ? parts.join(", ") : "Global Default";
+}
+
+const ANY_OPTION_VALUE = "__any";
+const PRIORITY_OPTIONS = Array.from({ length: 10 }, (_, index) => String(index + 1));
+
 export function RouteTemplateDetailPage() {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -244,6 +339,16 @@ export function RouteTemplateDetailPage() {
   const [stepDialogOpen, setStepDialogOpen] = useState(false);
   const [stepEditingLocalId, setStepEditingLocalId] = useState<string | null>(null);
   const [stepEditor, setStepEditor] = useState<StepEditorState>(EMPTY_STEP_EDITOR);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignments, setAssignments] = useState<RouteTemplateAssignment[]>([]);
+  const [assignmentDialogOpen, setAssignmentDialogOpen] = useState(false);
+  const [assignmentEditingId, setAssignmentEditingId] = useState<number | null>(null);
+  const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(EMPTY_ASSIGNMENT_FORM);
+  const [customers, setCustomers] = useState<Lookup[]>([]);
+  const [sites, setSites] = useState<Lookup[]>([]);
+  const [shipVias, setShipVias] = useState<Lookup[]>([]);
+  const [items, setItems] = useState<OrderItemLookup[]>([]);
+  const [itemTypes, setItemTypes] = useState<string[]>([]);
 
   const pageTitle = isNew ? "Add Route Template" : "Edit Route Template";
   const parsedTemplateId = !isNew && templateId ? Number(templateId) : null;
@@ -252,13 +357,28 @@ export function RouteTemplateDetailPage() {
     () => new Map(workCenters.map((w) => [w.id, `${w.workCenterCode} - ${w.workCenterName}`])),
     [workCenters]
   );
+  const customerLabelById = useMemo(() => new Map(customers.map((c) => [c.id, c.name])), [customers]);
+  const siteLabelById = useMemo(() => new Map(sites.map((site) => [site.id, site.name])), [sites]);
+  const shipViaLabelById = useMemo(() => new Map(shipVias.map((via) => [via.id, via.name])), [shipVias]);
+  const itemLabelById = useMemo(
+    () => new Map(items.map((item) => [item.id, `${item.itemNo}${item.itemDescription ? ` - ${item.itemDescription}` : ""}`])),
+    [items]
+  );
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const centers = await setupApi.listWorkCenters();
+        const [centers, loadedCustomers, loadedSites, loadedShipVias, loadedItems, loadedItemTypes] =
+          await Promise.all([
+            setupApi.listWorkCenters(),
+            orderLookupsApi.activeCustomers(),
+            orderLookupsApi.sites(),
+            orderLookupsApi.shipVias(),
+            orderLookupsApi.items(),
+            itemLookupsApi.itemTypes(),
+          ]);
         setWorkCenters(
           centers.map((center) => ({
             id: center.id,
@@ -266,13 +386,21 @@ export function RouteTemplateDetailPage() {
             workCenterName: center.workCenterName,
           }))
         );
+        setCustomers(loadedCustomers);
+        setSites(loadedSites);
+        setShipVias(loadedShipVias);
+        setItems(loadedItems);
+        setItemTypes(loadedItemTypes);
 
         if (!isNew) {
           if (!parsedTemplateId || !Number.isInteger(parsedTemplateId) || parsedTemplateId <= 0) {
             setError("Invalid route template id.");
             return;
           }
-          const detail: RouteTemplateDetail = await setupApi.getRouteTemplate(parsedTemplateId);
+          const [detail, allAssignments]: [RouteTemplateDetail, RouteTemplateAssignment[]] = await Promise.all([
+            setupApi.getRouteTemplate(parsedTemplateId),
+            setupApi.listAssignments(),
+          ]);
           setForm({
             routeTemplateCode: detail.routeTemplateCode,
             routeTemplateName: detail.routeTemplateName,
@@ -281,8 +409,10 @@ export function RouteTemplateDetailPage() {
             versionNo: String(detail.versionNo),
             steps: detail.steps.map(toStepForm),
           });
+          setAssignments(allAssignments.filter((assignment) => assignment.routeTemplateId === parsedTemplateId));
         } else {
           setForm(EMPTY_TEMPLATE_FORM);
+          setAssignments([]);
         }
       } catch {
         setError("Failed to load route template.");
@@ -355,6 +485,7 @@ export function RouteTemplateDetailPage() {
       isRequired: stepEditor.isRequired,
       dataCaptureMode: stepEditor.dataCaptureMode,
       timeCaptureMode: stepEditor.timeCaptureMode,
+      processingModeOverride: stepEditor.processingModeOverride,
       requiresScan: stepEditor.requiresScan,
       requiresUsageEntry: stepEditor.requiresUsageEntry,
       requiresScrapEntry: stepEditor.requiresScrapEntry,
@@ -436,6 +567,7 @@ export function RouteTemplateDetailPage() {
             isRequired: step.isRequired,
             dataCaptureMode: step.dataCaptureMode,
             timeCaptureMode: step.timeCaptureMode,
+            processingModeOverride: step.processingModeOverride,
             requiresScan: step.requiresScan,
             requiresUsageEntry: step.requiresUsageEntry,
             requiresScrapEntry: step.requiresScrapEntry,
@@ -468,6 +600,136 @@ export function RouteTemplateDetailPage() {
       setError(body?.message ?? body?.detail ?? "Failed to save route template.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openCreateAssignment = () => {
+    setAssignmentEditingId(null);
+    setAssignmentForm(EMPTY_ASSIGNMENT_FORM);
+    setAssignmentDialogOpen(true);
+  };
+
+  const openEditAssignment = (assignment: RouteTemplateAssignment) => {
+    setAssignmentEditingId(assignment.id);
+    setAssignmentForm(toAssignmentForm(assignment));
+    setAssignmentDialogOpen(true);
+  };
+
+  const saveAssignment = async () => {
+    if (!parsedTemplateId || !Number.isInteger(parsedTemplateId) || parsedTemplateId <= 0) {
+      setError("Save the route template before creating assignment rules.");
+      return;
+    }
+    if (!assignmentForm.assignmentName.trim()) {
+      setError("Assignment name is required.");
+      return;
+    }
+
+    const priority = Number(assignmentForm.priority);
+    if (!Number.isInteger(priority) || priority <= 0) {
+      setError("Priority must be a positive whole number.");
+      return;
+    }
+
+    const revisionNo = Number(assignmentForm.revisionNo);
+    if (!Number.isInteger(revisionNo) || revisionNo <= 0) {
+      setError("Revision must be a positive whole number.");
+      return;
+    }
+
+    const customerId =
+      assignmentForm.customerIdText === ANY_OPTION_VALUE ? null : Number(assignmentForm.customerIdText);
+    const siteId = assignmentForm.siteIdText === ANY_OPTION_VALUE ? null : Number(assignmentForm.siteIdText);
+    const itemId = assignmentForm.itemIdText === ANY_OPTION_VALUE ? null : Number(assignmentForm.itemIdText);
+    const orderPriorityMin =
+      assignmentForm.orderPriorityMinText === ANY_OPTION_VALUE ? null : Number(assignmentForm.orderPriorityMinText);
+    const orderPriorityMax =
+      assignmentForm.orderPriorityMaxText === ANY_OPTION_VALUE ? null : Number(assignmentForm.orderPriorityMaxText);
+    const pickUpViaId =
+      assignmentForm.pickUpViaIdText === ANY_OPTION_VALUE ? null : Number(assignmentForm.pickUpViaIdText);
+    const shipToViaId =
+      assignmentForm.shipToViaIdText === ANY_OPTION_VALUE ? null : Number(assignmentForm.shipToViaIdText);
+
+    const numericFields = [
+      customerId,
+      siteId,
+      itemId,
+      orderPriorityMin,
+      orderPriorityMax,
+      pickUpViaId,
+      shipToViaId,
+    ];
+    if (numericFields.some((value) => Number.isNaN(value) || (value != null && value <= 0))) {
+      setError("Optional numeric assignment fields must be positive whole numbers.");
+      return;
+    }
+
+    const effectiveFromUtc = parseOptionalUtcTimestamp(assignmentForm.effectiveFromUtcText);
+    const effectiveToUtc = parseOptionalUtcTimestamp(assignmentForm.effectiveToUtcText);
+    if (effectiveFromUtc === undefined || effectiveToUtc === undefined) {
+      setError("Effective dates must be valid date/time values.");
+      return;
+    }
+
+    const payload: RouteTemplateAssignmentUpsert = {
+      assignmentName: assignmentForm.assignmentName.trim(),
+      priority,
+      revisionNo,
+      isActive: assignmentForm.isActive,
+      customerId,
+      siteId,
+      itemId,
+      itemType: assignmentForm.itemType === ANY_OPTION_VALUE ? null : assignmentForm.itemType.trim(),
+      orderPriorityMin,
+      orderPriorityMax,
+      pickUpViaId,
+      shipToViaId,
+      routeTemplateId: parsedTemplateId,
+      supervisorGateOverride:
+        assignmentForm.supervisorGateOverride === "default"
+          ? null
+          : assignmentForm.supervisorGateOverride === "yes",
+      effectiveFromUtc,
+      effectiveToUtc,
+    };
+
+    setAssignmentSaving(true);
+    setError(null);
+    try {
+      if (assignmentEditingId) {
+        await setupApi.updateAssignment(assignmentEditingId, payload);
+      } else {
+        await setupApi.createAssignment(payload);
+      }
+
+      const refreshed = await setupApi.listAssignments();
+      setAssignments(refreshed.filter((assignment) => assignment.routeTemplateId === parsedTemplateId));
+      setAssignmentDialogOpen(false);
+    } catch (err: unknown) {
+      const apiError = err as ApiError;
+      const body = apiError.body as { detail?: string; message?: string } | undefined;
+      setError(body?.message ?? body?.detail ?? "Failed to save assignment rule.");
+    } finally {
+      setAssignmentSaving(false);
+    }
+  };
+
+  const removeAssignment = async (assignmentId: number) => {
+    if (!parsedTemplateId || !Number.isInteger(parsedTemplateId) || parsedTemplateId <= 0) {
+      setError("Invalid route template id.");
+      return;
+    }
+
+    setAssignmentSaving(true);
+    setError(null);
+    try {
+      await setupApi.deleteAssignment(assignmentId);
+      const refreshed = await setupApi.listAssignments();
+      setAssignments(refreshed.filter((assignment) => assignment.routeTemplateId === parsedTemplateId));
+    } catch {
+      setError("Failed to remove assignment rule.");
+    } finally {
+      setAssignmentSaving(false);
     }
   };
 
@@ -618,6 +880,75 @@ export function RouteTemplateDetailPage() {
                 </div>
               </Card>
             ) : null}
+
+            {!loading ? (
+              <Card className={styles.card}>
+                <div className={styles.sectionTitle}>Applies To (Assignment Rules)</div>
+                {isNew ? (
+                  <Body1 className={styles.assignmentHint}>
+                    Save this route template first, then add assignment rules to control where it applies.
+                  </Body1>
+                ) : (
+                  <div className={styles.form}>
+                    <div className={styles.sectionHeader}>
+                      <Body1>Define customer/site/item matching for this template.</Body1>
+                      <Button appearance="secondary" onClick={openCreateAssignment} disabled={assignmentSaving}>
+                        Add Assignment Rule
+                      </Button>
+                    </div>
+                    <div className={styles.stepsTableWrap}>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHeaderCell>Name</TableHeaderCell>
+                            <TableHeaderCell>Scope</TableHeaderCell>
+                            <TableHeaderCell>Priority</TableHeaderCell>
+                            <TableHeaderCell>Revision</TableHeaderCell>
+                            <TableHeaderCell>Active</TableHeaderCell>
+                            <TableHeaderCell>Actions</TableHeaderCell>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {assignments.map((assignment) => (
+                            <TableRow key={assignment.id}>
+                              <TableCell>{assignment.assignmentName}</TableCell>
+                              <TableCell>{buildAssignmentScope(assignment)}</TableCell>
+                              <TableCell>{assignment.priority}</TableCell>
+                              <TableCell>{assignment.revisionNo}</TableCell>
+                              <TableCell>{assignment.isActive ? "Yes" : "No"}</TableCell>
+                              <TableCell>
+                                <div className={styles.actions}>
+                                  <Button appearance="secondary" onClick={() => openEditAssignment(assignment)}>
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    appearance="secondary"
+                                    onClick={() => void removeAssignment(assignment.id)}
+                                    disabled={assignmentSaving}
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {assignments.length === 0 ? (
+                            <TableRow>
+                              <TableCell>-</TableCell>
+                              <TableCell>No assignment rules configured.</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>-</TableCell>
+                            </TableRow>
+                          ) : null}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ) : null}
           </div>
         </section>
       </main>
@@ -720,6 +1051,28 @@ export function RouteTemplateDetailPage() {
                       <Option value="Hybrid">Hybrid</Option>
                     </Dropdown>
                   </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Processing Mode Override">
+                    <Dropdown
+                      value={stepEditor.processingModeOverride ?? "Work Center Default"}
+                      selectedOptions={[stepEditor.processingModeOverride ?? "__default"]}
+                      onOptionSelect={(_, data) =>
+                        setStepEditor((current) => ({
+                          ...current,
+                          processingModeOverride:
+                            data.optionValue === "__default"
+                              ? null
+                              : ((data.optionValue as ProcessingMode) ?? null),
+                        }))
+                      }
+                    >
+                      <Option value="__default">Work Center Default</Option>
+                      <Option value="BatchQuantity">BatchQuantity</Option>
+                      <Option value="SingleUnit">SingleUnit</Option>
+                    </Dropdown>
+                  </Field>
+                  <div />
                 </div>
                 <div className={styles.formRow}>
                   <Field label="Checklist Failure Policy" required>
@@ -891,6 +1244,299 @@ export function RouteTemplateDetailPage() {
               </Button>
               <Button appearance="primary" onClick={saveStep}>
                 Save Step
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      <Dialog open={assignmentDialogOpen} onOpenChange={(_, data) => setAssignmentDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>{assignmentEditingId ? "Edit Assignment Rule" : "Add Assignment Rule"}</DialogTitle>
+            <DialogContent>
+              <div className={styles.form}>
+                <div className={styles.formRow}>
+                  <Field label="Assignment Name" required>
+                    <Input
+                      value={assignmentForm.assignmentName}
+                      onChange={(_, data) =>
+                        setAssignmentForm((current) => ({ ...current, assignmentName: data.value }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Item Type">
+                    <Dropdown
+                      value={
+                        assignmentForm.itemType === ANY_OPTION_VALUE
+                          ? "Any Item Type"
+                          : assignmentForm.itemType
+                      }
+                      selectedOptions={[assignmentForm.itemType]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          itemType: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Item Type</Option>
+                      {itemTypes.map((itemType) => (
+                        <Option key={itemType} value={itemType}>
+                          {itemType}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Priority" required>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={assignmentForm.priority}
+                      onChange={(_, data) => setAssignmentForm((current) => ({ ...current, priority: data.value }))}
+                    />
+                  </Field>
+                  <Field label="Revision No" required>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={assignmentForm.revisionNo}
+                      onChange={(_, data) =>
+                        setAssignmentForm((current) => ({ ...current, revisionNo: data.value }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Customer">
+                    <Dropdown
+                      value={
+                        assignmentForm.customerIdText === ANY_OPTION_VALUE
+                          ? "Any Customer"
+                          : customerLabelById.get(Number(assignmentForm.customerIdText)) ?? "Any Customer"
+                      }
+                      selectedOptions={[assignmentForm.customerIdText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          customerIdText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Customer</Option>
+                      {customers.map((customer) => (
+                        <Option key={customer.id} value={String(customer.id)}>
+                          {customer.name}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                  <Field label="Site">
+                    <Dropdown
+                      value={
+                        assignmentForm.siteIdText === ANY_OPTION_VALUE
+                          ? "Any Site"
+                          : siteLabelById.get(Number(assignmentForm.siteIdText)) ?? "Any Site"
+                      }
+                      selectedOptions={[assignmentForm.siteIdText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          siteIdText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Site</Option>
+                      {sites.map((site) => (
+                        <Option key={site.id} value={String(site.id)}>
+                          {site.name}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Item">
+                    <Dropdown
+                      value={
+                        assignmentForm.itemIdText === ANY_OPTION_VALUE
+                          ? "Any Item"
+                          : itemLabelById.get(Number(assignmentForm.itemIdText)) ?? "Any Item"
+                      }
+                      selectedOptions={[assignmentForm.itemIdText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          itemIdText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Item</Option>
+                      {items.map((item) => (
+                        <Option key={item.id} value={String(item.id)}>
+                          {item.itemNo}
+                          {item.itemDescription ? ` - ${item.itemDescription}` : ""}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                  <Field label="Supervisor Gate Override">
+                    <Dropdown
+                      value={
+                        assignmentForm.supervisorGateOverride === "default"
+                          ? "Template Default"
+                          : assignmentForm.supervisorGateOverride === "yes"
+                          ? "Yes"
+                          : "No"
+                      }
+                      selectedOptions={[assignmentForm.supervisorGateOverride]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          supervisorGateOverride:
+                            (data.optionValue as SupervisorGateOverrideState) ?? "default",
+                        }))
+                      }
+                    >
+                      <Option value="default">Template Default</Option>
+                      <Option value="yes">Yes</Option>
+                      <Option value="no">No</Option>
+                    </Dropdown>
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Order Priority Min">
+                    <Dropdown
+                      value={
+                        assignmentForm.orderPriorityMinText === ANY_OPTION_VALUE
+                          ? "Any Minimum"
+                          : assignmentForm.orderPriorityMinText
+                      }
+                      selectedOptions={[assignmentForm.orderPriorityMinText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          orderPriorityMinText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Minimum</Option>
+                      {PRIORITY_OPTIONS.map((priority) => (
+                        <Option key={`min-priority-${priority}`} value={priority}>
+                          {priority}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                  <Field label="Order Priority Max">
+                    <Dropdown
+                      value={
+                        assignmentForm.orderPriorityMaxText === ANY_OPTION_VALUE
+                          ? "Any Maximum"
+                          : assignmentForm.orderPriorityMaxText
+                      }
+                      selectedOptions={[assignmentForm.orderPriorityMaxText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          orderPriorityMaxText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Maximum</Option>
+                      {PRIORITY_OPTIONS.map((priority) => (
+                        <Option key={`max-priority-${priority}`} value={priority}>
+                          {priority}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Pick Up Via">
+                    <Dropdown
+                      value={
+                        assignmentForm.pickUpViaIdText === ANY_OPTION_VALUE
+                          ? "Any Pick Up Via"
+                          : shipViaLabelById.get(Number(assignmentForm.pickUpViaIdText)) ?? "Any Pick Up Via"
+                      }
+                      selectedOptions={[assignmentForm.pickUpViaIdText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          pickUpViaIdText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Pick Up Via</Option>
+                      {shipVias.map((shipVia) => (
+                        <Option key={shipVia.id} value={String(shipVia.id)}>
+                          {shipVia.name}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                  <Field label="Ship To Via">
+                    <Dropdown
+                      value={
+                        assignmentForm.shipToViaIdText === ANY_OPTION_VALUE
+                          ? "Any Ship To Via"
+                          : shipViaLabelById.get(Number(assignmentForm.shipToViaIdText)) ?? "Any Ship To Via"
+                      }
+                      selectedOptions={[assignmentForm.shipToViaIdText]}
+                      onOptionSelect={(_, data) =>
+                        setAssignmentForm((current) => ({
+                          ...current,
+                          shipToViaIdText: data.optionValue ?? ANY_OPTION_VALUE,
+                        }))
+                      }
+                    >
+                      <Option value={ANY_OPTION_VALUE}>Any Ship To Via</Option>
+                      {shipVias.map((shipVia) => (
+                        <Option key={shipVia.id} value={String(shipVia.id)}>
+                          {shipVia.name}
+                        </Option>
+                      ))}
+                    </Dropdown>
+                  </Field>
+                </div>
+                <div className={styles.formRow}>
+                  <Field label="Effective From (UTC)">
+                    <Input
+                      type="datetime-local"
+                      value={assignmentForm.effectiveFromUtcText}
+                      onChange={(_, data) =>
+                        setAssignmentForm((current) => ({ ...current, effectiveFromUtcText: data.value }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Effective To (UTC)">
+                    <Input
+                      type="datetime-local"
+                      value={assignmentForm.effectiveToUtcText}
+                      onChange={(_, data) =>
+                        setAssignmentForm((current) => ({ ...current, effectiveToUtcText: data.value }))
+                      }
+                    />
+                  </Field>
+                </div>
+                <Checkbox
+                  label="Active"
+                  checked={assignmentForm.isActive}
+                  onChange={(_, data) =>
+                    setAssignmentForm((current) => ({ ...current, isActive: Boolean(data.checked) }))
+                  }
+                />
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setAssignmentDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button appearance="primary" onClick={() => void saveAssignment()} disabled={assignmentSaving}>
+                {assignmentSaving ? "Saving..." : "Save Assignment Rule"}
               </Button>
             </DialogActions>
           </DialogBody>

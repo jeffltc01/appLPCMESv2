@@ -31,6 +31,7 @@ describe("WorkCentersSetupPage", () => {
         description: null,
         isActive: true,
         defaultTimeCaptureMode: "Automated",
+        defaultProcessingMode: "BatchQuantity",
         requiresScanByDefault: true,
         createdUtc: "2026-02-28T00:00:00Z",
         updatedUtc: "2026-02-28T00:00:00Z",
@@ -51,7 +52,7 @@ describe("WorkCentersSetupPage", () => {
       expect(sitesMock).toHaveBeenCalled();
     });
 
-    expect(screen.getByText("Setup - Work Centers")).toBeInTheDocument();
+    expect(screen.getByText("Work Center Maintenance")).toBeInTheDocument();
     expect(screen.getByText("WC-BLAST")).toBeInTheDocument();
     expect(screen.getByText("Blast Prep")).toBeInTheDocument();
     expect(screen.getByText("Houston")).toBeInTheDocument();

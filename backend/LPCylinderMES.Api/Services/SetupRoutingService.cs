@@ -17,6 +17,7 @@ public sealed class SetupRoutingService(
     private const int ShowWhereJobMaterialUsed = 8;
 
     private static readonly string[] SupportedTimeCaptureModes = ["Automated", "Manual", "Hybrid"];
+    private static readonly string[] SupportedProcessingModes = ["BatchQuantity", "SingleUnit"];
     private static readonly string[] SupportedDataCaptureModes = ["ElectronicRequired", "ElectronicOptional", "PaperOnly"];
     private static readonly string[] SupportedChecklistFailurePolicies = ["BlockCompletion", "AllowWithSupervisorOverride"];
     private static readonly string[] SupportedUserStates = ["Active", "Inactive", "Locked"];
@@ -308,6 +309,7 @@ public sealed class SetupRoutingService(
             Description = NormalizeNullable(dto.Description),
             IsActive = dto.IsActive,
             DefaultTimeCaptureMode = dto.DefaultTimeCaptureMode.Trim(),
+            DefaultProcessingMode = dto.DefaultProcessingMode.Trim(),
             RequiresScanByDefault = dto.RequiresScanByDefault,
             CreatedUtc = now,
             UpdatedUtc = now,
@@ -332,11 +334,46 @@ public sealed class SetupRoutingService(
         workCenter.Description = NormalizeNullable(dto.Description);
         workCenter.IsActive = dto.IsActive;
         workCenter.DefaultTimeCaptureMode = dto.DefaultTimeCaptureMode.Trim();
+        workCenter.DefaultProcessingMode = dto.DefaultProcessingMode.Trim();
         workCenter.RequiresScanByDefault = dto.RequiresScanByDefault;
         workCenter.UpdatedUtc = DateTime.UtcNow;
+        await SyncOpenStepProcessingModesForWorkCenterAsync(workCenter, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         return ToWorkCenterDto(workCenter);
+    }
+
+    private async Task SyncOpenStepProcessingModesForWorkCenterAsync(WorkCenter workCenter, CancellationToken cancellationToken)
+    {
+        var openStates = new[] { "Pending", "InProgress" };
+        var openStepRows = await (
+                from step in db.OrderLineRouteStepInstances
+                join route in db.OrderLineRouteInstances on step.OrderLineRouteInstanceId equals route.Id
+                join templateStep in db.RouteTemplateSteps
+                    on new { route.RouteTemplateId, step.StepSequence, step.StepCode }
+                    equals new { templateStep.RouteTemplateId, templateStep.StepSequence, templateStep.StepCode }
+                    into templateStepGroup
+                from templateStep in templateStepGroup.DefaultIfEmpty()
+                where step.WorkCenterId == workCenter.Id && openStates.Contains(step.State)
+                select new
+                {
+                    Step = step,
+                    ProcessingModeOverride = templateStep != null ? templateStep.ProcessingModeOverride : null,
+                })
+            .ToListAsync(cancellationToken);
+
+        foreach (var row in openStepRows)
+        {
+            if (!string.IsNullOrWhiteSpace(row.ProcessingModeOverride))
+            {
+                continue;
+            }
+
+            if (!string.Equals(row.Step.ProcessingMode, workCenter.DefaultProcessingMode, StringComparison.Ordinal))
+            {
+                row.Step.ProcessingMode = workCenter.DefaultProcessingMode;
+            }
+        }
     }
 
     public async Task DeleteWorkCenterAsync(int id, CancellationToken cancellationToken = default)
@@ -841,6 +878,8 @@ public sealed class SetupRoutingService(
             throw new ServiceException(StatusCodes.Status400BadRequest, "WorkCenterName is required.");
         if (!SupportedTimeCaptureModes.Contains(dto.DefaultTimeCaptureMode))
             throw new ServiceException(StatusCodes.Status400BadRequest, $"DefaultTimeCaptureMode must be one of: {string.Join(", ", SupportedTimeCaptureModes)}.");
+        if (!SupportedProcessingModes.Contains(dto.DefaultProcessingMode))
+            throw new ServiceException(StatusCodes.Status400BadRequest, $"DefaultProcessingMode must be one of: {string.Join(", ", SupportedProcessingModes)}.");
 
         var siteExists = await db.Sites.AnyAsync(s => s.Id == dto.SiteId, cancellationToken);
         if (!siteExists)
@@ -928,6 +967,8 @@ public sealed class SetupRoutingService(
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"DataCaptureMode must be one of: {string.Join(", ", SupportedDataCaptureModes)}.");
             if (!SupportedTimeCaptureModes.Contains(step.TimeCaptureMode))
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"TimeCaptureMode must be one of: {string.Join(", ", SupportedTimeCaptureModes)}.");
+            if (!string.IsNullOrWhiteSpace(step.ProcessingModeOverride) && !SupportedProcessingModes.Contains(step.ProcessingModeOverride))
+                throw new ServiceException(StatusCodes.Status400BadRequest, $"ProcessingModeOverride must be one of: {string.Join(", ", SupportedProcessingModes)}.");
             if (!SupportedChecklistFailurePolicies.Contains(step.ChecklistFailurePolicy))
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"ChecklistFailurePolicy must be one of: {string.Join(", ", SupportedChecklistFailurePolicies)}.");
         }
@@ -1146,6 +1187,7 @@ public sealed class SetupRoutingService(
             workCenter.Description,
             workCenter.IsActive,
             workCenter.DefaultTimeCaptureMode,
+            workCenter.DefaultProcessingMode,
             workCenter.RequiresScanByDefault,
             workCenter.CreatedUtc,
             workCenter.UpdatedUtc);
@@ -1160,6 +1202,7 @@ public sealed class SetupRoutingService(
             IsRequired = step.IsRequired,
             DataCaptureMode = step.DataCaptureMode,
             TimeCaptureMode = step.TimeCaptureMode,
+            ProcessingModeOverride = NormalizeNullable(step.ProcessingModeOverride),
             RequiresScan = step.RequiresScan,
             RequiresUsageEntry = step.RequiresUsageEntry,
             RequiresScrapEntry = step.RequiresScrapEntry,
@@ -1202,6 +1245,7 @@ public sealed class SetupRoutingService(
             step.IsRequired,
             step.DataCaptureMode,
             step.TimeCaptureMode,
+            step.ProcessingModeOverride,
             step.RequiresScan,
             step.RequiresUsageEntry,
             step.RequiresScrapEntry,

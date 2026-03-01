@@ -6,6 +6,7 @@ export interface WorkCenter {
   description: string | null;
   isActive: boolean;
   defaultTimeCaptureMode: "Automated" | "Manual" | "Hybrid";
+  defaultProcessingMode: "BatchQuantity" | "SingleUnit";
   requiresScanByDefault: boolean;
   createdUtc: string;
   updatedUtc: string;
@@ -91,6 +92,7 @@ export interface WorkCenterUpsert {
   description?: string | null;
   isActive: boolean;
   defaultTimeCaptureMode: "Automated" | "Manual" | "Hybrid";
+  defaultProcessingMode: "BatchQuantity" | "SingleUnit";
   requiresScanByDefault: boolean;
 }
 
@@ -103,6 +105,7 @@ export interface RouteTemplateStep {
   isRequired: boolean;
   dataCaptureMode: "ElectronicRequired" | "ElectronicOptional" | "PaperOnly";
   timeCaptureMode: "Automated" | "Manual" | "Hybrid";
+  processingModeOverride: "BatchQuantity" | "SingleUnit" | null;
   requiresScan: boolean;
   requiresUsageEntry: boolean;
   requiresScrapEntry: boolean;
@@ -129,6 +132,7 @@ export interface RouteTemplateStepUpsert {
   isRequired: boolean;
   dataCaptureMode: "ElectronicRequired" | "ElectronicOptional" | "PaperOnly";
   timeCaptureMode: "Automated" | "Manual" | "Hybrid";
+  processingModeOverride?: "BatchQuantity" | "SingleUnit" | null;
   requiresScan: boolean;
   requiresUsageEntry: boolean;
   requiresScrapEntry: boolean;

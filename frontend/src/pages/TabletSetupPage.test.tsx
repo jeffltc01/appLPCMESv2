@@ -44,6 +44,7 @@ describe("TabletSetupPage", () => {
         description: null,
         isActive: true,
         defaultTimeCaptureMode: "Automated",
+        defaultProcessingMode: "BatchQuantity",
         requiresScanByDefault: true,
         createdUtc: "2026-01-01T00:00:00Z",
         updatedUtc: "2026-01-01T00:00:00Z",
@@ -65,7 +66,7 @@ describe("TabletSetupPage", () => {
 
     fireEvent.change(screen.getByRole("combobox", { name: /Site/i }), { target: { value: "10" } });
     fireEvent.change(screen.getByRole("combobox", { name: /Work Center/i }), { target: { value: "101" } });
-    fireEvent.change(screen.getByLabelText("Default Operator Employee # (optional)"), {
+    fireEvent.change(screen.getByLabelText("Default Operator (fallback, optional)"), {
       target: { value: "EMP500" },
     });
 
@@ -79,6 +80,7 @@ describe("TabletSetupPage", () => {
     expect(raw).not.toBeNull();
     expect(raw).toContain('"workCenterId":101');
     expect(raw).toContain('"operatorEmpNo":"EMP500"');
+    expect(raw).toContain('"lockOperatorToLoggedInUser":false');
   });
 
   it("clears saved setup", async () => {
@@ -92,6 +94,7 @@ describe("TabletSetupPage", () => {
         workCenterName: "Fill Station",
         operatorEmpNo: "EMP500",
         deviceId: "",
+        lockOperatorToLoggedInUser: false,
         updatedAt: "2026-01-01T00:00:00Z",
       })
     );
@@ -105,5 +108,29 @@ describe("TabletSetupPage", () => {
     expect(await screen.findByDisplayValue("EMP500")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear Saved Setup" }));
     expect(window.localStorage.getItem(TABLET_SETUP_STORAGE_KEY)).toBeNull();
+  });
+
+  it("saves lock-operator preference", async () => {
+    render(
+      <MemoryRouter initialEntries={["/setup/tablet"]}>
+        <Routes>
+          <Route path="/setup/tablet" element={<TabletSetupPage />} />
+          <Route path="/operator/work-center" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Tablet Setup")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: /Site/i }), { target: { value: "10" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /Work Center/i }), { target: { value: "101" } });
+    fireEvent.click(screen.getByRole("switch", { name: /lock operator to logged-in user/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save & Open Operator Screen" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("current-path")).toHaveTextContent("/operator/work-center");
+    });
+
+    const raw = window.localStorage.getItem(TABLET_SETUP_STORAGE_KEY);
+    expect(raw).toContain('"lockOperatorToLoggedInUser":true');
   });
 });

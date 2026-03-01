@@ -32,6 +32,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/auth/popup-complete" element={<MicrosoftPopupCompletePage />} />
+            <Route path="/auth/popup-callback" element={<MicrosoftPopupCompletePage />} />
             <Route
               path="/"
               element={

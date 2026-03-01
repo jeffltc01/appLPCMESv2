@@ -11,6 +11,7 @@ public partial class RouteTemplateStep
     public bool IsRequired { get; set; } = true;
     public string DataCaptureMode { get; set; } = "ElectronicRequired";
     public string TimeCaptureMode { get; set; } = "Automated";
+    public string? ProcessingModeOverride { get; set; }
     public bool RequiresScan { get; set; } = true;
     public bool RequiresUsageEntry { get; set; }
     public bool RequiresScrapEntry { get; set; }

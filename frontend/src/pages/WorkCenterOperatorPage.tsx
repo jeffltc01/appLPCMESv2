@@ -2,29 +2,42 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Body1,
   Button,
-  Card,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
   Field,
   Input,
   MessageBar,
   MessageBarBody,
   Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  Title2,
   makeStyles,
   mergeClasses,
   tokens,
 } from "@fluentui/react-components";
+import {
+  Alert24Regular,
+  ArrowUpload24Regular,
+  Backspace24Filled,
+  Building24Regular,
+  CheckmarkCircle24Regular,
+  Clock24Regular,
+  Cube24Regular,
+  Dismiss24Regular,
+  List24Regular,
+  Navigation24Regular,
+  Person24Regular,
+} from "@fluentui/react-icons";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { orderLookupsApi, ordersApi } from "../services/orders";
 import { readTabletSetup } from "../features/tabletSetupStorage";
 import type { Lookup } from "../types/customer";
 import type {
   LineRouteExecution,
+  OrderItemLookup,
   OrderRouteExecution,
   RouteStepExecution,
   WorkCenterQueueItem,
@@ -34,58 +47,1002 @@ const useStyles = makeStyles({
   page: {
     minHeight: "100vh",
     backgroundColor: "#F5F5F5",
-    padding: tokens.spacingHorizontalL,
+    padding: tokens.spacingHorizontalM,
     display: "grid",
     gap: tokens.spacingVerticalM,
     alignContent: "start",
   },
-  topRow: {
+  topBar: {
+    backgroundColor: "#123046",
+    color: "#FFFFFF",
+    borderRadius: "8px",
+    padding: "10px 14px",
     display: "flex",
     justifyContent: "space-between",
-    gap: tokens.spacingHorizontalM,
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
   },
-  context: {
+  topBarLeft: {
     display: "flex",
-    gap: tokens.spacingHorizontalL,
+    alignItems: "center",
+    gap: "10px",
+  },
+  hamburgerButton: {
+    minHeight: "44px",
+    minWidth: "44px",
+    borderRadius: "8px",
+    color: "#FFFFFF",
+    border: "1px solid rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  topBarTitle: {
+    fontSize: "32px",
+    fontWeight: 800,
+    lineHeight: 1.1,
+    letterSpacing: "0.2px",
+    "@media (max-width: 900px)": {
+      fontSize: "24px",
+    },
+  },
+  titleWithIcon: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+  titleIcon: {
+    fontSize: "28px",
+    display: "inline-flex",
+    alignItems: "center",
+  },
+  topBarMeta: {
+    display: "flex",
+    gap: "14px",
+    alignItems: "center",
     flexWrap: "wrap",
   },
-  largeButton: {
-    minHeight: "44px",
-    minWidth: "120px",
+  chip: {
+    backgroundColor: "#FFFFFF",
+    color: "#123046",
+    borderRadius: "6px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: 600,
   },
-  card: {
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
+  chipContent: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
   },
-  queueRow: {
+  chipIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    fontSize: "14px",
+  },
+  tabletActions: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  bodyGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: tokens.spacingHorizontalM,
+    alignItems: "start",
+    "@media (max-width: 1100px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  leftColumn: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+    alignContent: "start",
+    margin: 0,
+    padding: 0,
+    backgroundColor: "transparent",
+  },
+  rightColumn: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+    alignContent: "start",
+    margin: 0,
+    padding: 0,
+    backgroundColor: "transparent",
+  },
+  queueDrawerOverlay: {
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "rgba(0, 1, 25, 0.25)",
+    zIndex: 40,
+    pointerEvents: "none",
+    opacity: 0,
+    transition: "opacity 200ms ease",
+  },
+  queueDrawerOverlayOpen: {
+    pointerEvents: "auto",
+    opacity: 1,
+  },
+  queueDrawer: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    height: "100vh",
+    width: "min(460px, 92vw)",
+    backgroundColor: "#FFFFFF",
+    borderRight: "2px solid #123046",
+    boxShadow: "0 16px 48px rgba(0,0,0,0.22)",
+    transform: "translateX(-102%)",
+    transition: "transform 220ms ease",
+    zIndex: 50,
+    display: "grid",
+    gridTemplateRows: "auto 1fr",
+  },
+  queueDrawerOpen: {
+    transform: "translateX(0)",
+  },
+  queueDrawerHeader: {
+    backgroundColor: "#123046",
+    color: "#FFFFFF",
+    padding: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px",
+  },
+  queueDrawerTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontWeight: 700,
+    fontSize: "20px",
+  },
+  drawerCloseButton: {
+    minHeight: "40px",
+    minWidth: "40px",
+    borderRadius: "8px",
+    color: "#FFFFFF",
+    border: "1px solid rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  queueDrawerBody: {
+    padding: "12px",
+    display: "grid",
+    gap: "10px",
+    alignContent: "start",
+    backgroundColor: "#F5F5F5",
+  },
+  panel: {
+    border: "1px solid #D2D2D2",
+    borderRadius: "10px",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+  },
+  panelHeader: {
+    backgroundColor: "#017CC5",
+    color: "#FFFFFF",
+    borderRadius: "8px 8px 0 0",
+    padding: "10px 14px",
+    fontSize: "20px",
+    fontWeight: 700,
+  },
+  panelBody: {
+    padding: "12px",
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+  },
+  stacked: {
+    display: "grid",
+    gap: tokens.spacingVerticalS,
+  },
+  sectionCard: {
+    border: "1px solid #E8E8E8",
+    borderRadius: "8px",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+  sectionCardTransparent: {
+    backgroundColor: "transparent",
+  },
+  sectionCardHeader: {
+    backgroundColor: "#123046",
+    color: "#FFFFFF",
+    padding: "8px 12px",
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  sectionCardHeaderIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#FFFFFF",
+  },
+  sectionCardBody: {
+    padding: "10px",
+    display: "grid",
+    gap: "10px",
+  },
+  sectionCardBodyTransparent: {
+    backgroundColor: "transparent",
+  },
+  sectionTitle: {
+    color: "#123046",
+    fontWeight: 700,
+    fontSize: "16px",
+  },
+  titleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  sectionIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#017CC5",
+  },
+  sectionSubtle: {
+    color: "#6E6E6E",
+    fontSize: "12px",
+  },
+  materialFlipScene: {
+    perspective: "1200px",
+    minHeight: "336px",
+    backgroundColor: "#F5F5F5",
+    borderRadius: "10px",
+  },
+  materialFlipCard: {
+    position: "relative",
+    width: "100%",
+    minHeight: "336px",
+    transformStyle: "preserve-3d",
+    transition: "transform 300ms ease",
+  },
+  materialFlipCardFlipped: {
+    transform: "rotateY(180deg)",
+  },
+  materialFlipFace: {
+    position: "absolute",
+    inset: 0,
+    backfaceVisibility: "hidden",
+    border: "1px solid #D2D2D2",
+    borderRadius: "10px",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+    padding: "10px",
+    display: "grid",
+    gap: "10px",
+    alignContent: "start",
+  },
+  materialFaceFront: {
+    backgroundColor: "transparent",
+    borderTopColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "transparent",
+    borderLeftColor: "transparent",
+    boxShadow: "none",
+  },
+  materialFaceBack: {
+    transform: "rotateY(180deg)",
+    backgroundColor: "#FFFFFF",
+  },
+  materialAddButton: {
+    minHeight: "46px",
+    borderRadius: "8px",
+    border: "none",
+    background: "linear-gradient(90deg, #0A67B3 0%, #0A4F93 55%, #123046 100%)",
+    color: "#FFFFFF",
+    fontWeight: 700,
+    letterSpacing: "0.2px",
+    boxShadow: "0 2px 8px rgba(10, 79, 147, 0.28)",
+  },
+  materialListWrap: {
+    display: "grid",
+    gap: "6px",
+    maxHeight: "252px",
+    overflow: "auto",
+  },
+  materialListCard: {
+    border: "1px solid #CFCFCF",
+    borderRadius: "10px",
+    padding: "8px 10px",
+    backgroundColor: "transparent",
+    display: "grid",
+    gap: "4px",
+  },
+  materialListRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+  },
+  materialName: {
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#242424",
+    lineHeight: 1.15,
+  },
+  materialMeta: {
+    fontSize: "13px",
+    color: "#242424",
+    lineHeight: 1.2,
+  },
+  materialActionRow: {
+    display: "flex",
+    gap: "6px",
+    flexWrap: "wrap",
+  },
+  materialRowButton: {
+    minHeight: "32px",
+    borderRadius: "6px",
+    fontWeight: 700,
+    fontSize: "12px",
+  },
+  materialEditButton: {
+    border: "1px solid #123046",
+    color: "#123046",
+    backgroundColor: "#FFFFFF",
+  },
+  materialRemoveButton: {
+    border: "none",
+    backgroundColor: "transparent",
+    color: "#B32020",
+    fontWeight: 800,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    paddingLeft: "2px",
+    paddingRight: "2px",
+  },
+  materialRemoveIcon: {
+    width: "20px",
+    height: "20px",
+    borderRadius: "999px",
+    backgroundColor: "#B32020",
+    color: "#FFFFFF",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "14px",
+    lineHeight: 1,
+  },
+  materialSearchInput: {
+    width: "100%",
+  },
+  materialItemPickerButton: {
+    minHeight: "40px",
+    justifyContent: "flex-start",
+    textAlign: "left",
+  },
+  itemDialogSurface: {
+    width: "75vw",
+    maxWidth: "75vw",
+    height: "80vh",
+  },
+  itemDialogBody: {
+    display: "grid",
+    gap: "10px",
+    height: "100%",
+    minHeight: 0,
+  },
+  itemDialogContent: {
+    display: "grid",
+    gap: "10px",
+    gridTemplateRows: "auto 1fr",
+    minHeight: 0,
+  },
+  itemPickerTopRow: {
+    display: "grid",
+    gap: "8px",
+  },
+  productLineFilterRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(72px, 1fr))",
+    gap: "6px",
+  },
+  itemPickerList: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "8px",
+    alignContent: "start",
+    minHeight: 0,
+    overflowY: "auto",
+    border: "1px solid #D2D2D2",
+    borderRadius: "8px",
+    padding: "8px",
+    backgroundColor: "#FFFFFF",
+    "@media (max-width: 1000px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
+    "@media (max-width: 700px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  itemPickerButton: {
+    minHeight: "86px",
+    justifyContent: "flex-start",
+    textAlign: "left",
+    alignItems: "flex-start",
+    whiteSpace: "normal",
+  },
+  itemPickerMeta: {
+    color: "#6E6E6E",
+    fontSize: "12px",
+    marginTop: "2px",
+  },
+  itemDialogActions: {
+    justifyContent: "flex-end",
+  },
+  materialBackGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.8fr 1fr",
+    gap: "10px",
+    alignItems: "stretch",
+    "@media (max-width: 1000px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  materialBackFormColumn: {
+    display: "flex",
+    flexDirection: "column",
+    minHeight: "100%",
+    gap: "10px",
+  },
+  materialKeypad: {
+    display: "grid",
+    gap: "6px",
+  },
+  materialKeypadGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: "6px",
+  },
+  materialKeypadButton: {
+    minHeight: "50px",
+    borderRadius: "12px",
+    border: "2px solid #D2D2D2",
+    backgroundColor: "#FAFAF9",
+    fontWeight: 800,
+    fontSize: "27px",
+    lineHeight: 1,
+    color: "#242424",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+  },
+  materialKeypadButtonWide: {
+    gridColumn: "span 2",
+  },
+  materialKeypadButtonAction: {
+    fontSize: "12px",
+    fontWeight: 800,
+  },
+  materialKeypadBackspaceButton: {
+    padding: "0",
+  },
+  materialKeypadBackspaceIcon: {
+    color: "#000000",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+    lineHeight: 1,
+    fontWeight: 700,
+  },
+  materialKeypadButtonEnter: {
+    gridColumn: "span 2",
+    backgroundColor: "#123E7A",
+    color: "#FFFFFF",
+    border: "2px solid #123E7A",
+    fontSize: "18px",
+    fontWeight: 800,
+  },
+  materialKeypadSpacer: {
+    minHeight: "50px",
+  },
+  materialBackActions: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginTop: "auto",
+  },
+  queueCardList: {
+    maxHeight: "320px",
+    overflow: "auto",
+    display: "grid",
+    gap: "8px",
+    alignContent: "start",
+  },
+  queueCardButton: {
+    width: "100%",
+    minHeight: "80px",
+    border: "1px solid #D2D2D2",
+    borderRadius: "8px",
+    backgroundColor: "#FFFFFF",
+    padding: "10px",
+    display: "grid",
+    gap: "6px",
+    textAlign: "left",
     cursor: "pointer",
   },
-  selectedQueueRow: {
+  selectedQueueCardButton: {
     backgroundColor: "#E0EFF8",
+    border: "1px solid #017CC5",
+  },
+  queueCardTopRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "8px",
+  },
+  queueCardBottomRow: {
+    display: "grid",
+    gridTemplateColumns: "minmax(100px, 1fr) minmax(0, 2fr)",
+    gap: "8px",
+    alignItems: "start",
+  },
+  queueCardField: {
+    minWidth: 0,
+    display: "grid",
+    gap: "2px",
+  },
+  queueCardLabel: {
+    color: "#6E6E6E",
+    fontSize: "11px",
+    fontWeight: 700,
+    lineHeight: 1.1,
+  },
+  queueCardValue: {
+    color: "#242424",
+    fontSize: "13px",
+    fontWeight: 600,
+    lineHeight: 1.2,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  jobCard: {
+    border: "1px solid #D2D2D2",
+    borderRadius: "8px",
+    overflow: "hidden",
+  },
+  jobCardHeader: {
+    backgroundColor: "#123046",
+    color: "#FFFFFF",
+    padding: "8px 12px",
+    fontWeight: 700,
+  },
+  jobCardBody: {
+    padding: "12px 12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    height: "350px",
+    minHeight: "350px",
+  },
+  jobSummaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "8px 14px",
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  jobSummaryColumn: {
+    display: "grid",
+    gap: "6px",
+    alignContent: "start",
+  },
+  progressTrack: {
+    width: "100%",
+    height: "18px",
+    backgroundColor: "#E8E8E8",
+    borderRadius: "999px",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#017CC5",
+    color: "#FFFFFF",
+    fontSize: "12px",
+    fontWeight: 700,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingRight: "8px",
+    transition: "width 150ms ease-in-out",
+  },
+  singleEntryScene: {
+    perspective: "1200px",
+    minHeight: 0,
+    flex: 1,
+    height: "100%",
+  },
+  singleEntryCard: {
+    position: "relative",
+    width: "100%",
+    height: "100%",
+    minHeight: "140px",
+    transformStyle: "preserve-3d",
+    transition: "transform 300ms ease",
+  },
+  singleEntryCardFlipped: {
+    transform: "rotateY(180deg)",
+  },
+  singleEntryFace: {
+    position: "absolute",
+    inset: 0,
+    backfaceVisibility: "hidden",
+    borderRadius: "10px",
+    border: "1px solid rgba(18, 48, 70, 0.35)",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
+    padding: "10px",
+    display: "grid",
+    gap: "10px",
+    alignContent: "center",
+    justifyItems: "center",
+    backdropFilter: "blur(1px)",
+  },
+  singleEntryFrontFace: {},
+  singleEntryBackFace: {
+    transform: "rotateY(180deg)",
+    alignContent: "start",
+    justifyItems: "stretch",
+  },
+  singleEntrySerialGrid: {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(160px, 1fr))",
+    gap: "8px",
+    "@media (max-width: 1300px)": {
+      gridTemplateColumns: "repeat(3, minmax(160px, 1fr))",
+    },
+    "@media (max-width: 980px)": {
+      gridTemplateColumns: "repeat(2, minmax(160px, 1fr))",
+    },
+    "@media (max-width: 680px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  singleEntryQtyText: {
+    fontSize: "21px",
+    fontWeight: 800,
+    lineHeight: 1,
+    color: "#111111",
+  },
+  singleEntryHintText: {
+    fontSize: "12px",
+    color: "#242424",
+  },
+  singleEntryFlipButton: {
+    minHeight: "40px",
+    borderRadius: "8px",
+    fontWeight: 700,
+  },
+  singleEntryCompleteButton: {
+    minHeight: "52px",
+    minWidth: "220px",
+    borderRadius: "10px",
+    fontWeight: 800,
+    fontSize: "18px",
+  },
+  modeButtons: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: "8px",
+    "@media (max-width: 700px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
+  },
+  modeButton: {
+    minHeight: "44px",
+    borderRadius: "8px",
+    fontWeight: 700,
+  },
+  modeSetup: {
+    backgroundColor: "#123046",
+    color: "#FFFFFF",
+    border: "none",
+  },
+  modeRun: {
+    backgroundColor: "#107C10",
+    color: "#FFFFFF",
+    border: "none",
+  },
+  modeDowntime: {
+    backgroundColor: "#FFB900",
+    color: "#242424",
+    border: "none",
+  },
+  modeRework: {
+    backgroundColor: "#AA121F",
+    color: "#FFFFFF",
+    border: "none",
+  },
+  timeSectionGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.7fr 1fr",
+    gap: "16px",
+    alignItems: "start",
+    "@media (max-width: 960px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  timeSectionGridSingleColumn: {
+    gridTemplateColumns: "1fr",
+  },
+  timePrimaryColumn: {
+    display: "grid",
+    gap: "10px",
+  },
+  manualDurationInline: {
+    display: "grid",
+    gap: "8px",
+    width: "50%",
+    maxWidth: "640px",
+    minWidth: "320px",
+    "@media (max-width: 900px)": {
+      width: "100%",
+      minWidth: 0,
+    },
+  },
+  manualDurationRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 96px",
+    gap: "12px",
+    alignItems: "center",
+  },
+  manualDurationLabel: {
+    minHeight: "72px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    fontSize: "18px",
+    fontWeight: 800,
+    color: "#111111",
+  },
+  manualDurationInput: {
+    minHeight: "72px",
+    width: "96px",
+    justifySelf: "start",
+    "& input": {
+      fontSize: "36px",
+      fontWeight: 700,
+      lineHeight: 1.1,
+      minHeight: "72px",
+      paddingTop: "0px",
+      paddingBottom: "0px",
+    },
+  },
+  timeQuickColumn: {
+    display: "grid",
+    gap: "8px",
+    borderLeft: "1px solid #DADADA",
+    paddingLeft: "14px",
+    "@media (max-width: 960px)": {
+      borderLeft: "none",
+      borderTop: "1px solid #DADADA",
+      paddingLeft: 0,
+      paddingTop: "12px",
+    },
+  },
+  timerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  timerValue: {
+    fontFamily: "Roboto Mono, Consolas, monospace",
+    fontSize: "32px",
+    fontWeight: 800,
+    color: "#111111",
+    lineHeight: 1,
+    letterSpacing: "0.5px",
+    "@media (max-width: 700px)": {
+      fontSize: "28px",
+    },
+  },
+  timerIcon: {
+    fontSize: "24px",
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#111111",
+  },
+  timeControlButtons: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "10px",
+    "@media (max-width: 700px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  timeControlButton: {
+    minHeight: "44px",
+    borderRadius: "12px",
+    fontSize: "16px",
+    fontWeight: 800,
+    letterSpacing: "0.3px",
+    border: "none",
+    color: "#FFFFFF",
+    "@media (max-width: 700px)": {
+      fontSize: "14px",
+      minHeight: "40px",
+    },
+  },
+  timeControlStart: {
+    backgroundColor: "#2A9F4B",
+  },
+  timeControlPause: {
+    backgroundColor: "#C18B13",
+  },
+  timeControlStop: {
+    backgroundColor: "#D83A2E",
+  },
+  quickAddWrap: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "8px",
+    "@media (max-width: 500px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  quickChip: {
+    minHeight: "66px",
+    borderRadius: "14px",
+    border: "1px solid #D2D2D2",
+    backgroundColor: "#FFFFFF",
+    display: "grid",
+    alignContent: "center",
+    justifyItems: "center",
+    gap: "6px",
+    fontSize: "44px",
+    fontWeight: 700,
+  },
+  quickChipLabel: {
+    fontSize: "21px",
+    fontWeight: 800,
+    lineHeight: 1,
+    color: "#111111",
+  },
+  quickChipAddButton: {
+    width: "28px",
+    minWidth: "28px",
+    height: "28px",
+    minHeight: "28px",
+    borderRadius: "999px",
+    border: "none",
+    backgroundColor: "#111111",
+    color: "#FFFFFF",
+    fontSize: "18px",
+    fontWeight: 800,
+    lineHeight: 1,
+    padding: 0,
+  },
+  noteInput: {
+    width: "100%",
+  },
+  reasonChips: {
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: "8px",
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
+  },
+  reasonChip: {
+    minHeight: "44px",
+    borderRadius: "8px",
+  },
+  captureStatusRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: "8px",
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    },
+  },
+  captureStatusChip: {
+    borderRadius: "999px",
+    padding: "6px 10px",
+    fontSize: "12px",
+    fontWeight: 700,
+    textAlign: "center",
+    border: "1px solid #D2D2D2",
+  },
+  captureStatusDone: {
+    backgroundColor: "#D4EDDA",
+    color: "#155724",
+  },
+  captureStatusPending: {
+    backgroundColor: "#F5F5F5",
+    color: "#6E6E6E",
+  },
+  fieldGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    gap: "8px",
+  },
+  tallButton: {
+    minHeight: "44px",
+    minWidth: "120px",
+    fontWeight: 700,
+    borderRadius: "8px",
+    paddingLeft: "12px",
+    paddingRight: "12px",
+  },
+  buttonWithIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  buttonIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+  },
+  twoCol: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "8px",
+    "@media (max-width: 800px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  attachmentArea: {
+    border: "2px dashed #D2D2D2",
+    borderRadius: "8px",
+    minHeight: "94px",
+    display: "grid",
+    placeItems: "center",
+    color: "#6E6E6E",
+    backgroundColor: "#FCFCFC",
+    padding: "8px",
+    textAlign: "center",
+  },
+  footerBar: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "10px",
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  columnActionBar: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "10px",
+    "@media (max-width: 900px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
+  footerButton: {
+    minHeight: "54px",
+    borderRadius: "8px",
+    fontSize: "18px",
+    fontWeight: 700,
+  },
+  footerSave: {
+    backgroundColor: "#E8E8E8",
+    color: "#123046",
+    border: "1px solid #D2D2D2",
+  },
+  footerSubmit: {
+    backgroundColor: "#123046",
+    color: "#FFFFFF",
+    border: "1px solid #123046",
+  },
+  footerFlag: {
+    backgroundColor: "#FFB900",
+    color: "#242424",
+    border: "1px solid #D2D2D2",
   },
   actionRow: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
   },
-  fieldGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: tokens.spacingHorizontalS,
-    marginBottom: tokens.spacingVerticalS,
-  },
-  splitGrid: {
-    display: "grid",
-    gap: tokens.spacingVerticalM,
-  },
   requiredLabel: {
     color: "#8A8886",
     fontSize: "12px",
-  },
-  sectionTitle: {
-    marginBottom: tokens.spacingVerticalS,
-    color: "#123046",
-    fontWeight: 600,
   },
 });
 
@@ -96,6 +1053,15 @@ type CaptureProgress = {
   checklistDone: boolean;
 };
 
+type MaterialCardItem = {
+  id: string;
+  partItemId: number;
+  materialName: string;
+  lotBatch: string;
+  quantity: number;
+  unit: string;
+};
+
 const EMPTY_CAPTURE_PROGRESS: CaptureProgress = {
   usageDone: false,
   scrapDone: false,
@@ -104,6 +1070,7 @@ const EMPTY_CAPTURE_PROGRESS: CaptureProgress = {
 };
 
 const DEFAULT_ROLE = "Production" as const;
+const LID_SIZE_OPTIONS = ["Small", "Medium", "Large"] as const;
 
 function getActiveLineRoute(
   execution: OrderRouteExecution | null,
@@ -125,28 +1092,126 @@ function getSelectedStep(
   }
   if (selectedQueueItem) {
     const exact = lineRoute.steps.find(
-      (step) => step.stepInstanceId === selectedQueueItem.stepInstanceId
+      (step) => Number(step.stepInstanceId) === Number(selectedQueueItem.stepInstanceId)
     );
     if (exact) {
       return exact;
     }
+    const bySequence = lineRoute.steps.find(
+      (step) =>
+        step.workCenterId === workCenterId &&
+        Number(step.stepSequence) === Number(selectedQueueItem.stepSequence) &&
+        step.state !== "Completed"
+    );
+    if (bySequence) {
+      return bySequence;
+    }
+  }
+  const inProgressAtCenter = lineRoute.steps.find(
+    (step) => step.workCenterId === workCenterId && step.state === "InProgress"
+  );
+  if (inProgressAtCenter) {
+    return inProgressAtCenter;
+  }
+  const pendingAtCenter = lineRoute.steps.find(
+    (step) => step.workCenterId === workCenterId && step.state !== "Completed"
+  );
+  if (pendingAtCenter) {
+    return pendingAtCenter;
+  }
+  return lineRoute.steps[0] ?? null;
+}
+
+function formatElapsed(scanInUtc: string | null): string {
+  if (!scanInUtc) {
+    return "00:00:00";
+  }
+  const startedMs = Date.parse(scanInUtc);
+  if (Number.isNaN(startedMs)) {
+    return "00:00:00";
+  }
+  const deltaSec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+  const hours = Math.floor(deltaSec / 3600)
+    .toString()
+    .padStart(2, "0");
+  const minutes = Math.floor((deltaSec % 3600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (deltaSec % 60).toString().padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+}
+
+function isLikelyEmployeeNumber(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized) {
+    return false;
   }
   return (
-    lineRoute.steps.find((step) => step.workCenterId === workCenterId && step.state !== "Completed") ??
-    lineRoute.steps[0] ??
-    null
+    /^[A-Z]{2,}\d+$/i.test(normalized) ||
+    /^EMP\d+$/i.test(normalized) ||
+    /^\d{4,}$/.test(normalized) ||
+    /^\d/.test(normalized) ||
+    /\d{4,}/.test(normalized)
   );
+}
+
+function resolveOperatorDisplayName(sessionDisplayName: string, sessionEmpNo: string): string {
+  const normalizedDisplayName = sessionDisplayName.trim();
+  const normalizedEmpNo = sessionEmpNo.trim();
+
+  if (!normalizedDisplayName) {
+    return "Current User";
+  }
+
+  const prefixedNameMatch = normalizedDisplayName.match(/^(?:EMP)?\d+\s*[-:|]\s*(.+)$/i);
+  if (prefixedNameMatch?.[1]) {
+    const extractedName = prefixedNameMatch[1].trim();
+    if (extractedName && /[A-Za-z]/.test(extractedName)) {
+      return extractedName;
+    }
+  }
+
+  const trailingEmpNoMatch = normalizedDisplayName.match(/^(.+?)\s*\((?:EMP)?\d+\)\s*$/i);
+  if (trailingEmpNoMatch?.[1]) {
+    const extractedName = trailingEmpNoMatch[1].trim();
+    if (extractedName && /[A-Za-z]/.test(extractedName)) {
+      return extractedName;
+    }
+  }
+
+  if (
+    normalizedDisplayName &&
+    normalizedDisplayName !== normalizedEmpNo &&
+    !isLikelyEmployeeNumber(normalizedDisplayName)
+  ) {
+    return normalizedDisplayName;
+  }
+
+  return "Current User";
+}
+
+function normalizeFilterValue(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
 }
 
 export function WorkCenterOperatorPage() {
   const styles = useStyles();
   const navigate = useNavigate();
-  const setup = readTabletSetup();
+  const { session } = useAuth();
+  const setup = useMemo(() => readTabletSetup(), []);
+  const [, setClockTick] = useState(0);
+  const [queueOpen, setQueueOpen] = useState(false);
 
   const [queue, setQueue] = useState<WorkCenterQueueItem[]>([]);
   const [selectedQueueItem, setSelectedQueueItem] = useState<WorkCenterQueueItem | null>(null);
   const [execution, setExecution] = useState<OrderRouteExecution | null>(null);
   const [scrapReasons, setScrapReasons] = useState<Lookup[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderItemLookup[]>([]);
+  const [itemLookupError, setItemLookupError] = useState<string | null>(null);
+  const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
+  const [itemSearchQuery, setItemSearchQuery] = useState("");
+  const [selectedProductLineFilter, setSelectedProductLineFilter] = useState("All");
+  const [productLineOptions, setProductLineOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -156,21 +1221,41 @@ export function WorkCenterOperatorPage() {
   const [deviceId, setDeviceId] = useState(setup?.deviceId ?? "");
   const [notes, setNotes] = useState("");
   const [manualDurationMinutes, setManualDurationMinutes] = useState("");
-  const [manualDurationReason, setManualDurationReason] = useState("");
+  const [isPaused, setIsPaused] = useState(false);
 
-  const [usagePartItemId, setUsagePartItemId] = useState("");
-  const [usageQuantity, setUsageQuantity] = useState("");
+  const [materials, setMaterials] = useState<MaterialCardItem[]>([]);
+  const [isMaterialCardFlipped, setIsMaterialCardFlipped] = useState(false);
+  const [materialPendingRemoval, setMaterialPendingRemoval] = useState<MaterialCardItem | null>(null);
+  const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
+  const [materialPartItemId, setMaterialPartItemId] = useState("");
+  const [selectedMaterialItem, setSelectedMaterialItem] = useState<OrderItemLookup | null>(null);
+  const [materialLotBatch, setMaterialLotBatch] = useState("");
+  const [materialQuantity, setMaterialQuantity] = useState("");
+  const [isSingleEntryCardFlipped, setIsSingleEntryCardFlipped] = useState(false);
+  const [progressQuantity, setProgressQuantity] = useState("");
+  const [progressScrapQuantity, setProgressScrapQuantity] = useState("");
   const [scrapQuantity, setScrapQuantity] = useState("");
   const [scrapReasonId, setScrapReasonId] = useState("");
+  const [lidColors, setLidColors] = useState<Lookup[]>([]);
   const [serialNo, setSerialNo] = useState("");
   const [serialManufacturer, setSerialManufacturer] = useState("");
+  const [serialManufactureDate, setSerialManufactureDate] = useState("");
+  const [serialTestDate, setSerialTestDate] = useState("");
+  const [serialLidColorId, setSerialLidColorId] = useState("");
+  const [serialLidSize, setSerialLidSize] = useState("");
   const [serialConditionStatus, setSerialConditionStatus] = useState("Good");
-  const [checklistItemId, setChecklistItemId] = useState("");
-  const [checklistLabel, setChecklistLabel] = useState("");
-  const [checklistStatus, setChecklistStatus] = useState("Pass");
-  const [checklistNotes, setChecklistNotes] = useState("");
-
+  const [singleUnitCompletedQtyOverride, setSingleUnitCompletedQtyOverride] = useState<number | null>(null);
   const [progressByStep, setProgressByStep] = useState<Record<number, CaptureProgress>>({});
+  const sessionEmpNo = session?.empNo?.trim() ?? "";
+  const sessionDisplayName = session?.displayName?.trim() ?? "";
+  const operatorDisplayName = resolveOperatorDisplayName(sessionDisplayName, sessionEmpNo);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockTick((value) => value + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!setup) {
@@ -182,15 +1267,23 @@ export function WorkCenterOperatorPage() {
       setLoading(true);
       setError(null);
       try {
-        const [queueRows, scrapReasonRows] = await Promise.all([
+        const [queueRows, scrapReasonRows, items, productLines, colorRows] = await Promise.all([
           ordersApi.workCenterQueue(setup.workCenterId),
           orderLookupsApi.scrapReasons(),
+          orderLookupsApi.items(),
+          orderLookupsApi.productLines("JobMaterialUsed"),
+          orderLookupsApi.colors(),
         ]);
         setQueue(queueRows);
         setSelectedQueueItem(queueRows[0] ?? null);
         setScrapReasons(scrapReasonRows);
+        setOrderItems(items);
+        setProductLineOptions(productLines);
+        setLidColors(colorRows);
+        setItemLookupError(null);
       } catch {
         setError("Unable to load work center queue.");
+        setItemLookupError("Unable to load item list.");
       } finally {
         setLoading(false);
       }
@@ -230,13 +1323,51 @@ export function WorkCenterOperatorPage() {
     [lineRoute, selectedQueueItem, setup?.workCenterId]
   );
 
+  useEffect(() => {
+    if (!setup) {
+      return;
+    }
+
+    if (setup.lockOperatorToLoggedInUser) {
+      setEmpNo(sessionEmpNo);
+      return;
+    }
+
+    if (sessionEmpNo) {
+      setEmpNo(sessionEmpNo);
+      return;
+    }
+
+    setEmpNo(setup.operatorEmpNo ?? "");
+  }, [sessionEmpNo, setup]);
+
+  useEffect(() => {
+    setMaterials([]);
+    setIsMaterialCardFlipped(false);
+    setEditingMaterialId(null);
+    setMaterialPartItemId("");
+    setSelectedMaterialItem(null);
+    setMaterialLotBatch("");
+    setMaterialQuantity("");
+    setSingleUnitCompletedQtyOverride(null);
+  }, [selectedQueueItem?.stepInstanceId]);
+
+  useEffect(() => {
+    setIsSingleEntryCardFlipped(false);
+  }, [selectedQueueItem?.stepInstanceId, step?.stepInstanceId]);
+
   const captureProgress = step ? progressByStep[step.stepInstanceId] ?? EMPTY_CAPTURE_PROGRESS : EMPTY_CAPTURE_PROGRESS;
+  const stepRequiresSerialCapture = Boolean(step?.requiresSerialCapture);
+  const queueScanInUtc = selectedQueueItem?.scanInUtc ?? null;
+  const elapsedTimer = formatElapsed(step?.scanInUtc ?? queueScanInUtc);
+  const nowText = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const hasEmpNo = empNo.trim().length > 0;
   const hasBlockedReason = Boolean(step?.blockedReason);
   const usageSatisfied = !step?.requiresUsageEntry || captureProgress.usageDone;
-  const scrapSatisfied = !step?.requiresScrapEntry || captureProgress.scrapDone;
-  const serialSatisfied = !step?.requiresSerialCapture || captureProgress.serialDone;
-  const checklistSatisfied = !step?.requiresChecklistCompletion || captureProgress.checklistDone;
+  const showScrapCapture = false;
+  const scrapSatisfied = !showScrapCapture || !step?.requiresScrapEntry || captureProgress.scrapDone;
+  const serialSatisfied = !stepRequiresSerialCapture || captureProgress.serialDone;
+  const checklistSatisfied = true;
   const canComplete =
     Boolean(step) &&
     hasEmpNo &&
@@ -245,6 +1376,64 @@ export function WorkCenterOperatorPage() {
     scrapSatisfied &&
     serialSatisfied &&
     checklistSatisfied;
+  const qtyOrdered = lineRoute?.quantityOrdered ?? 0;
+  const qtyReceived = lineRoute?.quantityReceived ?? selectedQueueItem?.quantityAsReceived ?? qtyOrdered;
+  const qtyCompleted = lineRoute?.quantityCompleted ?? 0;
+  const displayQtyCompleted =
+    singleUnitCompletedQtyOverride !== null ? singleUnitCompletedQtyOverride : qtyCompleted;
+  const progressPercent =
+    qtyOrdered > 0 ? Math.min(100, Math.round((displayQtyCompleted / qtyOrdered) * 100)) : 0;
+  const isSingleUnitMode = step?.processingMode === "SingleUnit";
+  const showBatchSerialSection = !isSingleUnitMode && stepRequiresSerialCapture;
+  const showSingleUnitSerialFields = isSingleUnitMode && stepRequiresSerialCapture;
+  const isManualTimeCapture = step?.timeCaptureMode === "Manual";
+  const isAutomatedTimeCapture = step?.timeCaptureMode === "Automated";
+  const showQuickAddDuration = step?.timeCaptureMode !== "Automated";
+  const jobMaterialItems = useMemo(() => {
+    if (productLineOptions.length === 0) {
+      return orderItems;
+    }
+    const allowedLines = new Set(
+      productLineOptions.map((line) => normalizeFilterValue(line)).filter((line) => line.length > 0)
+    );
+    return orderItems.filter((item) => {
+      const itemLine = normalizeFilterValue(item.productLine);
+      return itemLine.length > 0 && allowedLines.has(itemLine);
+    });
+  }, [orderItems, productLineOptions]);
+  const availableProductLineFilters = useMemo(() => {
+    const normalizedFromLookup = productLineOptions
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    if (normalizedFromLookup.length > 0) {
+      return ["All", ...normalizedFromLookup];
+    }
+    const derivedFromItems = Array.from(
+      new Set(
+        jobMaterialItems
+          .map((item) => item.productLine?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+    return ["All", ...derivedFromItems];
+  }, [jobMaterialItems, productLineOptions]);
+  const filteredItems = useMemo(() => {
+    const query = itemSearchQuery.trim().toLowerCase();
+    const selectedProductLineKey = normalizeFilterValue(selectedProductLineFilter);
+    return jobMaterialItems.filter((item) => {
+      const itemProductLineKey = normalizeFilterValue(item.productLine);
+      const includeProductLine =
+        selectedProductLineKey === "all" || itemProductLineKey === selectedProductLineKey;
+      if (!includeProductLine) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const searchText = `${item.itemNo} ${item.itemDescription ?? ""} ${item.productLine ?? ""}`.toLowerCase();
+      return searchText.includes(query);
+    });
+  }, [itemSearchQuery, jobMaterialItems, selectedProductLineFilter]);
 
   const withStepProgress = (patch: Partial<CaptureProgress>) => {
     if (!step) {
@@ -270,6 +1459,16 @@ export function WorkCenterOperatorPage() {
     } finally {
       setBusyAction(null);
     }
+  };
+
+  const addQuickMinutes = (minutesToAdd: number) => {
+    if (minutesToAdd <= 0) {
+      return;
+    }
+    const currentMinutes = Number(manualDurationMinutes);
+    const safeMinutes = Number.isNaN(currentMinutes) ? 0 : currentMinutes;
+    setManualDurationMinutes((safeMinutes + minutesToAdd).toString());
+    setInfo(`Added ${minutesToAdd} minutes to manual duration.`);
   };
 
   const scanIn = async () => {
@@ -302,21 +1501,242 @@ export function WorkCenterOperatorPage() {
     });
   };
 
-  const addUsage = async () => {
-    if (!step || !selectedQueueItem || !hasEmpNo || !usagePartItemId || !usageQuantity) {
+  const resetMaterialForm = () => {
+    setEditingMaterialId(null);
+    setMaterialPartItemId("");
+    setSelectedMaterialItem(null);
+    setMaterialLotBatch("");
+    setMaterialQuantity("");
+    setItemSearchQuery("");
+    setSelectedProductLineFilter("All");
+    setIsItemDialogOpen(false);
+  };
+
+  const startAddMaterial = () => {
+    resetMaterialForm();
+    setIsMaterialCardFlipped(true);
+  };
+
+  const startEditMaterial = (item: MaterialCardItem) => {
+    setEditingMaterialId(item.id);
+    setMaterialPartItemId(item.partItemId.toString());
+    setSelectedMaterialItem(orderItems.find((candidate) => candidate.id === item.partItemId) ?? null);
+    setMaterialLotBatch(item.lotBatch);
+    setMaterialQuantity(item.quantity.toString());
+    setIsMaterialCardFlipped(true);
+  };
+
+  const removeMaterial = (itemId: string) => {
+    setMaterials((current) => {
+      const next = current.filter((item) => item.id !== itemId);
+      if (!next.length) {
+        withStepProgress({ usageDone: false });
+      }
+      return next;
+    });
+    setInfo("Material entry removed.");
+  };
+
+  const requestRemoveMaterial = (item: MaterialCardItem) => {
+    setMaterialPendingRemoval(item);
+  };
+
+  const confirmRemoveMaterial = () => {
+    if (!materialPendingRemoval) {
       return;
     }
-    await runAction("addUsage", async () => {
+    removeMaterial(materialPendingRemoval.id);
+    setMaterialPendingRemoval(null);
+  };
+
+  const appendQuantityDigit = (token: string) => {
+    if (token === "CLR") {
+      setMaterialQuantity("");
+      return;
+    }
+    if (token === "DEL") {
+      setMaterialQuantity((value) => value.slice(0, -1));
+      return;
+    }
+    setMaterialQuantity((value) => `${value}${token}`);
+  };
+
+  const saveMaterial = async () => {
+    if (!step || !selectedQueueItem) {
+      return;
+    }
+    if (!hasEmpNo) {
+      setError("Operator identity is required before saving material usage.");
+      return;
+    }
+
+    const parsedPartItemId = Number(materialPartItemId);
+    const parsedQuantity = Number(materialQuantity);
+    if (Number.isNaN(parsedPartItemId) || parsedPartItemId <= 0) {
+      setError("Select a valid Part Item.");
+      return;
+    }
+    if (Number.isNaN(parsedQuantity) || parsedQuantity <= 0) {
+      setError("Enter a valid quantity greater than zero.");
+      return;
+    }
+    const selectedLookupItem =
+      selectedMaterialItem ?? jobMaterialItems.find((item) => item.id === parsedPartItemId) ?? null;
+    if (!selectedLookupItem) {
+      setError("Select a valid Part Item.");
+      return;
+    }
+    const materialName = `${selectedLookupItem.itemNo} - ${selectedLookupItem.itemDescription ?? "--"}`;
+
+    if (editingMaterialId) {
+      setMaterials((current) =>
+        current.map((item) =>
+          item.id === editingMaterialId
+            ? {
+                ...item,
+                materialName,
+                partItemId: parsedPartItemId,
+                lotBatch: materialLotBatch.trim(),
+                quantity: parsedQuantity,
+                unit: item.unit,
+              }
+            : item
+        )
+      );
+      withStepProgress({ usageDone: true });
+      setInfo("Material entry updated.");
+      setIsMaterialCardFlipped(false);
+      resetMaterialForm();
+      return;
+    }
+
+    await runAction("saveMaterial", async () => {
       await ordersApi.addStepUsage(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
-        partItemId: Number(usagePartItemId),
-        quantityUsed: Number(usageQuantity),
+        partItemId: parsedPartItemId,
+        quantityUsed: parsedQuantity,
+        uom: "KG",
         recordedByEmpNo: empNo.trim(),
         actingRole: DEFAULT_ROLE,
       });
-      setUsagePartItemId("");
-      setUsageQuantity("");
+      setMaterials((current) => [
+        {
+          id: `${Date.now()}-${parsedPartItemId}`,
+          materialName,
+          partItemId: parsedPartItemId,
+          lotBatch: materialLotBatch.trim(),
+          quantity: parsedQuantity,
+          unit: "KG",
+        },
+        ...current,
+      ]);
       withStepProgress({ usageDone: true });
-      setInfo("Usage recorded.");
+      setInfo("Material usage recorded.");
+      setIsMaterialCardFlipped(false);
+      resetMaterialForm();
+    });
+  };
+
+  const recordProgress = async (singleUnit = false) => {
+    if (!step || !selectedQueueItem || !hasEmpNo) {
+      return;
+    }
+
+    const quantityCompleted = singleUnit ? 1 : Number(progressQuantity);
+    if (!singleUnit && (!progressQuantity || Number.isNaN(quantityCompleted) || quantityCompleted <= 0)) {
+      return;
+    }
+    const quantityScrapped = progressScrapQuantity ? Number(progressScrapQuantity) : null;
+    const singleUnitRequiresUsage = singleUnit && step.requiresUsageEntry;
+    const singleUnitRequiresSerial = singleUnit && stepRequiresSerialCapture;
+    if (singleUnitRequiresUsage && materials.length === 0) {
+      setError("Single mode requires at least one material lot before processing units.");
+      return;
+    }
+    if (singleUnitRequiresSerial && !serialNo.trim()) {
+      setError("Serial No is required in single entry mode.");
+      return;
+    }
+    await runAction("recordProgress", async () => {
+      if (singleUnitRequiresSerial) {
+        await ordersApi.addStepSerial(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
+          serialNo: serialNo.trim(),
+          manufacturer: serialManufacturer.trim() || "Unknown",
+          manufactureDate: serialManufactureDate.trim() || null,
+          testDate: serialTestDate.trim() || null,
+          lidColorId: serialLidColorId ? Number(serialLidColorId) : null,
+          lidSizeId: serialLidSize ? Number(serialLidSize) : null,
+          conditionStatus: serialConditionStatus,
+          recordedByEmpNo: empNo.trim(),
+          actingRole: DEFAULT_ROLE,
+        });
+        withStepProgress({ serialDone: true });
+        setSerialNo("");
+        setSerialManufacturer("");
+        setSerialManufactureDate("");
+        setSerialTestDate("");
+        setSerialLidColorId("");
+        setSerialLidSize("");
+        setSerialConditionStatus("Good");
+      }
+
+      if (singleUnitRequiresUsage) {
+        for (const material of materials) {
+          await ordersApi.addStepUsage(
+            selectedQueueItem.orderId,
+            selectedQueueItem.lineId,
+            step.stepInstanceId,
+            {
+              partItemId: material.partItemId,
+              quantityUsed: 1,
+              uom: material.unit || "EA",
+              recordedByEmpNo: empNo.trim(),
+              actingRole: DEFAULT_ROLE,
+            }
+          );
+        }
+        setMaterials((current) =>
+          current.map((material) => ({
+            ...material,
+            quantity: material.quantity + 1,
+          }))
+        );
+        withStepProgress({ usageDone: true });
+      }
+
+      const executionResponse = await ordersApi.recordStepProgress(
+        selectedQueueItem.orderId,
+        selectedQueueItem.lineId,
+        step.stepInstanceId,
+        {
+          quantityCompleted,
+          quantityScrapped,
+          empNo: empNo.trim(),
+          notes: notes.trim() || null,
+          actingRole: DEFAULT_ROLE,
+        }
+      );
+      setExecution(executionResponse);
+      if (singleUnit) {
+        const updatedLineRoute =
+          executionResponse.routes.find((route) => route.lineId === selectedQueueItem.lineId) ?? null;
+        const updatedQtyCompleted = updatedLineRoute?.quantityCompleted;
+        if (typeof updatedQtyCompleted === "number") {
+          setSingleUnitCompletedQtyOverride(updatedQtyCompleted);
+        } else {
+          const nextQty = displayQtyCompleted + 1;
+          setSingleUnitCompletedQtyOverride(nextQty);
+        }
+      } else {
+        setSingleUnitCompletedQtyOverride(null);
+      }
+      if (!singleUnit) {
+        setProgressQuantity("");
+      }
+      setProgressScrapQuantity("");
+      setInfo(singleUnit ? "Single unit progress recorded with material usage." : "Batch quantity progress recorded.");
+      if (singleUnit) {
+        setIsSingleEntryCardFlipped(false);
+      }
     });
   };
 
@@ -346,38 +1766,23 @@ export function WorkCenterOperatorPage() {
       await ordersApi.addStepSerial(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
         serialNo: serialNo.trim(),
         manufacturer: serialManufacturer.trim() || "Unknown",
+        manufactureDate: serialManufactureDate.trim() || null,
+        testDate: serialTestDate.trim() || null,
+        lidColorId: serialLidColorId ? Number(serialLidColorId) : null,
+        lidSizeId: serialLidSize ? Number(serialLidSize) : null,
         conditionStatus: serialConditionStatus,
         recordedByEmpNo: empNo.trim(),
         actingRole: DEFAULT_ROLE,
       });
       setSerialNo("");
       setSerialManufacturer("");
+      setSerialManufactureDate("");
+      setSerialTestDate("");
+      setSerialLidColorId("");
+      setSerialLidSize("");
       setSerialConditionStatus("Good");
       withStepProgress({ serialDone: true });
       setInfo("Serial capture recorded.");
-    });
-  };
-
-  const addChecklist = async () => {
-    if (!step || !selectedQueueItem || !hasEmpNo || !checklistLabel.trim()) {
-      return;
-    }
-    await runAction("addChecklist", async () => {
-      await ordersApi.addStepChecklist(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
-        checklistTemplateItemId: Number(checklistItemId || 1),
-        itemLabel: checklistLabel.trim(),
-        isRequiredItem: true,
-        resultStatus: checklistStatus,
-        resultNotes: checklistNotes.trim() || null,
-        completedByEmpNo: empNo.trim(),
-        actingRole: DEFAULT_ROLE,
-      });
-      setChecklistItemId("");
-      setChecklistLabel("");
-      setChecklistStatus("Pass");
-      setChecklistNotes("");
-      withStepProgress({ checklistDone: true });
-      setInfo("Checklist result recorded.");
     });
   };
 
@@ -392,7 +1797,7 @@ export function WorkCenterOperatorPage() {
         actingRole: DEFAULT_ROLE,
         notes: notes.trim() || null,
         manualDurationMinutes: manualDurationMinutes ? Number(manualDurationMinutes) : null,
-        manualDurationReason: manualDurationReason.trim() || null,
+        manualDurationReason: null,
       });
 
       const queueRows = await ordersApi.workCenterQueue(setup?.workCenterId ?? -1);
@@ -409,31 +1814,137 @@ export function WorkCenterOperatorPage() {
 
   return (
     <main className={styles.page}>
-      <div className={styles.topRow}>
-        <div>
-          <Title2>Work Center Operator</Title2>
-          <Body1>
-            {setup.workCenterCode} - {setup.workCenterName}
-          </Body1>
+      <div
+        className={mergeClasses(
+          styles.queueDrawerOverlay,
+          queueOpen ? styles.queueDrawerOverlayOpen : undefined
+        )}
+        onClick={() => setQueueOpen(false)}
+      />
+      <aside className={mergeClasses(styles.queueDrawer, queueOpen ? styles.queueDrawerOpen : undefined)}>
+        <div className={styles.queueDrawerHeader}>
+          <div className={styles.queueDrawerTitle}>
+            <List24Regular />
+            Work Center Queue
+          </div>
+          <Button
+            className={styles.drawerCloseButton}
+            appearance="transparent"
+            aria-label="Close queue"
+            onClick={() => setQueueOpen(false)}
+          >
+            <Dismiss24Regular />
+          </Button>
         </div>
-        <div className={styles.actionRow}>
-          <Button className={styles.largeButton} appearance="secondary" onClick={() => navigate("/setup/tablet")}>
+        <div className={styles.queueDrawerBody}>
+          {loading ? (
+            <Body1>Loading queue...</Body1>
+          ) : (
+            <div className={styles.queueCardList}>
+              {queue.map((row) => (
+                <button
+                  key={row.stepInstanceId}
+                  type="button"
+                  className={mergeClasses(
+                    styles.queueCardButton,
+                    selectedQueueItem?.stepInstanceId === row.stepInstanceId
+                      ? styles.selectedQueueCardButton
+                      : undefined
+                  )}
+                  onClick={() => {
+                    setSelectedQueueItem(row);
+                    setQueueOpen(false);
+                  }}
+                >
+                  <div className={styles.queueCardTopRow}>
+                    <div className={styles.queueCardField}>
+                      <span className={styles.queueCardLabel}>Order No.</span>
+                      <span className={styles.queueCardValue}>{row.salesOrderNo}</span>
+                    </div>
+                    <div className={styles.queueCardField}>
+                      <span className={styles.queueCardLabel}>Line No.</span>
+                      <span className={styles.queueCardValue}>{row.lineId}</span>
+                    </div>
+                    <div className={styles.queueCardField}>
+                      <span className={styles.queueCardLabel}>Quantity</span>
+                      <span className={styles.queueCardValue}>
+                        {row.quantityAsReceived ?? "--"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.queueCardBottomRow}>
+                    <div className={styles.queueCardField}>
+                      <span className={styles.queueCardLabel}>Item No.</span>
+                      <span className={styles.queueCardValue}>{row.itemNo ?? "--"}</span>
+                    </div>
+                    <div className={styles.queueCardField}>
+                      <span className={styles.queueCardLabel}>Item Desc.</span>
+                      <span className={styles.queueCardValue}>{row.itemDescription ?? "--"}</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {queue.length === 0 ? <Body1>No queued work at this center.</Body1> : null}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <section className={styles.topBar}>
+        <div className={styles.topBarLeft}>
+          <Button
+            className={styles.hamburgerButton}
+            appearance="transparent"
+            aria-label="Open queue"
+            onClick={() => setQueueOpen(true)}
+          >
+            <Navigation24Regular />
+          </Button>
+          <div>
+          <div className={mergeClasses(styles.topBarTitle, styles.titleWithIcon)}>
+            <span className={styles.titleIcon}>
+              <Cube24Regular />
+            </span>
+            Work Center Operator - LPC Mode
+          </div>
+          <Body1>Current Shift | Shift 1 | 06:00 - 14:00</Body1>
+          </div>
+        </div>
+        <div className={styles.topBarMeta}>
+          <span className={styles.chip}>
+            <span className={styles.chipContent}>
+              <span className={styles.chipIcon}>
+                <Building24Regular />
+              </span>
+              Workstation: {setup.workCenterName}
+            </span>
+          </span>
+          <span className={styles.chip}>
+            <span className={styles.chipContent}>
+              <span className={styles.chipIcon}>
+                <Person24Regular />
+              </span>
+              {operatorDisplayName}
+            </span>
+          </span>
+          <span className={styles.chip}>
+            <span className={styles.chipContent}>
+              <span className={styles.chipIcon}>
+                <Clock24Regular />
+              </span>
+              {nowText}
+            </span>
+          </span>
+        </div>
+        <div className={styles.tabletActions}>
+          <Button className={styles.tallButton} appearance="secondary" onClick={() => navigate("/setup/tablet")}>
             Change Tablet Setup
           </Button>
-          <Button className={styles.largeButton} appearance="secondary" onClick={() => navigate("/")}>
+          <Button className={styles.tallButton} appearance="secondary" onClick={() => navigate("/")}>
             Home
           </Button>
         </div>
-      </div>
-
-      <div className={styles.context}>
-        <Field label="Operator Employee #">
-          <Input value={empNo} onChange={(_, data) => setEmpNo(data.value)} />
-        </Field>
-        <Field label="Device ID">
-          <Input value={deviceId} onChange={(_, data) => setDeviceId(data.value)} />
-        </Field>
-      </div>
+      </section>
 
       {error ? (
         <MessageBar intent="error">
@@ -446,211 +1957,807 @@ export function WorkCenterOperatorPage() {
         </MessageBar>
       ) : null}
 
-      <Card className={styles.card}>
-        <div className={styles.sectionTitle}>Queue</div>
-        {loading ? (
-          <Body1>Loading queue...</Body1>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Order</TableHeaderCell>
-                <TableHeaderCell>Line</TableHeaderCell>
-                <TableHeaderCell>Step</TableHeaderCell>
-                <TableHeaderCell>State</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {queue.map((row) => (
-                <TableRow
-                  key={row.stepInstanceId}
-                  className={mergeClasses(
-                    styles.queueRow,
-                    selectedQueueItem?.stepInstanceId === row.stepInstanceId
-                      ? styles.selectedQueueRow
-                      : undefined
+      <div className={styles.bodyGrid}>
+        <div className={styles.leftColumn}>
+          {!step || !selectedQueueItem ? (
+            <div className={styles.sectionCard}>
+              <Body1>Select a queued line to begin.</Body1>
+            </div>
+          ) : (
+            <>
+              <div className={styles.jobCard}>
+                <div className={styles.jobCardHeader}>CURRENT JOB # {selectedQueueItem.salesOrderNo}</div>
+                <div className={styles.jobCardBody}>
+                  <div className={styles.jobSummaryGrid}>
+                    <div className={styles.jobSummaryColumn}>
+                      <Body1>
+                        <strong>Route Step:</strong> {step.stepCode} - {step.stepName}
+                      </Body1>
+                      <Body1>
+                        <strong>Qty Complete:</strong> {displayQtyCompleted} / {qtyOrdered}
+                      </Body1>
+                    </div>
+                    <div className={styles.jobSummaryColumn}>
+                      <Body1>
+                        <strong>Item No.:</strong> {selectedQueueItem.itemNo ?? "--"}
+                      </Body1>
+                      <Body1>
+                        <strong>Item Desc.:</strong> {selectedQueueItem.itemDescription ?? "--"}
+                      </Body1>
+                    </div>
+                  </div>
+                  {hasBlockedReason ? (
+                    <Body1>
+                      <strong>Blocked:</strong> {step.blockedReason}
+                    </Body1>
+                  ) : null}
+                  <div className={styles.progressTrack}>
+                    <div className={styles.progressFill} style={{ width: `${progressPercent}%` }}>
+                      {progressPercent}%
+                    </div>
+                  </div>
+                  {isSingleUnitMode ? (
+                    <div className={styles.singleEntryScene}>
+                      <div
+                        className={mergeClasses(
+                          styles.singleEntryCard,
+                          isSingleEntryCardFlipped ? styles.singleEntryCardFlipped : undefined
+                        )}
+                      >
+                        <div className={mergeClasses(styles.singleEntryFace, styles.singleEntryFrontFace)}>
+                          <Body1 className={styles.singleEntryQtyText}>
+                            Qty {displayQtyCompleted} of {qtyReceived}
+                          </Body1>
+                          <Body1 className={styles.singleEntryHintText}>Tap to process next unit</Body1>
+                          <Button
+                            className={styles.singleEntryFlipButton}
+                            appearance="secondary"
+                            onClick={() => setIsSingleEntryCardFlipped(true)}
+                            disabled={busyAction !== null || !hasEmpNo}
+                          >
+                            Open Unit Action
+                          </Button>
+                        </div>
+                        <div className={mergeClasses(styles.singleEntryFace, styles.singleEntryBackFace)}>
+                          <Body1 className={styles.singleEntryQtyText}>
+                            Qty {displayQtyCompleted} of {qtyReceived}
+                          </Body1>
+                          {showSingleUnitSerialFields ? (
+                            <div className={styles.singleEntrySerialGrid}>
+                              <Field label="Serial No">
+                                <Input value={serialNo} onChange={(_, data) => setSerialNo(data.value)} />
+                              </Field>
+                              <Field label="Manufacturer">
+                                <Input value={serialManufacturer} onChange={(_, data) => setSerialManufacturer(data.value)} />
+                              </Field>
+                              <Field label="Manuf. Date">
+                                <Input
+                                  value={serialManufactureDate}
+                                  onChange={(_, data) => setSerialManufactureDate(data.value)}
+                                />
+                              </Field>
+                              <Field label="Test Date">
+                                <Input value={serialTestDate} onChange={(_, data) => setSerialTestDate(data.value)} />
+                              </Field>
+                              <Field label="Lid Color">
+                                <Select value={serialLidColorId} onChange={(event) => setSerialLidColorId(event.target.value)}>
+                                  <option value="">Select lid color</option>
+                                  {lidColors.map((color) => (
+                                    <option key={color.id} value={color.id}>
+                                      {color.name}
+                                    </option>
+                                  ))}
+                                </Select>
+                              </Field>
+                              <Field label="LidSize">
+                                <Select value={serialLidSize} onChange={(event) => setSerialLidSize(event.target.value)}>
+                                  <option value="">Select lid size</option>
+                                  {LID_SIZE_OPTIONS.map((size, index) => (
+                                    <option key={size} value={index + 1}>
+                                      {size}
+                                    </option>
+                                  ))}
+                                </Select>
+                              </Field>
+                              <Field label="Status">
+                                <Select
+                                  value={serialConditionStatus}
+                                  onChange={(event) => setSerialConditionStatus(event.target.value)}
+                                >
+                                  <option value="Good">Good</option>
+                                  <option value="Bad">Bad</option>
+                                </Select>
+                              </Field>
+                            </div>
+                          ) : null}
+                          <Button
+                            className={styles.singleEntryCompleteButton}
+                            appearance="primary"
+                            onClick={() => void recordProgress(true)}
+                            disabled={
+                              busyAction !== null ||
+                              !hasEmpNo ||
+                              (step.requiresUsageEntry && materials.length === 0) ||
+                              (showSingleUnitSerialFields && !serialNo.trim())
+                            }
+                          >
+                            Complete Next Unit
+                          </Button>
+                          <Button
+                            className={styles.singleEntryFlipButton}
+                            appearance="secondary"
+                            onClick={() => setIsSingleEntryCardFlipped(false)}
+                            disabled={busyAction !== null}
+                          >
+                            Back
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.fieldGrid}>
+                      <Field label="Batch Qty Complete">
+                        <Input
+                          value={progressQuantity}
+                          onChange={(_, data) => setProgressQuantity(data.value)}
+                        />
+                      </Field>
+                      <Field label="Batch Qty Scrap (optional)">
+                        <Input
+                          value={progressScrapQuantity}
+                          onChange={(_, data) => setProgressScrapQuantity(data.value)}
+                        />
+                      </Field>
+                      <Button
+                        className={styles.tallButton}
+                        appearance="primary"
+                        onClick={() => void recordProgress(false)}
+                        disabled={busyAction !== null || !hasEmpNo}
+                      >
+                        Log Batch Quantities
+                      </Button>
+                    </div>
                   )}
-                  onClick={() => setSelectedQueueItem(row)}
-                >
-                  <TableCell>{row.salesOrderNo}</TableCell>
-                  <TableCell>{row.lineId}</TableCell>
-                  <TableCell>
-                    {row.stepCode} - {row.stepName}
-                  </TableCell>
-                  <TableCell>{row.stepState}</TableCell>
-                </TableRow>
-              ))}
-              {queue.length === 0 ? (
-                <TableRow>
-                  <TableCell>-</TableCell>
-                  <TableCell>-</TableCell>
-                  <TableCell>No queued work at this center.</TableCell>
-                  <TableCell>-</TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
-
-      <Card className={styles.card}>
-        <div className={styles.sectionTitle}>Current Step</div>
-        {!step ? (
-          <Body1>Select a queued line to begin.</Body1>
-        ) : (
-          <div className={styles.splitGrid}>
-            <Body1>
-              {step.stepCode} - {step.stepName} (State: {step.state})
-            </Body1>
-            {step.blockedReason ? <Body1>Blocked: {step.blockedReason}</Body1> : null}
-
-            <div className={styles.actionRow}>
-              <Button
-                className={styles.largeButton}
-                appearance="primary"
-                onClick={() => void scanIn()}
-                disabled={busyAction !== null || !hasEmpNo}
-              >
-                Scan In
-              </Button>
-              <Button
-                className={styles.largeButton}
-                appearance="secondary"
-                onClick={() => void scanOut()}
-                disabled={busyAction !== null || !hasEmpNo}
-              >
-                Scan Out
-              </Button>
-              <Button
-                className={styles.largeButton}
-                appearance="primary"
-                onClick={() => void completeStep()}
-                disabled={busyAction !== null || !canComplete}
-              >
-                Complete Step
-              </Button>
-            </div>
-
-            <Field label="Completion Notes">
-              <Input value={notes} onChange={(_, data) => setNotes(data.value)} />
-            </Field>
-
-            {step.timeCaptureMode === "Manual" || step.timeCaptureMode === "Hybrid" ? (
-              <div className={styles.fieldGrid}>
-                <Field label="Manual Duration Minutes">
-                  <Input
-                    value={manualDurationMinutes}
-                    onChange={(_, data) => setManualDurationMinutes(data.value)}
-                  />
-                </Field>
-                <Field label="Manual Duration Reason">
-                  <Input
-                    value={manualDurationReason}
-                    onChange={(_, data) => setManualDurationReason(data.value)}
-                  />
-                </Field>
+                </div>
               </div>
-            ) : null}
 
-            <div>
-              <div className={styles.sectionTitle}>Usage Capture</div>
-              <Body1 className={styles.requiredLabel}>
-                {step.requiresUsageEntry ? "Required before complete." : "Optional."}
-              </Body1>
-              <div className={styles.fieldGrid}>
-                <Field label="Part Item Id">
-                  <Input value={usagePartItemId} onChange={(_, data) => setUsagePartItemId(data.value)} />
-                </Field>
-                <Field label="Quantity Used">
-                  <Input value={usageQuantity} onChange={(_, data) => setUsageQuantity(data.value)} />
-                </Field>
-              </div>
-              <Button onClick={() => void addUsage()} disabled={busyAction !== null || !hasEmpNo}>
-                Add Usage
-              </Button>
-            </div>
-
-            <div>
-              <div className={styles.sectionTitle}>Scrap Capture</div>
-              <Body1 className={styles.requiredLabel}>
-                {step.requiresScrapEntry ? "Required before complete." : "Optional."}
-              </Body1>
-              <div className={styles.fieldGrid}>
-                <Field label="Scrap Quantity">
-                  <Input value={scrapQuantity} onChange={(_, data) => setScrapQuantity(data.value)} />
-                </Field>
-                <Field label="Scrap Reason">
-                  <Select value={scrapReasonId} onChange={(event) => setScrapReasonId(event.target.value)}>
-                    <option value="">Select reason</option>
-                    {scrapReasons.map((reason) => (
-                      <option key={reason.id} value={reason.id}>
-                        {reason.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-              <Button onClick={() => void addScrap()} disabled={busyAction !== null || !hasEmpNo}>
-                Add Scrap
-              </Button>
-            </div>
-
-            <div>
-              <div className={styles.sectionTitle}>Serial Capture</div>
-              <Body1 className={styles.requiredLabel}>
-                {step.requiresSerialCapture ? "Required before complete." : "Optional."}
-              </Body1>
-              <div className={styles.fieldGrid}>
-                <Field label="Serial No">
-                  <Input value={serialNo} onChange={(_, data) => setSerialNo(data.value)} />
-                </Field>
-                <Field label="Manufacturer">
-                  <Input value={serialManufacturer} onChange={(_, data) => setSerialManufacturer(data.value)} />
-                </Field>
-                <Field label="Condition">
-                  <Select
-                    value={serialConditionStatus}
-                    onChange={(event) => setSerialConditionStatus(event.target.value)}
+              <div className={styles.sectionCard}>
+                <div className={styles.sectionCardHeader}>
+                  <span className={styles.sectionCardHeaderIcon}>
+                    <Clock24Regular />
+                  </span>
+                  Time Logging
+                </div>
+                <div className={styles.sectionCardBody}>
+                  <div className={styles.modeButtons}>
+                    <Button className={mergeClasses(styles.modeButton, styles.modeSetup)} appearance="secondary">
+                      SETUP
+                    </Button>
+                    <Button className={mergeClasses(styles.modeButton, styles.modeRun)} appearance="secondary">
+                      RUN
+                    </Button>
+                    <Button className={mergeClasses(styles.modeButton, styles.modeDowntime)} appearance="secondary">
+                      DOWNTIME
+                    </Button>
+                    <Button className={mergeClasses(styles.modeButton, styles.modeRework)} appearance="secondary">
+                      REWORK
+                    </Button>
+                  </div>
+                  <div
+                    className={mergeClasses(
+                      styles.timeSectionGrid,
+                      !showQuickAddDuration ? styles.timeSectionGridSingleColumn : undefined
+                    )}
                   >
-                    <option value="Good">Good</option>
-                    <option value="Bad">Bad</option>
-                  </Select>
-                </Field>
+                    <div className={styles.timePrimaryColumn}>
+                      {isManualTimeCapture ? (
+                        <div className={styles.manualDurationInline}>
+                          <div className={styles.manualDurationRow}>
+                            <span className={styles.manualDurationLabel}># of Minutes</span>
+                            <Input
+                              className={styles.manualDurationInput}
+                              aria-label="# of Minutes"
+                              value={manualDurationMinutes}
+                              onChange={(_, data) => setManualDurationMinutes(data.value)}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className={styles.timerRow}>
+                            <span className={styles.timerIcon}>
+                              <Clock24Regular />
+                            </span>
+                            <div className={styles.timerValue}>{elapsedTimer}</div>
+                          </div>
+                          <div className={styles.timeControlButtons}>
+                            <Button
+                              className={mergeClasses(styles.timeControlButton, styles.timeControlStart)}
+                              appearance="secondary"
+                              onClick={() => {
+                                setIsPaused(false);
+                                void scanIn();
+                              }}
+                              disabled={busyAction !== null || !hasEmpNo}
+                            >
+                              START
+                            </Button>
+                            <Button
+                              className={mergeClasses(styles.timeControlButton, styles.timeControlPause)}
+                              appearance="secondary"
+                              onClick={() => {
+                                setIsPaused((current) => {
+                                  const next = !current;
+                                  setInfo(next ? "Time paused." : "Time resumed.");
+                                  return next;
+                                });
+                              }}
+                              disabled={busyAction !== null || !hasEmpNo}
+                            >
+                              PAUSE
+                            </Button>
+                            <Button
+                              className={mergeClasses(styles.timeControlButton, styles.timeControlStop)}
+                              appearance="secondary"
+                              onClick={() => {
+                                setIsPaused(false);
+                                void scanOut();
+                              }}
+                              disabled={busyAction !== null || !hasEmpNo}
+                            >
+                              STOP
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {showQuickAddDuration ? (
+                      <div className={styles.timeQuickColumn}>
+                        <Body1 className={styles.sectionTitle}>Quick-add duration</Body1>
+                        <div className={styles.quickAddWrap}>
+                          <div className={styles.quickChip}>
+                            <span className={styles.quickChipLabel}>+5m</span>
+                            <Button
+                              className={styles.quickChipAddButton}
+                              appearance="secondary"
+                              aria-label="Add 5 minutes"
+                              onClick={() => addQuickMinutes(5)}
+                              disabled={busyAction !== null || !hasEmpNo}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <div className={styles.quickChip}>
+                            <span className={styles.quickChipLabel}>+15m</span>
+                            <Button
+                              className={styles.quickChipAddButton}
+                              appearance="secondary"
+                              aria-label="Add 15 minutes"
+                              onClick={() => addQuickMinutes(15)}
+                              disabled={busyAction !== null || !hasEmpNo}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <div className={styles.quickChip}>
+                            <span className={styles.quickChipLabel}>+30m</span>
+                            <Button
+                              className={styles.quickChipAddButton}
+                              appearance="secondary"
+                              aria-label="Add 30 minutes"
+                              onClick={() => addQuickMinutes(30)}
+                              disabled={busyAction !== null || !hasEmpNo}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <Field label="Completion Notes">
+                    <Input
+                      className={styles.noteInput}
+                      value={notes}
+                      onChange={(_, data) => setNotes(data.value)}
+                      placeholder="Tap to add detailed notes..."
+                    />
+                  </Field>
+                  {!isAutomatedTimeCapture && !isManualTimeCapture && (
+                    <div className={styles.manualDurationInline}>
+                      <div className={styles.manualDurationRow}>
+                        <span className={styles.manualDurationLabel}># of Minutes</span>
+                        <Input
+                          className={styles.manualDurationInput}
+                          aria-label="# of Minutes"
+                          value={manualDurationMinutes}
+                          onChange={(_, data) => setManualDurationMinutes(data.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <Body1 className={styles.sectionSubtle}>One-tap downtime reason</Body1>
+                    <div className={styles.reasonChips}>
+                      <Button className={styles.reasonChip} appearance="outline">
+                        Machine Fault
+                      </Button>
+                      <Button className={styles.reasonChip} appearance="outline">
+                        No Operator
+                      </Button>
+                      <Button className={styles.reasonChip} appearance="outline">
+                        Material Issue
+                      </Button>
+                      <Button className={styles.reasonChip} appearance="outline">
+                        Quality Check
+                      </Button>
+                      <Button className={styles.reasonChip} appearance="outline">
+                        Maintenance
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <Button onClick={() => void addSerial()} disabled={busyAction !== null || !hasEmpNo}>
-                Add Serial
-              </Button>
-            </div>
+              <div className={styles.columnActionBar}>
+                <Button
+                  className={mergeClasses(styles.footerButton, styles.footerSubmit)}
+                  appearance="secondary"
+                  onClick={() => void completeStep()}
+                  disabled={busyAction !== null || !canComplete}
+                >
+                  Complete Step
+                </Button>
+                <Button
+                  className={mergeClasses(styles.footerButton, styles.footerFlag)}
+                  appearance="secondary"
+                  onClick={() => setInfo("Issue flagged for supervisor review.")}
+                >
+                  Flag Issue
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
 
-            <div>
-              <div className={styles.sectionTitle}>Checklist</div>
-              <Body1 className={styles.requiredLabel}>
-                {step.requiresChecklistCompletion ? "Required before complete." : "Optional."}
-              </Body1>
-              <div className={styles.fieldGrid}>
-                <Field label="Checklist Item Id">
-                  <Input value={checklistItemId} onChange={(_, data) => setChecklistItemId(data.value)} />
-                </Field>
-                <Field label="Checklist Label">
-                  <Input value={checklistLabel} onChange={(_, data) => setChecklistLabel(data.value)} />
-                </Field>
-                <Field label="Result">
-                  <Select value={checklistStatus} onChange={(event) => setChecklistStatus(event.target.value)}>
-                    <option value="Pass">Pass</option>
-                    <option value="Fail">Fail</option>
-                  </Select>
-                </Field>
-                <Field label="Result Notes">
-                  <Input value={checklistNotes} onChange={(_, data) => setChecklistNotes(data.value)} />
-                </Field>
+        <div className={styles.rightColumn}>
+          {!step || !selectedQueueItem ? null : (
+            <>
+              <div className={mergeClasses(styles.sectionCard, styles.sectionCardTransparent)}>
+                  <div className={styles.sectionCardHeader}>
+                    <span className={styles.sectionCardHeaderIcon}>
+                      <Cube24Regular />
+                    </span>
+                    Material Used
+                  </div>
+                  <div className={mergeClasses(styles.sectionCardBody, styles.sectionCardBodyTransparent)}>
+                  <div className={styles.materialFlipScene}>
+                    <div
+                      className={mergeClasses(
+                        styles.materialFlipCard,
+                        isMaterialCardFlipped ? styles.materialFlipCardFlipped : undefined
+                      )}
+                    >
+                      <div className={mergeClasses(styles.materialFlipFace, styles.materialFaceFront)}>
+                        <Button
+                          className={styles.materialAddButton}
+                          appearance="secondary"
+                          onClick={startAddMaterial}
+                          disabled={busyAction !== null}
+                        >
+                          + ADD MATERIAL
+                        </Button>
+                        <div className={styles.materialListWrap}>
+                          {materials.length ? (
+                            materials.map((material) => (
+                              <div key={material.id} className={styles.materialListCard}>
+                                <div className={styles.materialListRow}>
+                                  <span className={styles.materialName}>{material.materialName}</span>
+                                </div>
+                                <div className={styles.materialListRow}>
+                                  <span className={styles.materialMeta}>
+                                    Lot: {material.lotBatch || "--"}, Qty: {material.quantity} {material.unit}
+                                  </span>
+                                  <div className={styles.materialActionRow}>
+                                    <Button
+                                      className={mergeClasses(styles.materialRowButton, styles.materialEditButton)}
+                                      appearance="secondary"
+                                      onClick={() => startEditMaterial(material)}
+                                      disabled={busyAction !== null}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      className={mergeClasses(styles.materialRowButton, styles.materialRemoveButton)}
+                                      appearance="transparent"
+                                      onClick={() => requestRemoveMaterial(material)}
+                                      disabled={busyAction !== null}
+                                    >
+                                      <span className={styles.materialRemoveIcon}>-</span>
+                                      REMOVE
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <Body1>No materials added yet.</Body1>
+                          )}
+                        </div>
+                      </div>
+                      <div className={mergeClasses(styles.materialFlipFace, styles.materialFaceBack)}>
+                        <div className={styles.materialBackGrid}>
+                          <div className={styles.materialBackFormColumn}>
+                            <div className={styles.stacked}>
+                              <Field label="Part Item Id">
+                                <Button
+                                  className={styles.materialItemPickerButton}
+                                  appearance="secondary"
+                                  onClick={() => setIsItemDialogOpen(true)}
+                                >
+                                  {selectedMaterialItem
+                                    ? `${selectedMaterialItem.itemNo} - ${selectedMaterialItem.itemDescription ?? "--"}`
+                                    : "Select Item"}
+                                </Button>
+                              </Field>
+                              <Field label="Lot / Batch #">
+                                <Input
+                                  value={materialLotBatch}
+                                  onChange={(_, data) => setMaterialLotBatch(data.value)}
+                                />
+                              </Field>
+                            </div>
+                            <div className={styles.materialBackActions}>
+                              <Button
+                                className={styles.tallButton}
+                                appearance="secondary"
+                                onClick={() => {
+                                  setIsMaterialCardFlipped(false);
+                                  resetMaterialForm();
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                className={styles.tallButton}
+                                appearance="primary"
+                                onClick={() => void saveMaterial()}
+                                disabled={busyAction !== null}
+                              >
+                                {editingMaterialId ? "Update Material" : "Save Material Entry"}
+                              </Button>
+                            </div>
+                          </div>
+                          <div className={styles.materialKeypad}>
+                            <Field label="Quantity">
+                              <Input
+                                value={materialQuantity}
+                                onChange={(_, data) => setMaterialQuantity(data.value)}
+                              />
+                            </Field>
+                            <div className={styles.materialKeypadGrid}>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("7")}
+                              >
+                                7
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("8")}
+                              >
+                                8
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("9")}
+                              >
+                                9
+                              </button>
+                              <button
+                                type="button"
+                                className={mergeClasses(
+                                  styles.materialKeypadButton,
+                                  styles.materialKeypadButtonAction,
+                                  styles.materialKeypadBackspaceButton
+                                )}
+                                onClick={() => appendQuantityDigit("DEL")}
+                                aria-label="Backspace"
+                              >
+                                <span className={styles.materialKeypadBackspaceIcon}>
+                                  <Backspace24Filled />
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("4")}
+                              >
+                                4
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("5")}
+                              >
+                                5
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("6")}
+                              >
+                                6
+                              </button>
+                              <button
+                                type="button"
+                                className={mergeClasses(styles.materialKeypadButton, styles.materialKeypadButtonAction)}
+                                onClick={() => appendQuantityDigit("CLR")}
+                              >
+                                CLR
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("1")}
+                              >
+                                1
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("2")}
+                              >
+                                2
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.materialKeypadButton}
+                                onClick={() => appendQuantityDigit("3")}
+                              >
+                                3
+                              </button>
+                              <div className={styles.materialKeypadSpacer} aria-hidden="true" />
+                              <button
+                                type="button"
+                                className={mergeClasses(styles.materialKeypadButton, styles.materialKeypadButtonWide)}
+                                onClick={() => appendQuantityDigit("0")}
+                              >
+                                0
+                              </button>
+                              <button
+                                type="button"
+                                className={mergeClasses(styles.materialKeypadButton, styles.materialKeypadButtonEnter)}
+                                onClick={() => setInfo("Quantity entered.")}
+                              >
+                                ENTER
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                </div>
+
+                {showScrapCapture ? (
+                  <div className={styles.sectionCard}>
+                    <div className={styles.sectionCardHeader}>
+                      <span className={styles.sectionCardHeaderIcon}>
+                        <Alert24Regular />
+                      </span>
+                      Scrap Capture
+                    </div>
+                    <div className={styles.sectionCardBody}>
+                      <Body1 className={styles.requiredLabel}>
+                        {step.requiresScrapEntry ? "Required before complete." : "Optional."}
+                      </Body1>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Scrap Quantity">
+                          <Input value={scrapQuantity} onChange={(_, data) => setScrapQuantity(data.value)} />
+                        </Field>
+                        <Field label="Scrap Reason">
+                          <Select value={scrapReasonId} onChange={(event) => setScrapReasonId(event.target.value)}>
+                            <option value="">Select reason</option>
+                            {scrapReasons.map((reason) => (
+                              <option key={reason.id} value={reason.id}>
+                                {reason.name}
+                              </option>
+                            ))}
+                          </Select>
+                        </Field>
+                      </div>
+                      <Button
+                        className={styles.tallButton}
+                        onClick={() => void addScrap()}
+                        disabled={busyAction !== null || !hasEmpNo}
+                      >
+                        Add Scrap
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {showBatchSerialSection ? (
+                  <div className={styles.sectionCard}>
+                    <div className={styles.sectionCardHeader}>
+                      <span className={styles.sectionCardHeaderIcon}>
+                        <CheckmarkCircle24Regular />
+                      </span>
+                      Serial Numbers
+                    </div>
+                    <div className={styles.sectionCardBody}>
+                      <div className={styles.stacked}>
+                        <Body1 className={styles.requiredLabel}>Serial required.</Body1>
+                        <div className={styles.fieldGrid}>
+                          <Field label="Serial No">
+                            <Input value={serialNo} onChange={(_, data) => setSerialNo(data.value)} />
+                          </Field>
+                          <Field label="Manufacturer">
+                            <Input value={serialManufacturer} onChange={(_, data) => setSerialManufacturer(data.value)} />
+                          </Field>
+                          <Field label="Manuf. Date">
+                            <Input value={serialManufactureDate} onChange={(_, data) => setSerialManufactureDate(data.value)} />
+                          </Field>
+                          <Field label="Test Date">
+                            <Input value={serialTestDate} onChange={(_, data) => setSerialTestDate(data.value)} />
+                          </Field>
+                          <Field label="Lid Color">
+                            <Select value={serialLidColorId} onChange={(event) => setSerialLidColorId(event.target.value)}>
+                              <option value="">Select lid color</option>
+                              {lidColors.map((color) => (
+                                <option key={color.id} value={color.id}>
+                                  {color.name}
+                                </option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label="LidSize">
+                            <Select value={serialLidSize} onChange={(event) => setSerialLidSize(event.target.value)}>
+                              <option value="">Select lid size</option>
+                              {LID_SIZE_OPTIONS.map((size, index) => (
+                                <option key={size} value={index + 1}>
+                                  {size}
+                                </option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label="Status">
+                            <Select
+                              value={serialConditionStatus}
+                              onChange={(event) => setSerialConditionStatus(event.target.value)}
+                            >
+                              <option value="Good">Good</option>
+                              <option value="Bad">Bad</option>
+                            </Select>
+                          </Field>
+                        </div>
+                        <Button
+                          className={styles.tallButton}
+                          onClick={() => void addSerial()}
+                          disabled={busyAction !== null || !hasEmpNo}
+                        >
+                          Add Serial
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {step.requiresAttachment ? (
+                  <div className={styles.sectionCard}>
+                    <div className={styles.sectionCardHeader}>
+                      <span className={styles.sectionCardHeaderIcon}>
+                        <ArrowUpload24Regular />
+                      </span>
+                      Attachments
+                    </div>
+                    <div className={styles.sectionCardBody}>
+                      <div className={styles.actionRow}>
+                        <Button className={styles.tallButton} appearance="secondary">
+                          <span className={styles.buttonWithIcon}>
+                            <span className={styles.buttonIcon}>
+                              <ArrowUpload24Regular />
+                            </span>
+                            Upload File
+                          </span>
+                        </Button>
+                      </div>
+                      <div className={styles.attachmentArea}>Drag files here or use buttons</div>
+                    </div>
+                  </div>
+                ) : null}
+            </>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={isItemDialogOpen} onOpenChange={(_, data) => setIsItemDialogOpen(data.open)}>
+        <DialogSurface className={styles.itemDialogSurface}>
+          <DialogBody className={styles.itemDialogBody}>
+            <DialogTitle>Select Item</DialogTitle>
+            <DialogContent className={styles.itemDialogContent}>
+              <div className={styles.itemPickerTopRow}>
+                <Input
+                  type="search"
+                  value={itemSearchQuery}
+                  onChange={(_, data) => setItemSearchQuery(data.value)}
+                  placeholder="Search item number or description..."
+                  aria-label="Search items"
+                />
+                <div className={styles.productLineFilterRow}>
+                  {availableProductLineFilters.map((line) => (
+                    <Button
+                      key={line}
+                      appearance={selectedProductLineFilter === line ? "primary" : "secondary"}
+                      onClick={() => setSelectedProductLineFilter(line)}
+                    >
+                      {line}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <Button onClick={() => void addChecklist()} disabled={busyAction !== null || !hasEmpNo}>
-                Add Checklist Result
+              {itemLookupError ? <Body1>{itemLookupError}</Body1> : null}
+              <div className={styles.itemPickerList}>
+                {filteredItems.map((item) => (
+                  <Button
+                    key={item.id}
+                    appearance="secondary"
+                    className={styles.itemPickerButton}
+                    onClick={() => {
+                      setSelectedMaterialItem(item);
+                      setMaterialPartItemId(item.id.toString());
+                      setIsItemDialogOpen(false);
+                    }}
+                  >
+                    <div>
+                      <div>{`${item.itemNo} - ${item.itemDescription ?? "--"}`}</div>
+                      <div className={styles.itemPickerMeta}>{item.productLine ?? "--"}</div>
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            </DialogContent>
+            <DialogActions className={styles.itemDialogActions}>
+              <Button appearance="secondary" onClick={() => setIsItemDialogOpen(false)}>
+                Cancel
               </Button>
-            </div>
-          </div>
-        )}
-      </Card>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      <Dialog
+        open={materialPendingRemoval !== null}
+        onOpenChange={(_, data) => {
+          if (!data.open) {
+            setMaterialPendingRemoval(null);
+          }
+        }}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Remove Material Entry</DialogTitle>
+            <DialogContent>
+              {materialPendingRemoval
+                ? `Are you sure you want to remove '${materialPendingRemoval.materialName}' from Material Used?`
+                : "Are you sure you want to remove this material entry?"}
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setMaterialPendingRemoval(null)}>
+                Cancel
+              </Button>
+              <Button appearance="primary" onClick={confirmRemoveMaterial}>
+                Remove
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
     </main>
   );
 }

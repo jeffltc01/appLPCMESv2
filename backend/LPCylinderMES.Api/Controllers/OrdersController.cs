@@ -59,13 +59,13 @@ public class OrdersController(
     }
 
     [HttpPost]
-    public async Task<ActionResult<OrderDraftDetailDto>> Create(OrderDraftCreateDto dto)
+    public async Task<ActionResult<OrderDraftDetailDto>> Create(OrderDraftCreateDto dto, CancellationToken cancellationToken)
     {
-        var customer = await db.Customers.FindAsync(dto.CustomerId);
+        var customer = await db.Customers.FindAsync([dto.CustomerId], cancellationToken);
         if (customer is null)
             return BadRequest(new { message = "Invalid customerId." });
 
-        var siteExists = await db.Sites.AnyAsync(s => s.Id == dto.SiteId);
+        var siteExists = await db.Sites.AnyAsync(s => s.Id == dto.SiteId, cancellationToken);
         if (!siteExists)
             return BadRequest(new { message = "Invalid siteId." });
 
@@ -74,7 +74,8 @@ public class OrdersController(
         {
             defaultOrderContact = await db.Contacts.FirstOrDefaultAsync(c =>
                 c.Id == customer.DefaultOrderContactId.Value &&
-                c.CustomerId == customer.Id);
+                c.CustomerId == customer.Id,
+                cancellationToken);
         }
 
         var defaultContactName = FormatContactName(defaultOrderContact);
@@ -82,39 +83,54 @@ public class OrdersController(
         var resolvedDefaultShipToId = customer.DefaultShipToId ?? customer.DefaultPickUpId;
         var resolvedDefaultPickUpId = customer.DefaultPickUpId ?? customer.DefaultShipToId;
 
-        var order = new SalesOrder
+        const int maxCreateAttempts = 10;
+        for (var attempt = 0; attempt < maxCreateAttempts; attempt++)
         {
-            SalesOrderNo = await GenerateOrderNumber(),
-            CustomerId = dto.CustomerId,
-            SiteId = dto.SiteId,
-            InboundMode = string.IsNullOrWhiteSpace(dto.InboundMode) ? "LpcArrangedPickup" : dto.InboundMode.Trim(),
-            OutboundMode = string.IsNullOrWhiteSpace(dto.OutboundMode) ? "LpcArrangedDelivery" : dto.OutboundMode.Trim(),
-            OrderDate = dto.OrderDate ?? DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = OrderStatusCatalog.New,
-            OrderLifecycleStatus = OrderStatusCatalog.Draft,
-            CustomerPoNo = dto.CustomerPoNo,
-            Contact = string.IsNullOrWhiteSpace(dto.Contact) ? defaultContactName : dto.Contact,
-            Phone = string.IsNullOrWhiteSpace(dto.Phone) ? defaultOfficePhone : dto.Phone,
-            Comments = dto.Comments,
-            Priority = dto.Priority,
-            SalesPersonId = dto.SalesPersonId ?? customer.DefaultSalesEmployeeId,
-            BillToAddressId = dto.BillToAddressId ?? customer.DefaultBillToId,
-            PickUpAddressId = dto.PickUpAddressId ?? resolvedDefaultPickUpId,
-            ShipToAddressId = dto.ShipToAddressId ?? resolvedDefaultShipToId,
-            PickUpViaId = dto.PickUpViaId ?? customer.DefaultShipViaId,
-            ShipToViaId = dto.ShipToViaId ?? customer.DefaultShipViaId,
-            PaymentTermId = dto.PaymentTermId ?? customer.DefaultPaymentTermId,
-            ReturnScrap = dto.ReturnScrap ?? customer.DefaultReturnScrap,
-            ReturnBrass = dto.ReturnBrass ?? customer.DefaultReturnBrass,
-            StatusUpdatedUtc = DateTime.UtcNow,
-            StatusOwnerRole = "Office",
-        };
+            var order = new SalesOrder
+            {
+                SalesOrderNo = await GenerateOrderNumber(cancellationToken),
+                CustomerId = dto.CustomerId,
+                SiteId = dto.SiteId,
+                OrderOrigin = "OfficeEntry",
+                InboundMode = string.IsNullOrWhiteSpace(dto.InboundMode) ? "LpcArrangedPickup" : dto.InboundMode.Trim(),
+                OutboundMode = string.IsNullOrWhiteSpace(dto.OutboundMode) ? "LpcArrangedDelivery" : dto.OutboundMode.Trim(),
+                OrderDate = dto.OrderDate ?? DateOnly.FromDateTime(DateTime.Today),
+                OrderStatus = OrderStatusCatalog.New,
+                OrderLifecycleStatus = OrderStatusCatalog.Draft,
+                CustomerPoNo = dto.CustomerPoNo,
+                Contact = string.IsNullOrWhiteSpace(dto.Contact) ? defaultContactName : dto.Contact,
+                Phone = string.IsNullOrWhiteSpace(dto.Phone) ? defaultOfficePhone : dto.Phone,
+                Comments = dto.Comments,
+                Priority = dto.Priority,
+                SalesPersonId = dto.SalesPersonId ?? customer.DefaultSalesEmployeeId,
+                BillToAddressId = dto.BillToAddressId ?? customer.DefaultBillToId,
+                PickUpAddressId = dto.PickUpAddressId ?? resolvedDefaultPickUpId,
+                ShipToAddressId = dto.ShipToAddressId ?? resolvedDefaultShipToId,
+                PickUpViaId = dto.PickUpViaId ?? customer.DefaultShipViaId,
+                ShipToViaId = dto.ShipToViaId ?? customer.DefaultShipViaId,
+                PaymentTermId = dto.PaymentTermId ?? customer.DefaultPaymentTermId,
+                ReturnScrap = dto.ReturnScrap ?? customer.DefaultReturnScrap,
+                ReturnBrass = dto.ReturnBrass ?? customer.DefaultReturnBrass,
+                StatusUpdatedUtc = DateTime.UtcNow,
+                StatusOwnerRole = "Office",
+            };
 
-        db.SalesOrders.Add(order);
-        await db.SaveChangesAsync();
+            db.SalesOrders.Add(order);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (IsSalesOrderNoDuplicateViolation(ex))
+            {
+                db.Entry(order).State = EntityState.Detached;
+                continue;
+            }
 
-        var detail = await orderQueryService.GetOrderDetailAsync(order.Id);
-        return CreatedAtAction(nameof(Get), new { id = order.Id }, detail);
+            var detail = await orderQueryService.GetOrderDetailAsync(order.Id, cancellationToken);
+            return CreatedAtAction(nameof(Get), new { id = order.Id }, detail);
+        }
+
+        return Conflict(new { message = "Unable to allocate a unique order number. Please retry." });
     }
 
     [HttpPut("{id:int}")]
@@ -748,6 +764,19 @@ public class OrdersController(
         }
     }
 
+    [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/progress")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> RecordProgress(int orderId, int lineId, long stepId, RecordStepProgressDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.RecordProgressAsync(orderId, lineId, stepId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/usage")]
     public async Task<ActionResult<OrderRouteExecutionDto>> AddUsage(int orderId, int lineId, long stepId, StepMaterialUsageCreateDto dto)
     {
@@ -1099,17 +1128,40 @@ public class OrdersController(
         }
     }
 
-    private async Task<string> GenerateOrderNumber()
+    private async Task<string> GenerateOrderNumber(CancellationToken cancellationToken)
     {
-        for (var i = 0; i < 10; i++)
+        var existingOrderNumbers = await db.SalesOrders
+            .AsNoTracking()
+            .Select(o => o.SalesOrderNo)
+            .ToListAsync(cancellationToken);
+
+        var maxNumeric = 0;
+        foreach (var orderNo in existingOrderNumbers)
         {
-            var candidate = $"NEW-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(1000, 9999)}";
-            var exists = await db.SalesOrders.AnyAsync(o => o.SalesOrderNo == candidate);
+            if (int.TryParse(orderNo, out var parsed) && parsed > maxNumeric)
+            {
+                maxNumeric = parsed;
+            }
+        }
+
+        var next = maxNumeric + 1;
+        for (var i = 0; i < 50; i++)
+        {
+            var candidate = $"{next + i:D7}";
+            var exists = await db.SalesOrders.AnyAsync(o => o.SalesOrderNo == candidate, cancellationToken);
             if (!exists)
                 return candidate;
         }
 
         throw new InvalidOperationException("Unable to generate a unique order number.");
+    }
+
+    private static bool IsSalesOrderNoDuplicateViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UQ__sales_or__ED5996F987318013", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("unique", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? TrimToNull(string? value)

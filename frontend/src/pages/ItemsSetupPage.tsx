@@ -14,13 +14,14 @@ import {
   MessageBar,
   MessageBarBody,
   Option,
+  Select,
   Table,
   TableBody,
   TableCell,
   TableHeader,
   TableHeaderCell,
   TableRow,
-  Title2,
+  Title1,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -32,18 +33,46 @@ import { NewItemDialog } from "../components/items/NewItemDialog";
 
 const useStyles = makeStyles({
   page: {
-    padding: tokens.spacingHorizontalL,
-    display: "grid",
-    gap: tokens.spacingVerticalM,
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
   },
-  header: {
+  main: {
+    display: "grid",
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    minWidth: 0,
+  },
+  utilityBar: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  nav: {
+  headerActions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "auto",
+  },
+  contentStack: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
   },
   actions: {
     display: "flex",
@@ -57,6 +86,19 @@ const useStyles = makeStyles({
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: tokens.spacingHorizontalM,
+  },
+  itemsScrollRegion: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+  },
+  filterBar: {
+    display: "flex",
+    alignItems: "end",
+    gap: tokens.spacingHorizontalM,
+    flexWrap: "wrap",
+  },
+  filterField: {
+    minWidth: "220px",
   },
 });
 
@@ -77,6 +119,7 @@ export function ItemsSetupPage() {
   const [itemTypes, setItemTypes] = useState<string[]>(DEFAULT_ITEM_TYPES);
   const [itemSizes, setItemSizes] = useState<ItemSizeLookup[]>([]);
   const [productLines, setProductLines] = useState<string[]>([]);
+  const [productLineFilter, setProductLineFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -95,6 +138,22 @@ export function ItemsSetupPage() {
     () => itemSizes.find((size) => String(size.id) === editForm.itemSizeId)?.name ?? "",
     [editForm.itemSizeId, itemSizes]
   );
+  const productLineFilterOptions = useMemo(() => {
+    const valuesFromLookup = productLines.map((line) => line.trim()).filter((line) => line.length > 0);
+    if (valuesFromLookup.length > 0) {
+      return ["All", ...valuesFromLookup];
+    }
+    const valuesFromRows = Array.from(
+      new Set(rows.map((row) => row.productLine?.trim()).filter((value): value is string => Boolean(value)))
+    );
+    return ["All", ...valuesFromRows];
+  }, [productLines, rows]);
+  const filteredRows = useMemo(() => {
+    if (productLineFilter === "All") {
+      return rows;
+    }
+    return rows.filter((row) => (row.productLine ?? "").trim() === productLineFilter);
+  }, [productLineFilter, rows]);
 
   const load = async () => {
     setLoading(true);
@@ -190,70 +249,90 @@ export function ItemsSetupPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <Title2>Setup - Items</Title2>
-        <div className={styles.nav}>
-          <Button appearance="secondary" onClick={() => navigate("/setup/production-lines")}>
-            Production Lines Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
-            Work Centers Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/users-roles")}>
-            Users & Roles Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/")}>
-            Home
-          </Button>
-          <Button appearance="primary" onClick={() => setCreateOpen(true)}>
-            Add Item
-          </Button>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <span>Order Analyst</span>
+          <span>Site: Houston</span>
         </div>
-      </div>
 
-      {error && (
-        <MessageBar intent="error">
-          <MessageBarBody>{error}</MessageBarBody>
-        </MessageBar>
-      )}
+        <header className={styles.headerBar}>
+          <Title1 style={{ color: "#ffffff" }}>Item Maintenance</Title1>
+          <div className={styles.headerActions}>
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Home
+            </Button>
+            <Button appearance="primary" onClick={() => setCreateOpen(true)}>
+              Add Item
+            </Button>
+          </div>
+        </header>
 
-      {loading ? (
-        <Body1>Loading...</Body1>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHeaderCell>Item No</TableHeaderCell>
-              <TableHeaderCell>Description</TableHeaderCell>
-              <TableHeaderCell>Item Type</TableHeaderCell>
-              <TableHeaderCell>Product Line</TableHeaderCell>
-              <TableHeaderCell>Size</TableHeaderCell>
-              <TableHeaderCell>Actions</TableHeaderCell>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{row.itemNo}</TableCell>
-                <TableCell>{row.itemDescription ?? "-"}</TableCell>
-                <TableCell>{row.itemType}</TableCell>
-                <TableCell>{row.productLine ?? "-"}</TableCell>
-                <TableCell>{row.sizeName ?? "-"}</TableCell>
-                <TableCell>
-                  <div className={styles.actions}>
-                    <Button appearance="secondary" onClick={() => void startEdit(row.id)}>
-                      Edit
-                    </Button>
-                    <Button appearance="secondary" onClick={() => void remove(row)}>
-                      Delete
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+        <section className={styles.content}>
+          <div className={styles.contentStack}>
+            <div className={styles.itemsScrollRegion}>
+              <div className={styles.filterBar}>
+                <Field className={styles.filterField} label="Product Line Filter">
+                  <Select
+                    value={productLineFilter}
+                    onChange={(event) => setProductLineFilter(event.target.value)}
+                    aria-label="Product Line Filter"
+                  >
+                    {productLineFilterOptions.map((line) => (
+                      <option key={line} value={line}>
+                        {line}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+
+              {error && (
+                <MessageBar intent="error">
+                  <MessageBarBody>{error}</MessageBarBody>
+                </MessageBar>
+              )}
+
+              {loading ? (
+                <Body1>Loading...</Body1>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHeaderCell>Item No</TableHeaderCell>
+                      <TableHeaderCell>Description</TableHeaderCell>
+                      <TableHeaderCell>Item Type</TableHeaderCell>
+                      <TableHeaderCell>Product Line</TableHeaderCell>
+                      <TableHeaderCell>Size</TableHeaderCell>
+                      <TableHeaderCell>Actions</TableHeaderCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.itemNo}</TableCell>
+                        <TableCell>{row.itemDescription ?? "-"}</TableCell>
+                        <TableCell>{row.itemType}</TableCell>
+                        <TableCell>{row.productLine ?? "-"}</TableCell>
+                        <TableCell>{row.sizeName ?? "-"}</TableCell>
+                        <TableCell>
+                          <div className={styles.actions}>
+                            <Button appearance="secondary" onClick={() => void startEdit(row.id)}>
+                              Edit
+                            </Button>
+                            <Button appearance="secondary" onClick={() => void remove(row)}>
+                              Delete
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
 
       <NewItemDialog
         open={createOpen}

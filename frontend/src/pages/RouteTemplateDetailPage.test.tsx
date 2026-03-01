@@ -6,6 +6,15 @@ const listWorkCentersMock = vi.fn();
 const getRouteTemplateMock = vi.fn();
 const createRouteTemplateMock = vi.fn();
 const updateRouteTemplateMock = vi.fn();
+const listAssignmentsMock = vi.fn();
+const createAssignmentMock = vi.fn();
+const updateAssignmentMock = vi.fn();
+const deleteAssignmentMock = vi.fn();
+const activeCustomersMock = vi.fn();
+const sitesMock = vi.fn();
+const shipViasMock = vi.fn();
+const orderItemsMock = vi.fn();
+const itemTypesMock = vi.fn();
 
 vi.mock("../services/setup", () => ({
   setupApi: {
@@ -13,6 +22,25 @@ vi.mock("../services/setup", () => ({
     getRouteTemplate: (...args: unknown[]) => getRouteTemplateMock(...args),
     createRouteTemplate: (...args: unknown[]) => createRouteTemplateMock(...args),
     updateRouteTemplate: (...args: unknown[]) => updateRouteTemplateMock(...args),
+    listAssignments: (...args: unknown[]) => listAssignmentsMock(...args),
+    createAssignment: (...args: unknown[]) => createAssignmentMock(...args),
+    updateAssignment: (...args: unknown[]) => updateAssignmentMock(...args),
+    deleteAssignment: (...args: unknown[]) => deleteAssignmentMock(...args),
+  },
+}));
+
+vi.mock("../services/orders", () => ({
+  orderLookupsApi: {
+    activeCustomers: (...args: unknown[]) => activeCustomersMock(...args),
+    sites: (...args: unknown[]) => sitesMock(...args),
+    shipVias: (...args: unknown[]) => shipViasMock(...args),
+    items: (...args: unknown[]) => orderItemsMock(...args),
+  },
+}));
+
+vi.mock("../services/items", () => ({
+  itemLookupsApi: {
+    itemTypes: (...args: unknown[]) => itemTypesMock(...args),
   },
 }));
 
@@ -44,6 +72,7 @@ describe("RouteTemplateDetailPage", () => {
           isRequired: true,
           dataCaptureMode: "ElectronicRequired",
           timeCaptureMode: "Automated",
+          processingModeOverride: null,
           requiresScan: true,
           requiresUsageEntry: false,
           requiresScrapEntry: false,
@@ -65,6 +94,37 @@ describe("RouteTemplateDetailPage", () => {
     });
     createRouteTemplateMock.mockResolvedValue({});
     updateRouteTemplateMock.mockResolvedValue({});
+    listAssignmentsMock.mockResolvedValue([
+      {
+        id: 10,
+        assignmentName: "Houston default",
+        priority: 1000,
+        revisionNo: 1,
+        isActive: true,
+        customerId: null,
+        siteId: 1,
+        itemId: null,
+        itemType: null,
+        orderPriorityMin: null,
+        orderPriorityMax: null,
+        pickUpViaId: null,
+        shipToViaId: null,
+        routeTemplateId: 1,
+        supervisorGateOverride: null,
+        effectiveFromUtc: null,
+        effectiveToUtc: null,
+        createdUtc: "2026-02-28T00:00:00Z",
+        updatedUtc: "2026-02-28T00:00:00Z",
+      },
+    ]);
+    createAssignmentMock.mockResolvedValue({});
+    updateAssignmentMock.mockResolvedValue({});
+    deleteAssignmentMock.mockResolvedValue({});
+    activeCustomersMock.mockResolvedValue([{ id: 1, name: "Acme" }]);
+    sitesMock.mockResolvedValue([{ id: 1, name: "Houston" }]);
+    shipViasMock.mockResolvedValue([{ id: 1, name: "LPC Fleet" }]);
+    orderItemsMock.mockResolvedValue([{ id: 55, itemNo: "CYL-100", itemDescription: "Cylinder 100", productLine: null }]);
+    itemTypesMock.mockResolvedValue(["Standard"]);
   });
 
   it("loads existing route template on detail page", async () => {
@@ -100,5 +160,19 @@ describe("RouteTemplateDetailPage", () => {
     await waitFor(() => {
       expect(updateRouteTemplateMock).toHaveBeenCalled();
     });
+  });
+
+  it("loads assignment rules for existing route template", async () => {
+    render(
+      <MemoryRouter initialEntries={["/setup/route-templates/1"]}>
+        <Routes>
+          <Route path="/setup/route-templates/:templateId" element={<RouteTemplateDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByDisplayValue("RT-FILL-STD")).toBeInTheDocument();
+    expect(screen.getByText("Applies To (Assignment Rules)")).toBeInTheDocument();
+    expect(screen.getByText("Houston default")).toBeInTheDocument();
   });
 });

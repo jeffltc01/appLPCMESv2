@@ -8,6 +8,7 @@ public record WorkCenterDto(
     string? Description,
     bool IsActive,
     string DefaultTimeCaptureMode,
+    string DefaultProcessingMode,
     bool RequiresScanByDefault,
     DateTime CreatedUtc,
     DateTime UpdatedUtc);
@@ -78,6 +79,7 @@ public record WorkCenterUpsertDto(
     string? Description,
     bool IsActive,
     string DefaultTimeCaptureMode,
+    string DefaultProcessingMode,
     bool RequiresScanByDefault);
 
 public record RouteTemplateStepDto(
@@ -89,6 +91,7 @@ public record RouteTemplateStepDto(
     bool IsRequired,
     string DataCaptureMode,
     string TimeCaptureMode,
+    string? ProcessingModeOverride,
     bool RequiresScan,
     bool RequiresUsageEntry,
     bool RequiresScrapEntry,
@@ -114,6 +117,7 @@ public record RouteTemplateStepUpsertDto(
     bool IsRequired,
     string DataCaptureMode,
     string TimeCaptureMode,
+    string? ProcessingModeOverride,
     bool RequiresScan,
     bool RequiresUsageEntry,
     bool RequiresScrapEntry,

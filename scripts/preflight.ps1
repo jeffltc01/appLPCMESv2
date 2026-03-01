@@ -32,6 +32,23 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $backendDir = Join-Path $repoRoot "backend"
 $frontendDir = Join-Path $repoRoot "frontend"
 
+Invoke-Step -Title "Verify git pre-push hook configuration" -Action {
+    Push-Location $repoRoot
+    try {
+        $hooksPath = (& git config --get core.hooksPath 2>$null)
+        if ([string]::IsNullOrWhiteSpace($hooksPath)) {
+            throw "Git hooks are not configured. Run: git config core.hooksPath .githooks"
+        }
+
+        if ($hooksPath -ne ".githooks") {
+            throw "Unexpected core.hooksPath '$hooksPath'. Expected '.githooks'. Run: git config core.hooksPath .githooks"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 if (-not (Test-Path $backendDir)) {
     throw "Backend directory not found: $backendDir"
 }

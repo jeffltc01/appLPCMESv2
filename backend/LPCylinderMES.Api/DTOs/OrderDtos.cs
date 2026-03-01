@@ -620,6 +620,8 @@ public record GenerateStepDocumentDto(
 
 public record StepMaterialUsageCreateDto(int PartItemId, decimal QuantityUsed, string? Uom, string RecordedByEmpNo, string? ActingRole = null);
 
+public record RecordStepProgressDto(decimal QuantityCompleted, decimal? QuantityScrapped, string EmpNo, string? Notes = null, string? ActingRole = null);
+
 public record StepScrapEntryCreateDto(decimal QuantityScrapped, int ScrapReasonId, string? Notes, string RecordedByEmpNo, string? ActingRole = null);
 
 public record StepSerialCaptureCreateDto(
@@ -703,7 +705,8 @@ public record WorkCenterQueueItemDto(
     DateTime? PromisedDateUtc = null,
     int? Priority = null,
     string? LineNotes = null,
-    string? OrderComments = null);
+    string? OrderComments = null,
+    decimal? QuantityAsReceived = null);
 
 public record RouteStepExecutionDto(
     long StepInstanceId,
@@ -717,6 +720,7 @@ public record RouteStepExecutionDto(
     bool RequiresScan,
     string DataCaptureMode,
     string TimeCaptureMode,
+    string ProcessingMode,
     DateTime? ScanInUtc,
     DateTime? ScanOutUtc,
     DateTime? CompletedUtc,
