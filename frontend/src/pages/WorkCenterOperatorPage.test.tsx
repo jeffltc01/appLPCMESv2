@@ -516,13 +516,17 @@ describe("WorkCenterOperatorPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Material Entry" }));
 
     expect(await screen.findByText("COOLANT-A - Cutting Fluid (Coolant A)")).toBeInTheDocument();
-    expect(screen.getByText("Lot: CF-987, Qty: 5 KG")).toBeInTheDocument();
+    expect(screen.getByText("Lot:")).toBeInTheDocument();
+    expect(screen.getByText("CF-987")).toBeInTheDocument();
+    expect(screen.getByText("Qty:")).toBeInTheDocument();
+    expect(screen.queryByText("5 KG")).not.toBeInTheDocument();
     expect(addStepUsageMock).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "7" } });
     fireEvent.click(screen.getByRole("button", { name: "Update Material" }));
-    expect(await screen.findByText("Lot: CF-987, Qty: 7 KG")).toBeInTheDocument();
+    await screen.findByText("Qty:");
+    expect(screen.queryByText("7 KG")).not.toBeInTheDocument();
   });
 
   it("prompts before removing a material row", async () => {
@@ -590,7 +594,7 @@ describe("WorkCenterOperatorPage", () => {
     });
   });
 
-  it("single unit mode auto-logs usage on next unit", async () => {
+  it("single unit mode auto-logs listed material on next unit even when usage is optional", async () => {
     lineRouteExecutionMock.mockResolvedValue({
       orderId: 2001,
       lifecycleStatus: "InProduction",
@@ -625,7 +629,7 @@ describe("WorkCenterOperatorPage", () => {
               manualDurationMinutes: null,
               manualDurationReason: null,
               timeCaptureSource: "Scan",
-              requiresUsageEntry: true,
+              requiresUsageEntry: false,
               requiresScrapEntry: false,
               requiresSerialCapture: false,
               requiresChecklistCompletion: false,
@@ -657,7 +661,43 @@ describe("WorkCenterOperatorPage", () => {
           quantityReceived: 10,
           quantityCompleted: 1,
           quantityScrapped: 0,
-          steps: [],
+          steps: [
+            {
+              stepInstanceId: 500,
+              stepSequence: 2,
+              stepCode: "FILL",
+              stepName: "Fill",
+              workCenterId: 101,
+              workCenterName: "Fill Station",
+              state: "InProgress",
+              isRequired: true,
+              requiresScan: true,
+              dataCaptureMode: "ElectronicRequired",
+              timeCaptureMode: "Hybrid",
+              processingMode: "SingleUnit",
+              scanInUtc: null,
+              scanOutUtc: null,
+              completedUtc: null,
+              durationMinutes: null,
+              manualDurationMinutes: null,
+              manualDurationReason: null,
+              timeCaptureSource: "Scan",
+              requiresUsageEntry: false,
+              requiresScrapEntry: false,
+              requiresSerialCapture: true,
+              requiresChecklistCompletion: false,
+              checklistTemplateId: 1,
+              checklistFailurePolicy: "BlockCompletion",
+              requireScrapReasonWhenBad: false,
+              requiresTrailerCapture: false,
+              requiresSerialLoadVerification: false,
+              generatePackingSlipOnComplete: false,
+              generateBolOnComplete: false,
+              requiresAttachment: false,
+              requiresSupervisorApproval: false,
+              blockedReason: null,
+            },
+          ],
         },
       ],
     });
@@ -698,7 +738,6 @@ describe("WorkCenterOperatorPage", () => {
 
     await waitFor(() => expect(addStepUsageMock).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "Open Unit Action" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete Next Unit" }));
 
     await waitFor(() => expect(addStepUsageMock).toHaveBeenCalledTimes(2));
@@ -714,6 +753,153 @@ describe("WorkCenterOperatorPage", () => {
         uom: "KG",
       })
     );
+  });
+
+  it("single unit mode auto-scans in before completing next unit when step is pending", async () => {
+    lineRouteExecutionMock.mockResolvedValue({
+      orderId: 2001,
+      lifecycleStatus: "InProduction",
+      hasOpenRework: false,
+      routes: [
+        {
+          routeInstanceId: 9001,
+          lineId: 3001,
+          state: "Active",
+          quantityOrdered: 10,
+          quantityReceived: 10,
+          quantityCompleted: 0,
+          quantityScrapped: 0,
+          steps: [
+            {
+              stepInstanceId: 500,
+              stepSequence: 2,
+              stepCode: "FILL",
+              stepName: "Fill",
+              workCenterId: 101,
+              workCenterName: "Fill Station",
+              state: "Pending",
+              isRequired: true,
+              requiresScan: true,
+              dataCaptureMode: "ElectronicRequired",
+              timeCaptureMode: "Hybrid",
+              processingMode: "SingleUnit",
+              scanInUtc: null,
+              scanOutUtc: null,
+              completedUtc: null,
+              durationMinutes: null,
+              manualDurationMinutes: null,
+              manualDurationReason: null,
+              timeCaptureSource: "Scan",
+              requiresUsageEntry: false,
+              requiresScrapEntry: false,
+              requiresSerialCapture: false,
+              requiresChecklistCompletion: false,
+              checklistTemplateId: 1,
+              checklistFailurePolicy: "BlockCompletion",
+              requireScrapReasonWhenBad: false,
+              requiresTrailerCapture: false,
+              requiresSerialLoadVerification: false,
+              generatePackingSlipOnComplete: false,
+              generateBolOnComplete: false,
+              requiresAttachment: false,
+              requiresSupervisorApproval: false,
+              blockedReason: null,
+            },
+          ],
+        },
+      ],
+    });
+    recordStepProgressMock.mockResolvedValue({
+      orderId: 2001,
+      lifecycleStatus: "InProduction",
+      hasOpenRework: false,
+      routes: [
+        {
+          routeInstanceId: 9001,
+          lineId: 3001,
+          state: "Active",
+          quantityOrdered: 10,
+          quantityReceived: 10,
+          quantityCompleted: 1,
+          quantityScrapped: 0,
+          steps: [
+            {
+              stepInstanceId: 500,
+              stepSequence: 2,
+              stepCode: "FILL",
+              stepName: "Fill",
+              workCenterId: 101,
+              workCenterName: "Fill Station",
+              state: "InProgress",
+              isRequired: true,
+              requiresScan: true,
+              dataCaptureMode: "ElectronicRequired",
+              timeCaptureMode: "Hybrid",
+              processingMode: "SingleUnit",
+              scanInUtc: null,
+              scanOutUtc: null,
+              completedUtc: null,
+              durationMinutes: null,
+              manualDurationMinutes: null,
+              manualDurationReason: null,
+              timeCaptureSource: "Scan",
+              requiresUsageEntry: false,
+              requiresScrapEntry: false,
+              requiresSerialCapture: true,
+              requiresChecklistCompletion: false,
+              checklistTemplateId: 1,
+              checklistFailurePolicy: "BlockCompletion",
+              requireScrapReasonWhenBad: false,
+              requiresTrailerCapture: false,
+              requiresSerialLoadVerification: false,
+              generatePackingSlipOnComplete: false,
+              generateBolOnComplete: false,
+              requiresAttachment: false,
+              requiresSupervisorApproval: false,
+              blockedReason: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    window.localStorage.setItem(
+      TABLET_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        siteId: 10,
+        workCenterId: 101,
+        workCenterCode: "WC-FILL",
+        workCenterName: "Fill Station",
+        operatorEmpNo: "EMP500",
+        deviceId: "",
+        updatedAt: "2026-01-01T00:00:00Z",
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <WorkCenterOperatorPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("SO-2001")).toBeInTheDocument();
+    expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /add material/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Select Item" }));
+    fireEvent.click(await screen.findByRole("button", { name: /AL-6061 - Aluminum Bar Stock/ }));
+    fireEvent.change(screen.getByLabelText("Lot / Batch #"), { target: { value: "LOT-200" } });
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Material Entry" }));
+
+    await waitFor(() => expect(addStepUsageMock).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Complete Next Unit" }));
+
+    await waitFor(() => expect(scanInMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(addStepUsageMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(recordStepProgressMock).toHaveBeenCalledTimes(1));
   });
 
   it("uses logged-in user as default operator", async () => {

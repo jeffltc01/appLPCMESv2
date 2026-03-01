@@ -360,9 +360,30 @@ const useStyles = makeStyles({
     lineHeight: 1.15,
   },
   materialMeta: {
-    fontSize: "13px",
+    fontSize: "16px",
     color: "#242424",
     lineHeight: 1.2,
+  },
+  materialMetaRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  materialMetaPair: {
+    display: "inline-flex",
+    alignItems: "baseline",
+    gap: "6px",
+  },
+  materialMetaLabel: {
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#3B3A39",
+  },
+  materialMetaValue: {
+    fontSize: "18px",
+    fontWeight: 800,
+    color: "#111111",
   },
   materialActionRow: {
     display: "flex",
@@ -655,6 +676,16 @@ const useStyles = makeStyles({
     minHeight: 0,
     flex: 1,
     height: "100%",
+  },
+  singleEntryStandardCard: {
+    borderRadius: "10px",
+    border: "1px solid #D2D2D2",
+    backgroundColor: "#FFFFFF",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    padding: "10px",
+    display: "grid",
+    gap: "10px",
+    alignContent: "start",
   },
   singleEntryCard: {
     position: "relative",
@@ -1231,7 +1262,6 @@ export function WorkCenterOperatorPage() {
   const [selectedMaterialItem, setSelectedMaterialItem] = useState<OrderItemLookup | null>(null);
   const [materialLotBatch, setMaterialLotBatch] = useState("");
   const [materialQuantity, setMaterialQuantity] = useState("");
-  const [isSingleEntryCardFlipped, setIsSingleEntryCardFlipped] = useState(false);
   const [progressQuantity, setProgressQuantity] = useState("");
   const [progressScrapQuantity, setProgressScrapQuantity] = useState("");
   const [scrapQuantity, setScrapQuantity] = useState("");
@@ -1352,10 +1382,6 @@ export function WorkCenterOperatorPage() {
     setSingleUnitCompletedQtyOverride(null);
   }, [selectedQueueItem?.stepInstanceId]);
 
-  useEffect(() => {
-    setIsSingleEntryCardFlipped(false);
-  }, [selectedQueueItem?.stepInstanceId, step?.stepInstanceId]);
-
   const captureProgress = step ? progressByStep[step.stepInstanceId] ?? EMPTY_CAPTURE_PROGRESS : EMPTY_CAPTURE_PROGRESS;
   const stepRequiresSerialCapture = Boolean(step?.requiresSerialCapture);
   const queueScanInUtc = selectedQueueItem?.scanInUtc ?? null;
@@ -1384,6 +1410,7 @@ export function WorkCenterOperatorPage() {
   const progressPercent =
     qtyOrdered > 0 ? Math.min(100, Math.round((displayQtyCompleted / qtyOrdered) * 100)) : 0;
   const isSingleUnitMode = step?.processingMode === "SingleUnit";
+  const isSingleUnitReadyToCompleteStep = isSingleUnitMode && qtyReceived > 0 && displayQtyCompleted >= qtyReceived;
   const showBatchSerialSection = !isSingleUnitMode && stepRequiresSerialCapture;
   const showSingleUnitSerialFields = isSingleUnitMode && stepRequiresSerialCapture;
   const isManualTimeCapture = step?.timeCaptureMode === "Manual";
@@ -1637,7 +1664,7 @@ export function WorkCenterOperatorPage() {
   };
 
   const recordProgress = async (singleUnit = false) => {
-    if (!step || !selectedQueueItem || !hasEmpNo) {
+    if (!step || !selectedQueueItem || !setup || !hasEmpNo) {
       return;
     }
 
@@ -1647,6 +1674,7 @@ export function WorkCenterOperatorPage() {
     }
     const quantityScrapped = progressScrapQuantity ? Number(progressScrapQuantity) : null;
     const singleUnitRequiresUsage = singleUnit && step.requiresUsageEntry;
+    const singleUnitHasListedMaterials = singleUnit && materials.length > 0;
     const singleUnitRequiresSerial = singleUnit && stepRequiresSerialCapture;
     if (singleUnitRequiresUsage && materials.length === 0) {
       setError("Single mode requires at least one material lot before processing units.");
@@ -1657,6 +1685,16 @@ export function WorkCenterOperatorPage() {
       return;
     }
     await runAction("recordProgress", async () => {
+      const isStepInProgress = step.state === "InProgress";
+      if (singleUnit && !isStepInProgress) {
+        await ordersApi.scanIn(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
+          empNo: empNo.trim(),
+          deviceId: deviceId.trim() || null,
+          workCenterId: setup.workCenterId,
+          actingRole: DEFAULT_ROLE,
+        });
+      }
+
       if (singleUnitRequiresSerial) {
         await ordersApi.addStepSerial(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
           serialNo: serialNo.trim(),
@@ -1674,12 +1712,10 @@ export function WorkCenterOperatorPage() {
         setSerialManufacturer("");
         setSerialManufactureDate("");
         setSerialTestDate("");
-        setSerialLidColorId("");
-        setSerialLidSize("");
         setSerialConditionStatus("Good");
       }
 
-      if (singleUnitRequiresUsage) {
+      if (singleUnitHasListedMaterials) {
         for (const material of materials) {
           await ordersApi.addStepUsage(
             selectedQueueItem.orderId,
@@ -1733,9 +1769,8 @@ export function WorkCenterOperatorPage() {
         setProgressQuantity("");
       }
       setProgressScrapQuantity("");
-      setInfo(singleUnit ? "Single unit progress recorded with material usage." : "Batch quantity progress recorded.");
-      if (singleUnit) {
-        setIsSingleEntryCardFlipped(false);
+      if (!singleUnit) {
+        setInfo("Batch quantity progress recorded.");
       }
     });
   };
@@ -1951,11 +1986,6 @@ export function WorkCenterOperatorPage() {
           <MessageBarBody>{error}</MessageBarBody>
         </MessageBar>
       ) : null}
-      {info ? (
-        <MessageBar>
-          <MessageBarBody>{info}</MessageBarBody>
-        </MessageBar>
-      ) : null}
 
       <div className={styles.bodyGrid}>
         <div className={styles.leftColumn}>
@@ -1998,100 +2028,75 @@ export function WorkCenterOperatorPage() {
                   </div>
                   {isSingleUnitMode ? (
                     <div className={styles.singleEntryScene}>
-                      <div
-                        className={mergeClasses(
-                          styles.singleEntryCard,
-                          isSingleEntryCardFlipped ? styles.singleEntryCardFlipped : undefined
-                        )}
-                      >
-                        <div className={mergeClasses(styles.singleEntryFace, styles.singleEntryFrontFace)}>
-                          <Body1 className={styles.singleEntryQtyText}>
-                            Qty {displayQtyCompleted} of {qtyReceived}
-                          </Body1>
-                          <Body1 className={styles.singleEntryHintText}>Tap to process next unit</Body1>
-                          <Button
-                            className={styles.singleEntryFlipButton}
-                            appearance="secondary"
-                            onClick={() => setIsSingleEntryCardFlipped(true)}
-                            disabled={busyAction !== null || !hasEmpNo}
-                          >
-                            Open Unit Action
-                          </Button>
-                        </div>
-                        <div className={mergeClasses(styles.singleEntryFace, styles.singleEntryBackFace)}>
-                          <Body1 className={styles.singleEntryQtyText}>
-                            Qty {displayQtyCompleted} of {qtyReceived}
-                          </Body1>
-                          {showSingleUnitSerialFields ? (
-                            <div className={styles.singleEntrySerialGrid}>
-                              <Field label="Serial No">
-                                <Input value={serialNo} onChange={(_, data) => setSerialNo(data.value)} />
-                              </Field>
-                              <Field label="Manufacturer">
-                                <Input value={serialManufacturer} onChange={(_, data) => setSerialManufacturer(data.value)} />
-                              </Field>
-                              <Field label="Manuf. Date">
-                                <Input
-                                  value={serialManufactureDate}
-                                  onChange={(_, data) => setSerialManufactureDate(data.value)}
-                                />
-                              </Field>
-                              <Field label="Test Date">
-                                <Input value={serialTestDate} onChange={(_, data) => setSerialTestDate(data.value)} />
-                              </Field>
-                              <Field label="Lid Color">
-                                <Select value={serialLidColorId} onChange={(event) => setSerialLidColorId(event.target.value)}>
-                                  <option value="">Select lid color</option>
-                                  {lidColors.map((color) => (
-                                    <option key={color.id} value={color.id}>
-                                      {color.name}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </Field>
-                              <Field label="LidSize">
-                                <Select value={serialLidSize} onChange={(event) => setSerialLidSize(event.target.value)}>
-                                  <option value="">Select lid size</option>
-                                  {LID_SIZE_OPTIONS.map((size, index) => (
-                                    <option key={size} value={index + 1}>
-                                      {size}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </Field>
-                              <Field label="Status">
-                                <Select
-                                  value={serialConditionStatus}
-                                  onChange={(event) => setSerialConditionStatus(event.target.value)}
-                                >
-                                  <option value="Good">Good</option>
-                                  <option value="Bad">Bad</option>
-                                </Select>
-                              </Field>
-                            </div>
-                          ) : null}
-                          <Button
-                            className={styles.singleEntryCompleteButton}
-                            appearance="primary"
-                            onClick={() => void recordProgress(true)}
-                            disabled={
-                              busyAction !== null ||
-                              !hasEmpNo ||
-                              (step.requiresUsageEntry && materials.length === 0) ||
-                              (showSingleUnitSerialFields && !serialNo.trim())
-                            }
-                          >
-                            Complete Next Unit
-                          </Button>
-                          <Button
-                            className={styles.singleEntryFlipButton}
-                            appearance="secondary"
-                            onClick={() => setIsSingleEntryCardFlipped(false)}
-                            disabled={busyAction !== null}
-                          >
-                            Back
-                          </Button>
-                        </div>
+                      <div className={styles.singleEntryStandardCard}>
+                        <Body1 className={styles.singleEntryQtyText}>
+                          Qty {displayQtyCompleted} of {qtyReceived}
+                        </Body1>
+                        {showSingleUnitSerialFields ? (
+                          <div className={styles.singleEntrySerialGrid}>
+                            <Field label="Serial No">
+                              <Input value={serialNo} onChange={(_, data) => setSerialNo(data.value)} />
+                            </Field>
+                            <Field label="Manufacturer">
+                              <Input value={serialManufacturer} onChange={(_, data) => setSerialManufacturer(data.value)} />
+                            </Field>
+                            <Field label="Manuf. Date">
+                              <Input
+                                value={serialManufactureDate}
+                                onChange={(_, data) => setSerialManufactureDate(data.value)}
+                              />
+                            </Field>
+                            <Field label="Test Date">
+                              <Input value={serialTestDate} onChange={(_, data) => setSerialTestDate(data.value)} />
+                            </Field>
+                            <Field label="Lid Color">
+                              <Select value={serialLidColorId} onChange={(event) => setSerialLidColorId(event.target.value)}>
+                                <option value="">Select lid color</option>
+                                {lidColors.map((color) => (
+                                  <option key={color.id} value={color.id}>
+                                    {color.name}
+                                  </option>
+                                ))}
+                              </Select>
+                            </Field>
+                            <Field label="LidSize">
+                              <Select value={serialLidSize} onChange={(event) => setSerialLidSize(event.target.value)}>
+                                <option value="">Select lid size</option>
+                                {LID_SIZE_OPTIONS.map((size, index) => (
+                                  <option key={size} value={index + 1}>
+                                    {size}
+                                  </option>
+                                ))}
+                              </Select>
+                            </Field>
+                            <Field label="Status">
+                              <Select
+                                value={serialConditionStatus}
+                                onChange={(event) => setSerialConditionStatus(event.target.value)}
+                              >
+                                <option value="Good">Good</option>
+                                <option value="Bad">Bad</option>
+                              </Select>
+                            </Field>
+                          </div>
+                        ) : null}
+                        <Button
+                          className={styles.singleEntryCompleteButton}
+                          appearance="primary"
+                          onClick={() =>
+                            isSingleUnitReadyToCompleteStep ? void completeStep() : void recordProgress(true)
+                          }
+                          disabled={
+                            isSingleUnitReadyToCompleteStep
+                              ? busyAction !== null || !canComplete
+                              : busyAction !== null ||
+                                !hasEmpNo ||
+                                (step.requiresUsageEntry && materials.length === 0) ||
+                                (showSingleUnitSerialFields && !serialNo.trim())
+                          }
+                        >
+                          {isSingleUnitReadyToCompleteStep ? "Complete Step" : "Complete Next Unit"}
+                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -2129,20 +2134,6 @@ export function WorkCenterOperatorPage() {
                   Time Logging
                 </div>
                 <div className={styles.sectionCardBody}>
-                  <div className={styles.modeButtons}>
-                    <Button className={mergeClasses(styles.modeButton, styles.modeSetup)} appearance="secondary">
-                      SETUP
-                    </Button>
-                    <Button className={mergeClasses(styles.modeButton, styles.modeRun)} appearance="secondary">
-                      RUN
-                    </Button>
-                    <Button className={mergeClasses(styles.modeButton, styles.modeDowntime)} appearance="secondary">
-                      DOWNTIME
-                    </Button>
-                    <Button className={mergeClasses(styles.modeButton, styles.modeRework)} appearance="secondary">
-                      REWORK
-                    </Button>
-                  </div>
                   <div
                     className={mergeClasses(
                       styles.timeSectionGrid,
@@ -2276,26 +2267,6 @@ export function WorkCenterOperatorPage() {
                       </div>
                     </div>
                   )}
-                  <div>
-                    <Body1 className={styles.sectionSubtle}>One-tap downtime reason</Body1>
-                    <div className={styles.reasonChips}>
-                      <Button className={styles.reasonChip} appearance="outline">
-                        Machine Fault
-                      </Button>
-                      <Button className={styles.reasonChip} appearance="outline">
-                        No Operator
-                      </Button>
-                      <Button className={styles.reasonChip} appearance="outline">
-                        Material Issue
-                      </Button>
-                      <Button className={styles.reasonChip} appearance="outline">
-                        Quality Check
-                      </Button>
-                      <Button className={styles.reasonChip} appearance="outline">
-                        Maintenance
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               </div>
               <div className={styles.columnActionBar}>
@@ -2306,13 +2277,6 @@ export function WorkCenterOperatorPage() {
                   disabled={busyAction !== null || !canComplete}
                 >
                   Complete Step
-                </Button>
-                <Button
-                  className={mergeClasses(styles.footerButton, styles.footerFlag)}
-                  appearance="secondary"
-                  onClick={() => setInfo("Issue flagged for supervisor review.")}
-                >
-                  Flag Issue
                 </Button>
               </div>
             </>
@@ -2354,9 +2318,18 @@ export function WorkCenterOperatorPage() {
                                   <span className={styles.materialName}>{material.materialName}</span>
                                 </div>
                                 <div className={styles.materialListRow}>
-                                  <span className={styles.materialMeta}>
-                                    Lot: {material.lotBatch || "--"}, Qty: {material.quantity} {material.unit}
-                                  </span>
+                                  <div className={mergeClasses(styles.materialMeta, styles.materialMetaRow)}>
+                                    {material.lotBatch ? (
+                                      <span className={styles.materialMetaPair}>
+                                        <span className={styles.materialMetaLabel}>Lot:</span>
+                                        <span className={styles.materialMetaValue}>{material.lotBatch}</span>
+                                      </span>
+                                    ) : null}
+                                    <span className={styles.materialMetaPair}>
+                                      <span className={styles.materialMetaLabel}>Qty:</span>
+                                      <span className={styles.materialMetaValue}>{material.quantity}</span>
+                                    </span>
+                                  </div>
                                   <div className={styles.materialActionRow}>
                                     <Button
                                       className={mergeClasses(styles.materialRowButton, styles.materialEditButton)}
