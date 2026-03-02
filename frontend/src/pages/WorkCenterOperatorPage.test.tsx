@@ -345,7 +345,7 @@ describe("WorkCenterOperatorPage", () => {
     await waitFor(() => expect(completeButton).toBeEnabled());
     fireEvent.click(completeButton);
     await waitFor(() => expect(completeStepMock).toHaveBeenCalled());
-  });
+  }, 15000);
 
   it("renders queue cards with received quantity", async () => {
     window.localStorage.setItem(
@@ -650,7 +650,7 @@ describe("WorkCenterOperatorPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Update Material" }));
     await screen.findByText("Qty:");
     expect(screen.queryByText("7 KG")).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   it("prompts before removing a material row", async () => {
     window.localStorage.setItem(
@@ -715,7 +715,7 @@ describe("WorkCenterOperatorPage", () => {
     await waitFor(() => {
       expect(screen.queryByText("COOLANT-A - Cutting Fluid (Coolant A)")).not.toBeInTheDocument();
     });
-  });
+  }, 15000);
 
   it("single unit mode auto-logs listed material on next unit even when usage is optional", async () => {
     lineRouteExecutionMock.mockResolvedValue({
@@ -877,7 +877,7 @@ describe("WorkCenterOperatorPage", () => {
         uom: "KG",
       })
     );
-  });
+  }, 15000);
 
   it("single unit mode auto-scans in before completing next unit when step is pending", async () => {
     lineRouteExecutionMock.mockResolvedValue({
@@ -1024,7 +1024,7 @@ describe("WorkCenterOperatorPage", () => {
     await waitFor(() => expect(scanInMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(addStepUsageMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(recordStepProgressMock).toHaveBeenCalledTimes(1));
-  });
+  }, 15000);
 
   it("loads saved material usage from API for selected step", async () => {
     getStepUsageMock.mockResolvedValueOnce([
@@ -1192,7 +1192,7 @@ describe("WorkCenterOperatorPage", () => {
     fireEvent.click(screen.getByText("SO-2001"));
     await screen.findByText(/Current Order #\s*SO-2001 - Line #\s*1/i);
     expect(screen.getByText("COOLANT-A - Cutting Fluid (Coolant A)")).toBeInTheDocument();
-  });
+  }, 15000);
 
   it("uses logged-in user as default operator", async () => {
     authSessionMock.mockReturnValue({

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter, MemoryRouter, useLocation } from "react-router-dom";
 import { MenuPage } from "./MenuPage";
 
@@ -426,8 +426,9 @@ describe("MenuPage", () => {
     await screen.findByText("SO-1001");
     fireEvent.click(screen.getByRole("button", { name: "Logout" }));
 
-    await screen.findByTestId("current-path");
     expect(logoutMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("current-path")).toHaveTextContent("/login");
+    await waitFor(() => {
+      expect(screen.getByTestId("current-path")).toHaveTextContent("/login");
+    });
   });
 });
