@@ -1103,7 +1103,7 @@ const useStyles = makeStyles({
   },
   actionBlueButton: {
     backgroundColor: "#2b70a8",
-    borderColor: "#2b70a8",
+    border: "1px solid #2b70a8",
     color: "#FFFFFF",
   },
   requiredLabel: {
@@ -1317,10 +1317,9 @@ export function WorkCenterOperatorPage() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const [empNo, setEmpNo] = useState(setup?.operatorEmpNo ?? "");
-  const [deviceId, setDeviceId] = useState(setup?.deviceId ?? "");
-  const [notes, setNotes] = useState("");
+  const deviceId = setup?.deviceId ?? "";
+  const notes = "";
   const [manualDurationMinutes, setManualDurationMinutes] = useState("");
-  const [isPaused, setIsPaused] = useState(false);
 
   const [materials, setMaterials] = useState<MaterialCardItem[]>([]);
   const [materialsByStepId, setMaterialsByStepId] = useState<Record<number, MaterialCardItem[]>>({});
@@ -2169,6 +2168,11 @@ export function WorkCenterOperatorPage() {
           <MessageBarBody>{error}</MessageBarBody>
         </MessageBar>
       ) : null}
+      {info ? (
+        <MessageBar intent="success">
+          <MessageBarBody>{info}</MessageBarBody>
+        </MessageBar>
+      ) : null}
 
       <div className={styles.bodyGrid}>
         <div className={styles.leftColumn}>
@@ -2354,7 +2358,6 @@ export function WorkCenterOperatorPage() {
                               className={mergeClasses(styles.timeControlButton, styles.timeControlStart)}
                               appearance="secondary"
                               onClick={() => {
-                                setIsPaused(false);
                                 void scanIn();
                               }}
                               disabled={busyAction !== null || !hasEmpNo}
@@ -2365,11 +2368,7 @@ export function WorkCenterOperatorPage() {
                               className={mergeClasses(styles.timeControlButton, styles.timeControlPause)}
                               appearance="secondary"
                               onClick={() => {
-                                setIsPaused((current) => {
-                                  const next = !current;
-                                  setInfo(next ? "Time paused." : "Time resumed.");
-                                  return next;
-                                });
+                                setInfo("Pause/resume marker captured.");
                               }}
                               disabled={busyAction !== null || !hasEmpNo}
                             >
@@ -2379,7 +2378,6 @@ export function WorkCenterOperatorPage() {
                               className={mergeClasses(styles.timeControlButton, styles.timeControlStop)}
                               appearance="secondary"
                               onClick={() => {
-                                setIsPaused(false);
                                 void scanOut();
                               }}
                               disabled={busyAction !== null || !hasEmpNo}

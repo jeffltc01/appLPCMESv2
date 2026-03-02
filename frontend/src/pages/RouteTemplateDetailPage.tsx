@@ -1381,12 +1381,14 @@ export function RouteTemplateDetailPage() {
                       }
                     >
                       <Option value={ANY_OPTION_VALUE}>Any Item</Option>
-                      {items.map((item) => (
-                        <Option key={item.id} value={String(item.id)}>
-                          {item.itemNo}
-                          {item.itemDescription ? ` - ${item.itemDescription}` : ""}
-                        </Option>
-                      ))}
+                      {items.map((item) => {
+                        const label = `${item.itemNo}${item.itemDescription ? ` - ${item.itemDescription}` : ""}`;
+                        return (
+                          <Option key={item.id} value={String(item.id)} text={label}>
+                            {label}
+                          </Option>
+                        );
+                      })}
                     </Dropdown>
                   </Field>
                   <Field label="Supervisor Gate Override">
