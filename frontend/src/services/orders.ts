@@ -44,6 +44,9 @@ import type {
   GenerateStepDocumentRequest,
   RecordStepProgressRequest,
   StepMaterialUsageCreateRequest,
+  StepMaterialUsageUpdateRequest,
+  DeleteStepMaterialUsageRequest,
+  StepMaterialUsage,
   StepScrapEntryCreateRequest,
   StepSerialCaptureCreateRequest,
   StepChecklistResultCreateRequest,
@@ -525,6 +528,33 @@ export const ordersApi = {
 
   addStepUsage: (orderId: number, lineId: number, stepId: number, data: StepMaterialUsageCreateRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/usage`, data),
+
+  updateStepUsage: (
+    orderId: number,
+    lineId: number,
+    stepId: number,
+    usageId: number,
+    data: StepMaterialUsageUpdateRequest
+  ) =>
+    api.put<OrderRouteExecution>(
+      `/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/usage/${usageId}`,
+      data
+    ),
+
+  deleteStepUsage: (
+    orderId: number,
+    lineId: number,
+    stepId: number,
+    usageId: number,
+    data: DeleteStepMaterialUsageRequest
+  ) =>
+    api.deleteWithBody<OrderRouteExecution>(
+      `/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/usage/${usageId}`,
+      data
+    ),
+
+  getStepUsage: (orderId: number, lineId: number, stepId: number) =>
+    api.get<StepMaterialUsage[]>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/usage`),
 
   addStepScrap: (orderId: number, lineId: number, stepId: number, data: StepScrapEntryCreateRequest) =>
     api.post<OrderRouteExecution>(`/orders/${orderId}/lines/${lineId}/workcenter/${stepId}/scrap`, data),

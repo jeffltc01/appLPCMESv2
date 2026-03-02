@@ -78,6 +78,143 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
+    public async Task AddUsageAsync_PersistsLotBatch()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AddUsageAsync_PersistsLotBatch));
+        SeedRouteWithTwoSteps(db, orderId: 6062, lineId: 60621, routeId: 61620, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.AddUsageAsync(
+            6062,
+            60621,
+            61622,
+            new StepMaterialUsageCreateDto(1, 2.5m, "LOT-6062", "KG", "EMP6062", "Production"));
+
+        var usage = await db.StepMaterialUsages.SingleAsync(u => u.OrderLineRouteStepInstanceId == 61622);
+        Assert.Equal("LOT-6062", usage.LotBatch);
+    }
+
+    [Fact]
+    public async Task AddUsageAsync_WhenSameMaterialLotAndUom_AccumulatesExistingQuantity()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AddUsageAsync_WhenSameMaterialLotAndUom_AccumulatesExistingQuantity));
+        SeedRouteWithTwoSteps(db, orderId: 6064, lineId: 60641, routeId: 61640, firstStepState: "Completed", secondStepState: "InProgress");
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.AddUsageAsync(
+            6064,
+            60641,
+            61642,
+            new StepMaterialUsageCreateDto(1, 2m, "LOT-6064", "KG", "EMP6064", "Production"));
+        await service.AddUsageAsync(
+            6064,
+            60641,
+            61642,
+            new StepMaterialUsageCreateDto(1, 1.5m, "lot-6064", "kg", "EMP6065", "Production"));
+
+        var usages = await db.StepMaterialUsages
+            .Where(u => u.OrderLineRouteStepInstanceId == 61642)
+            .ToListAsync();
+        var usage = Assert.Single(usages);
+        Assert.Equal(3.5m, usage.QuantityUsed);
+        Assert.Equal("EMP6065", usage.RecordedByEmpNo);
+    }
+
+    [Fact]
+    public async Task UpdateUsageAsync_WhenUsageExists_PersistsEditedValues()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateUsageAsync_WhenUsageExists_PersistsEditedValues));
+        SeedRouteWithTwoSteps(db, orderId: 6065, lineId: 60651, routeId: 61650, firstStepState: "Completed", secondStepState: "InProgress");
+        db.StepMaterialUsages.Add(new StepMaterialUsage
+        {
+            Id = 70001,
+            OrderLineRouteStepInstanceId = 61652,
+            SalesOrderDetailId = 60651,
+            PartItemId = 1,
+            LotBatch = "OLD-LOT",
+            QuantityUsed = 1m,
+            Uom = "KG",
+            RecordedByEmpNo = "EMP-OLD",
+            RecordedUtc = DateTime.UtcNow.AddMinutes(-5),
+        });
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.UpdateUsageAsync(
+            6065,
+            60651,
+            61652,
+            70001,
+            new StepMaterialUsageUpdateDto(1, 6m, "NEW-LOT", "KG", "EMP-NEW", "Production"));
+
+        var usage = await db.StepMaterialUsages.SingleAsync(u => u.Id == 70001);
+        Assert.Equal(6m, usage.QuantityUsed);
+        Assert.Equal("NEW-LOT", usage.LotBatch);
+        Assert.Equal("EMP-NEW", usage.RecordedByEmpNo);
+    }
+
+    [Fact]
+    public async Task DeleteUsageAsync_WhenUsageExists_RemovesRowFromStepUsage()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(DeleteUsageAsync_WhenUsageExists_RemovesRowFromStepUsage));
+        SeedRouteWithTwoSteps(db, orderId: 6066, lineId: 60661, routeId: 61660, firstStepState: "Completed", secondStepState: "InProgress");
+        db.StepMaterialUsages.Add(new StepMaterialUsage
+        {
+            Id = 70002,
+            OrderLineRouteStepInstanceId = 61662,
+            SalesOrderDetailId = 60661,
+            PartItemId = 1,
+            LotBatch = "LOT-DEL",
+            QuantityUsed = 2m,
+            Uom = "KG",
+            RecordedByEmpNo = "EMP-DEL",
+            RecordedUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        await service.DeleteUsageAsync(
+            6066,
+            60661,
+            61662,
+            70002,
+            new DeleteStepMaterialUsageDto("EMP-DEL", "Production"));
+
+        var rows = await service.GetStepUsageAsync(6066, 60661, 61662);
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    public async Task GetStepUsageAsync_ReturnsSavedUsageRowsForStep()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(GetStepUsageAsync_ReturnsSavedUsageRowsForStep));
+        SeedRouteWithTwoSteps(db, orderId: 6063, lineId: 60631, routeId: 61630, firstStepState: "Completed", secondStepState: "InProgress");
+        db.StepMaterialUsages.Add(new StepMaterialUsage
+        {
+            OrderLineRouteStepInstanceId = 61632,
+            SalesOrderDetailId = 60631,
+            PartItemId = 1,
+            LotBatch = "LOT-6063",
+            QuantityUsed = 3m,
+            Uom = "KG",
+            RecordedByEmpNo = "EMP6063",
+            RecordedUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
+        var rows = await service.GetStepUsageAsync(6063, 60631, 61632);
+
+        var usage = Assert.Single(rows);
+        Assert.Equal(1, usage.PartItemId);
+        Assert.Equal("ITEM-1", usage.PartItemNo);
+        Assert.Equal("LOT-6063", usage.LotBatch);
+        Assert.Equal(3m, usage.QuantityUsed);
+    }
+
+    [Fact]
     public async Task CompleteStepAsync_WhenChecklistBlockPolicyFails_ThrowsConflict()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistBlockPolicyFails_ThrowsConflict));

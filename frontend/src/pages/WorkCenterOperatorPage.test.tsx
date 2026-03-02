@@ -8,6 +8,9 @@ const lineRouteExecutionMock = vi.fn();
 const scanInMock = vi.fn();
 const scanOutMock = vi.fn();
 const addStepUsageMock = vi.fn();
+const updateStepUsageMock = vi.fn();
+const deleteStepUsageMock = vi.fn();
+const getStepUsageMock = vi.fn();
 const addStepScrapMock = vi.fn();
 const addStepSerialMock = vi.fn();
 const addStepChecklistMock = vi.fn();
@@ -17,7 +20,9 @@ const scrapReasonsMock = vi.fn();
 const itemsLookupMock = vi.fn();
 const productLinesLookupMock = vi.fn();
 const colorsLookupMock = vi.fn();
+const itemSizesLookupMock = vi.fn();
 const authSessionMock = vi.fn();
+const logoutMock = vi.fn();
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({
@@ -26,7 +31,7 @@ vi.mock("../auth/AuthContext", () => ({
     operatorPreLogin: vi.fn(),
     microsoftLogin: vi.fn(),
     operatorLogin: vi.fn(),
-    logout: vi.fn(),
+    logout: logoutMock,
   }),
 }));
 
@@ -41,6 +46,9 @@ vi.mock("../services/orders", async (importOriginal) => {
       scanIn: (...args: unknown[]) => scanInMock(...args),
       scanOut: (...args: unknown[]) => scanOutMock(...args),
       addStepUsage: (...args: unknown[]) => addStepUsageMock(...args),
+      updateStepUsage: (...args: unknown[]) => updateStepUsageMock(...args),
+      deleteStepUsage: (...args: unknown[]) => deleteStepUsageMock(...args),
+      getStepUsage: (...args: unknown[]) => getStepUsageMock(...args),
       addStepScrap: (...args: unknown[]) => addStepScrapMock(...args),
       addStepSerial: (...args: unknown[]) => addStepSerialMock(...args),
       addStepChecklist: (...args: unknown[]) => addStepChecklistMock(...args),
@@ -57,9 +65,32 @@ vi.mock("../services/orders", async (importOriginal) => {
   };
 });
 
+vi.mock("../services/items", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/items")>();
+  return {
+    ...actual,
+    itemLookupsApi: {
+      ...actual.itemLookupsApi,
+      itemSizes: (...args: unknown[]) => itemSizesLookupMock(...args),
+    },
+  };
+});
+
 describe("WorkCenterOperatorPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const savedUsageRows: Array<{
+      id: number;
+      partItemId: number;
+      partItemNo: string;
+      partItemDescription: string | null;
+      lotBatch: string | null;
+      quantityUsed: number;
+      uom: string | null;
+      recordedUtc: string;
+      recordedByEmpNo: string;
+    }> = [];
+    let nextUsageId = 1;
     authSessionMock.mockReturnValue(null);
     window.localStorage.clear();
     workCenterQueueMock.mockResolvedValue([
@@ -67,6 +98,7 @@ describe("WorkCenterOperatorPage", () => {
         stepInstanceId: 500,
         orderId: 2001,
         lineId: 3001,
+        lineNo: 1,
         salesOrderNo: "SO-2001",
         stepCode: "FILL",
         stepName: "Fill",
@@ -133,7 +165,90 @@ describe("WorkCenterOperatorPage", () => {
     });
     scanInMock.mockResolvedValue({});
     scanOutMock.mockResolvedValue({});
-    addStepUsageMock.mockResolvedValue({});
+    addStepUsageMock.mockImplementation(
+      async (
+        _orderId: number,
+        _lineId: number,
+        _stepId: number,
+        payload: {
+          partItemId: number;
+          quantityUsed: number;
+          lotBatch?: string | null;
+          uom?: string | null;
+          recordedByEmpNo: string;
+        }
+      ) => {
+        const existing = savedUsageRows.find(
+          (row) =>
+            row.partItemId === payload.partItemId &&
+            (row.lotBatch ?? "").toLowerCase() === (payload.lotBatch ?? "").toLowerCase() &&
+            (row.uom ?? "").toLowerCase() === (payload.uom ?? "").toLowerCase()
+        );
+        if (existing) {
+          existing.quantityUsed += payload.quantityUsed;
+          existing.recordedByEmpNo = payload.recordedByEmpNo;
+          existing.recordedUtc = new Date().toISOString();
+          return {};
+        }
+
+        const item = (await itemsLookupMock())?.find(
+          (candidate: { id: number }) => candidate.id === payload.partItemId
+        );
+        savedUsageRows.unshift({
+          id: nextUsageId++,
+          partItemId: payload.partItemId,
+          partItemNo: item?.itemNo ?? `ITEM-${payload.partItemId}`,
+          partItemDescription: item?.itemDescription ?? null,
+          lotBatch: payload.lotBatch ?? null,
+          quantityUsed: payload.quantityUsed,
+          uom: payload.uom ?? "KG",
+          recordedUtc: new Date().toISOString(),
+          recordedByEmpNo: payload.recordedByEmpNo,
+        });
+        return {};
+      }
+    );
+    updateStepUsageMock.mockImplementation(
+      async (
+        _orderId: number,
+        _lineId: number,
+        _stepId: number,
+        usageId: number,
+        payload: {
+          partItemId: number;
+          quantityUsed: number;
+          lotBatch?: string | null;
+          uom?: string | null;
+          recordedByEmpNo: string;
+        }
+      ) => {
+        const usage = savedUsageRows.find((row) => row.id === usageId);
+        if (usage) {
+          const item = (await itemsLookupMock())?.find(
+            (candidate: { id: number }) => candidate.id === payload.partItemId
+          );
+          usage.partItemId = payload.partItemId;
+          usage.partItemNo = item?.itemNo ?? `ITEM-${payload.partItemId}`;
+          usage.partItemDescription = item?.itemDescription ?? null;
+          usage.quantityUsed = payload.quantityUsed;
+          usage.lotBatch = payload.lotBatch ?? null;
+          usage.uom = payload.uom ?? "KG";
+          usage.recordedByEmpNo = payload.recordedByEmpNo;
+          usage.recordedUtc = new Date().toISOString();
+        }
+        return {};
+      }
+    );
+    deleteStepUsageMock.mockImplementation(
+      async (_orderId: number, _lineId: number, _stepId: number, usageId: number) => {
+        const index = savedUsageRows.findIndex((row) => row.id === usageId);
+        if (index >= 0) {
+          savedUsageRows.splice(index, 1);
+        }
+        return {};
+      }
+    );
+    getStepUsageMock.mockImplementation(async () => savedUsageRows.map((row) => ({ ...row })));
     addStepScrapMock.mockResolvedValue({});
     addStepSerialMock.mockResolvedValue({});
     addStepChecklistMock.mockResolvedValue({});
@@ -156,6 +271,10 @@ describe("WorkCenterOperatorPage", () => {
     ]);
     productLinesLookupMock.mockResolvedValue(["BR", "MISC"]);
     colorsLookupMock.mockResolvedValue([{ id: 1, name: "Blue" }]);
+    itemSizesLookupMock.mockResolvedValue([
+      { id: 1, name: "14.25", size: 14.25 },
+      { id: 2, name: "14.5", size: 14.5 },
+    ]);
   });
 
   it("redirects to tablet setup if setup is missing", async () => {
@@ -193,6 +312,10 @@ describe("WorkCenterOperatorPage", () => {
     );
 
     expect(await screen.findByText("SO-2001")).toBeInTheDocument();
+    expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Current Order #\s*SO-2001 - Line #\s*1/i)
+    ).toBeInTheDocument();
     expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
     await waitFor(() => expect(workCenterQueueMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(lineRouteExecutionMock).toHaveBeenCalledTimes(1));
@@ -724,6 +847,7 @@ describe("WorkCenterOperatorPage", () => {
 
     expect(await screen.findByText("SO-2001")).toBeInTheDocument();
     expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Complete Step" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Single Mode Material Part Item Id")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Single Mode Usage Per Unit")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Single Mode UOM")).not.toBeInTheDocument();
@@ -902,6 +1026,174 @@ describe("WorkCenterOperatorPage", () => {
     await waitFor(() => expect(recordStepProgressMock).toHaveBeenCalledTimes(1));
   });
 
+  it("loads saved material usage from API for selected step", async () => {
+    getStepUsageMock.mockResolvedValueOnce([
+      {
+        id: 501,
+        partItemId: 1001,
+        partItemNo: "COOLANT-A",
+        partItemDescription: "Cutting Fluid (Coolant A)",
+        lotBatch: "CF-DB-01",
+        quantityUsed: 2,
+        uom: "KG",
+        recordedUtc: "2026-03-01T00:00:00Z",
+        recordedByEmpNo: "EMP500",
+      },
+    ]);
+
+    window.localStorage.setItem(
+      TABLET_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        siteId: 10,
+        workCenterId: 101,
+        workCenterCode: "WC-FILL",
+        workCenterName: "Fill Station",
+        operatorEmpNo: "EMP500",
+        deviceId: "",
+        updatedAt: "2026-01-01T00:00:00Z",
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <WorkCenterOperatorPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/Current Order #\s*SO-2001 - Line #\s*1/i)).toBeInTheDocument();
+    expect(await screen.findByText("COOLANT-A - Cutting Fluid (Coolant A)")).toBeInTheDocument();
+    expect(screen.getByText("CF-DB-01")).toBeInTheDocument();
+    expect(getStepUsageMock).toHaveBeenCalled();
+  });
+
+  it("retains material list when returning to the same queue line", async () => {
+    workCenterQueueMock.mockResolvedValue([
+      {
+        stepInstanceId: 500,
+        orderId: 2001,
+        lineId: 3001,
+        lineNo: 1,
+        salesOrderNo: "SO-2001",
+        stepCode: "FILL",
+        stepName: "Fill",
+        stepSequence: 2,
+        stepState: "Pending",
+        scanInUtc: null,
+        itemNo: "ITM-100",
+        itemDescription: "Steel Cylinder",
+        quantityAsReceived: 10,
+      },
+      {
+        stepInstanceId: 600,
+        orderId: 2002,
+        lineId: 3002,
+        lineNo: 2,
+        salesOrderNo: "SO-2002",
+        stepCode: "FILL",
+        stepName: "Fill",
+        stepSequence: 2,
+        stepState: "Pending",
+        scanInUtc: null,
+        itemNo: "ITM-200",
+        itemDescription: "Composite Cylinder",
+        quantityAsReceived: 8,
+      },
+    ]);
+    lineRouteExecutionMock.mockImplementation(async (_orderId: number, lineId: number) => ({
+      orderId: lineId === 3001 ? 2001 : 2002,
+      lifecycleStatus: "InProduction",
+      hasOpenRework: false,
+      routes: [
+        {
+          routeInstanceId: lineId === 3001 ? 9001 : 9002,
+          lineId,
+          state: "Active",
+          quantityOrdered: 10,
+          quantityReceived: 10,
+          quantityCompleted: 0,
+          quantityScrapped: 0,
+          steps: [
+            {
+              stepInstanceId: lineId === 3001 ? 500 : 600,
+              stepSequence: 2,
+              stepCode: "FILL",
+              stepName: "Fill",
+              workCenterId: 101,
+              workCenterName: "Fill Station",
+              state: "InProgress",
+              isRequired: true,
+              requiresScan: true,
+              dataCaptureMode: "ElectronicRequired",
+              timeCaptureMode: "Hybrid",
+              processingMode: "BatchQuantity",
+              scanInUtc: null,
+              scanOutUtc: null,
+              completedUtc: null,
+              durationMinutes: null,
+              manualDurationMinutes: null,
+              manualDurationReason: null,
+              timeCaptureSource: "Scan",
+              requiresUsageEntry: true,
+              requiresScrapEntry: false,
+              requiresSerialCapture: false,
+              requiresChecklistCompletion: false,
+              checklistTemplateId: 1,
+              checklistFailurePolicy: "BlockCompletion",
+              requireScrapReasonWhenBad: false,
+              requiresTrailerCapture: false,
+              requiresSerialLoadVerification: false,
+              generatePackingSlipOnComplete: false,
+              generateBolOnComplete: false,
+              requiresAttachment: false,
+              requiresSupervisorApproval: false,
+              blockedReason: null,
+            },
+          ],
+        },
+      ],
+    }));
+
+    window.localStorage.setItem(
+      TABLET_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        siteId: 10,
+        workCenterId: 101,
+        workCenterCode: "WC-FILL",
+        workCenterName: "Fill Station",
+        operatorEmpNo: "EMP500",
+        deviceId: "",
+        updatedAt: "2026-01-01T00:00:00Z",
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <WorkCenterOperatorPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("SO-2001")).toBeInTheDocument();
+    expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /add material/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Select Item" }));
+    fireEvent.click(await screen.findByRole("button", { name: /COOLANT-A - Cutting Fluid \(Coolant A\)/ }));
+    fireEvent.change(screen.getByLabelText("Lot / Batch #"), { target: { value: "CF-RET-01" } });
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Material Entry" }));
+    expect(await screen.findByText("COOLANT-A - Cutting Fluid (Coolant A)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open queue" }));
+    fireEvent.click(screen.getByText("SO-2002"));
+    await screen.findByText(/Current Order #\s*SO-2002 - Line #\s*2/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open queue" }));
+    fireEvent.click(screen.getByText("SO-2001"));
+    await screen.findByText(/Current Order #\s*SO-2001 - Line #\s*1/i);
+    expect(screen.getByText("COOLANT-A - Cutting Fluid (Coolant A)")).toBeInTheDocument();
+  });
+
   it("uses logged-in user as default operator", async () => {
     authSessionMock.mockReturnValue({
       token: "token",
@@ -942,7 +1234,7 @@ describe("WorkCenterOperatorPage", () => {
     expect(await screen.findByText("Operator One")).toBeInTheDocument();
   });
 
-  it("does not display numeric employee number as operator name", async () => {
+  it("displays numeric-only displayName when provided", async () => {
     authSessionMock.mockReturnValue({
       token: "token",
       expiresUtc: "2026-01-01T12:00:00Z",
@@ -979,8 +1271,7 @@ describe("WorkCenterOperatorPage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("Current User")).toBeInTheDocument();
-    expect(screen.queryByText("49240")).not.toBeInTheDocument();
+    expect(await screen.findByText("49240")).toBeInTheDocument();
   });
 
   it("shows person name when displayName includes employee number prefix", async () => {
@@ -1022,5 +1313,52 @@ describe("WorkCenterOperatorPage", () => {
 
     expect(await screen.findByText("John Doe")).toBeInTheDocument();
     expect(screen.queryByText("Current User")).not.toBeInTheDocument();
+  });
+
+  it("logs out and redirects to login", async () => {
+    authSessionMock.mockReturnValue({
+      token: "token",
+      expiresUtc: "2026-01-01T12:00:00Z",
+      authMethod: "Operator",
+      userId: 10,
+      empNo: "EMP001",
+      displayName: "Operator One",
+      siteId: 10,
+      siteName: "Houston",
+      workCenterId: 101,
+      workCenterCode: "WC-FILL",
+      workCenterName: "Fill Station",
+      roles: ["Production"],
+    });
+    logoutMock.mockResolvedValue(undefined);
+    window.localStorage.setItem(
+      TABLET_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        siteId: 10,
+        workCenterId: 101,
+        workCenterCode: "WC-FILL",
+        workCenterName: "Fill Station",
+        operatorEmpNo: "EMP500",
+        deviceId: "",
+        lockOperatorToLoggedInUser: false,
+        updatedAt: "2026-01-01T00:00:00Z",
+      })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/operator/work-center"]}>
+        <Routes>
+          <Route path="/operator/work-center" element={<WorkCenterOperatorPage />} />
+          <Route path="/login" element={<div>Login Placeholder</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("SO-2001")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    await screen.findByText("Login Placeholder");
+    expect(logoutMock).toHaveBeenCalledTimes(1);
   });
 });

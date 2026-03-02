@@ -1046,6 +1046,7 @@ export interface WorkCenterQueueItem {
   stepInstanceId: number;
   orderId: number;
   lineId: number;
+  lineNo?: number | null;
   salesOrderNo: string;
   stepCode: string;
   stepName: string;
@@ -1167,9 +1168,36 @@ export interface GenerateStepDocumentRequest {
 export interface StepMaterialUsageCreateRequest {
   partItemId: number;
   quantityUsed: number;
+  lotBatch?: string | null;
   uom?: string | null;
   recordedByEmpNo: string;
   actingRole: OrderWorkspaceRole;
+}
+
+export interface StepMaterialUsageUpdateRequest {
+  partItemId: number;
+  quantityUsed: number;
+  lotBatch?: string | null;
+  uom?: string | null;
+  recordedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
+}
+
+export interface DeleteStepMaterialUsageRequest {
+  recordedByEmpNo: string;
+  actingRole: OrderWorkspaceRole;
+}
+
+export interface StepMaterialUsage {
+  id: number;
+  partItemId: number;
+  partItemNo: string;
+  partItemDescription: string | null;
+  lotBatch: string | null;
+  quantityUsed: number;
+  uom: string | null;
+  recordedUtc: string;
+  recordedByEmpNo: string;
 }
 
 export interface RecordStepProgressRequest {

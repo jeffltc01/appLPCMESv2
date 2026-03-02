@@ -8,6 +8,9 @@ public interface IWorkCenterWorkflowService
     Task<OrderRouteExecutionDto> ScanOutAsync(int orderId, int lineId, long stepId, OperatorScanOutDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> RecordProgressAsync(int orderId, int lineId, long stepId, RecordStepProgressDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddUsageAsync(int orderId, int lineId, long stepId, StepMaterialUsageCreateDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> UpdateUsageAsync(int orderId, int lineId, long stepId, long usageId, StepMaterialUsageUpdateDto dto, CancellationToken cancellationToken = default);
+    Task<OrderRouteExecutionDto> DeleteUsageAsync(int orderId, int lineId, long stepId, long usageId, DeleteStepMaterialUsageDto dto, CancellationToken cancellationToken = default);
+    Task<List<StepMaterialUsageDto>> GetStepUsageAsync(int orderId, int lineId, long stepId, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddScrapAsync(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddSerialAsync(int orderId, int lineId, long stepId, StepSerialCaptureCreateDto dto, CancellationToken cancellationToken = default);
     Task<OrderRouteExecutionDto> AddChecklistAsync(int orderId, int lineId, long stepId, StepChecklistResultCreateDto dto, CancellationToken cancellationToken = default);

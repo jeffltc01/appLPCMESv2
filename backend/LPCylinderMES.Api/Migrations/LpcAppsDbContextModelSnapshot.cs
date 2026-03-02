@@ -3583,6 +3583,12 @@ namespace LPCylinderMES.Api.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("LotBatch")
+                        .HasMaxLength(120)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(120)")
+                        .HasColumnName("lot_batch");
+
                     b.Property<long>("OrderLineRouteStepInstanceId")
                         .HasColumnType("bigint")
                         .HasColumnName("order_line_route_step_instance_id");

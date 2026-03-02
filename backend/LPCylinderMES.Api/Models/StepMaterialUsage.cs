@@ -6,6 +6,7 @@ public partial class StepMaterialUsage
     public long OrderLineRouteStepInstanceId { get; set; }
     public int SalesOrderDetailId { get; set; }
     public int PartItemId { get; set; }
+    public string? LotBatch { get; set; }
     public decimal QuantityUsed { get; set; }
     public string? Uom { get; set; }
     public string RecordedByEmpNo { get; set; } = null!;

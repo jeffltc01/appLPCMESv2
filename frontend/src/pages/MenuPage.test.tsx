@@ -3,6 +3,21 @@ import { BrowserRouter, MemoryRouter, useLocation } from "react-router-dom";
 import { MenuPage } from "./MenuPage";
 
 const listMock = vi.fn();
+const logoutMock = vi.fn();
+const authSessionMock = {
+  token: "test-token",
+  expiresUtc: "2099-01-01T00:00:00Z",
+  authMethod: "operator-id",
+  userId: 1,
+  empNo: "EMP001",
+  displayName: "Test Operator",
+  siteId: 10,
+  siteName: "Houston",
+  workCenterId: 1,
+  workCenterCode: "WC-1",
+  workCenterName: "Work Center 1",
+  roles: ["Office"],
+};
 
 vi.mock("../services/orders", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/orders")>();
@@ -15,6 +30,17 @@ vi.mock("../services/orders", async (importOriginal) => {
   };
 });
 
+vi.mock("../auth/AuthContext", () => ({
+  useAuth: () => ({
+    isLoading: false,
+    session: authSessionMock,
+    operatorPreLogin: vi.fn(),
+    microsoftLogin: vi.fn(),
+    operatorLogin: vi.fn(),
+    logout: logoutMock,
+  }),
+}));
+
 function LocationProbe() {
   const location = useLocation();
   return <span data-testid="current-path">{location.pathname}</span>;
@@ -22,6 +48,9 @@ function LocationProbe() {
 
 describe("MenuPage", () => {
   beforeEach(() => {
+    logoutMock.mockReset();
+    authSessionMock.displayName = "Test Operator";
+    authSessionMock.empNo = "EMP001";
     listMock.mockResolvedValue({
       items: [
         {
@@ -88,9 +117,39 @@ describe("MenuPage", () => {
 
     expect(await screen.findByText("SO-1001")).toBeInTheDocument();
     expect(screen.getByText("Order Entry Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Test Operator")).toBeInTheDocument();
+    expect(screen.getByText("Site: Houston")).toBeInTheDocument();
     expect(screen.getByText("Open Order Queue")).toBeInTheDocument();
     expect(screen.getByText("Order Risk Mix")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /New Sales Order/i })).toBeInTheDocument();
+  });
+
+  it("renders only person name when session displayName includes employee number", async () => {
+    authSessionMock.displayName = "EMP001 - Test Operator";
+    authSessionMock.empNo = "EMP001";
+
+    render(
+      <BrowserRouter>
+        <MenuPage />
+      </BrowserRouter>,
+    );
+
+    expect(await screen.findByText("Test Operator")).toBeInTheDocument();
+    expect(screen.queryByText("EMP001 - Test Operator")).not.toBeInTheDocument();
+  });
+
+  it("renders only person name when employee number is suffixed", async () => {
+    authSessionMock.displayName = "Test Operator - EMP001";
+    authSessionMock.empNo = "EMP001";
+
+    render(
+      <BrowserRouter>
+        <MenuPage />
+      </BrowserRouter>,
+    );
+
+    expect(await screen.findByText("Test Operator")).toBeInTheDocument();
+    expect(screen.queryByText("Test Operator - EMP001")).not.toBeInTheDocument();
   });
 
   it("navigates when top menu icon button is clicked", async () => {
@@ -352,5 +411,23 @@ describe("MenuPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "New Sales Order" }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/orders/new");
+  });
+
+  it("logs out and redirects to login", async () => {
+    logoutMock.mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("SO-1001");
+    fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+
+    await screen.findByTestId("current-path");
+    expect(logoutMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/login");
   });
 });

@@ -790,6 +790,55 @@ public class OrdersController(
         }
     }
 
+    [HttpPut("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/usage/{usageId:long}")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> UpdateUsage(
+        int orderId,
+        int lineId,
+        long stepId,
+        long usageId,
+        [FromBody] StepMaterialUsageUpdateDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.UpdateUsageAsync(orderId, lineId, stepId, usageId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/usage/{usageId:long}")]
+    public async Task<ActionResult<OrderRouteExecutionDto>> DeleteUsage(
+        int orderId,
+        int lineId,
+        long stepId,
+        long usageId,
+        [FromBody] DeleteStepMaterialUsageDto dto)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.DeleteUsageAsync(orderId, lineId, stepId, usageId, dto));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/usage")]
+    public async Task<ActionResult<List<StepMaterialUsageDto>>> GetStepUsage(int orderId, int lineId, long stepId)
+    {
+        try
+        {
+            return Ok(await workCenterWorkflowService.GetStepUsageAsync(orderId, lineId, stepId));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
     [HttpPost("{orderId:int}/lines/{lineId:int}/workcenter/{stepId:long}/scrap")]
     public async Task<ActionResult<OrderRouteExecutionDto>> AddScrap(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto)
     {

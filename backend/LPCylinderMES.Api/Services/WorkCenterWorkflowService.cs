@@ -143,19 +143,138 @@ public class WorkCenterWorkflowService(
         EnsureRoleProvided(dto.ActingRole);
         _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "record material usage");
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
-        db.StepMaterialUsages.Add(new StepMaterialUsage
+        var normalizedLotBatch = string.IsNullOrWhiteSpace(dto.LotBatch) ? null : dto.LotBatch.Trim();
+        var normalizedUom = string.IsNullOrWhiteSpace(dto.Uom) ? null : dto.Uom.Trim();
+        var matchingCandidates = await db.StepMaterialUsages
+            .Where(usage =>
+                usage.OrderLineRouteStepInstanceId == step.Id &&
+                usage.SalesOrderDetailId == lineId &&
+                usage.PartItemId == dto.PartItemId)
+            .ToListAsync(cancellationToken);
+
+        var existingUsage = matchingCandidates.FirstOrDefault(usage =>
+            string.Equals((usage.LotBatch ?? string.Empty).Trim(), normalizedLotBatch ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals((usage.Uom ?? string.Empty).Trim(), normalizedUom ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+
+        if (existingUsage is null)
         {
-            OrderLineRouteStepInstanceId = step.Id,
-            SalesOrderDetailId = lineId,
-            PartItemId = dto.PartItemId,
-            QuantityUsed = dto.QuantityUsed,
-            Uom = dto.Uom,
-            RecordedByEmpNo = dto.RecordedByEmpNo,
-            RecordedUtc = DateTime.UtcNow,
-        });
+            db.StepMaterialUsages.Add(new StepMaterialUsage
+            {
+                OrderLineRouteStepInstanceId = step.Id,
+                SalesOrderDetailId = lineId,
+                PartItemId = dto.PartItemId,
+                LotBatch = normalizedLotBatch,
+                QuantityUsed = dto.QuantityUsed,
+                Uom = normalizedUom,
+                RecordedByEmpNo = dto.RecordedByEmpNo,
+                RecordedUtc = DateTime.UtcNow,
+            });
+        }
+        else
+        {
+            existingUsage.QuantityUsed += dto.QuantityUsed;
+            existingUsage.RecordedByEmpNo = dto.RecordedByEmpNo;
+            existingUsage.RecordedUtc = DateTime.UtcNow;
+        }
 
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<OrderRouteExecutionDto> UpdateUsageAsync(
+        int orderId,
+        int lineId,
+        long stepId,
+        long usageId,
+        StepMaterialUsageUpdateDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "update material usage");
+        if (dto.PartItemId <= 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "PartItemId must be greater than zero.");
+        }
+
+        if (dto.QuantityUsed <= 0)
+        {
+            throw new ServiceException(StatusCodes.Status400BadRequest, "QuantityUsed must be greater than zero.");
+        }
+
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        var usage = await db.StepMaterialUsages.FirstOrDefaultAsync(
+            candidate =>
+                candidate.Id == usageId &&
+                candidate.OrderLineRouteStepInstanceId == step.Id &&
+                candidate.SalesOrderDetailId == lineId,
+            cancellationToken);
+        if (usage is null)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "Material usage row was not found.");
+        }
+
+        usage.PartItemId = dto.PartItemId;
+        usage.QuantityUsed = dto.QuantityUsed;
+        usage.LotBatch = string.IsNullOrWhiteSpace(dto.LotBatch) ? null : dto.LotBatch.Trim();
+        usage.Uom = string.IsNullOrWhiteSpace(dto.Uom) ? null : dto.Uom.Trim();
+        usage.RecordedByEmpNo = dto.RecordedByEmpNo;
+        usage.RecordedUtc = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<OrderRouteExecutionDto> DeleteUsageAsync(
+        int orderId,
+        int lineId,
+        long stepId,
+        long usageId,
+        DeleteStepMaterialUsageDto dto,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureRoleProvided(dto.ActingRole);
+        _rolePermissionService.EnsureWorkCenterOperationAllowed(dto.ActingRole!, "delete material usage");
+        var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+
+        var usage = await db.StepMaterialUsages.FirstOrDefaultAsync(
+            candidate =>
+                candidate.Id == usageId &&
+                candidate.OrderLineRouteStepInstanceId == step.Id &&
+                candidate.SalesOrderDetailId == lineId,
+            cancellationToken);
+        if (usage is null)
+        {
+            throw new ServiceException(StatusCodes.Status404NotFound, "Material usage row was not found.");
+        }
+
+        db.StepMaterialUsages.Remove(usage);
+        await db.SaveChangesAsync(cancellationToken);
+        return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
+    }
+
+    public async Task<List<StepMaterialUsageDto>> GetStepUsageAsync(
+        int orderId,
+        int lineId,
+        long stepId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
+        return await db.StepMaterialUsages
+            .AsNoTracking()
+            .Where(usage => usage.OrderLineRouteStepInstanceId == stepId && usage.SalesOrderDetailId == lineId)
+            .OrderByDescending(usage => usage.RecordedUtc)
+            .ThenByDescending(usage => usage.Id)
+            .Select(usage => new StepMaterialUsageDto(
+                usage.Id,
+                usage.PartItemId,
+                usage.PartItem.ItemNo,
+                usage.PartItem.ItemDescription,
+                usage.LotBatch,
+                usage.QuantityUsed,
+                usage.Uom,
+                usage.RecordedUtc,
+                usage.RecordedByEmpNo))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<OrderRouteExecutionDto> AddScrapAsync(int orderId, int lineId, long stepId, StepScrapEntryCreateDto dto, CancellationToken cancellationToken = default)
@@ -467,6 +586,7 @@ public class WorkCenterWorkflowService(
                 s.Id,
                 s.OrderLineRouteInstance.SalesOrderId,
                 s.SalesOrderDetailId,
+                s.OrderLineRouteInstance.SalesOrderDetail.LineNo,
                 s.OrderLineRouteInstance.SalesOrder.SalesOrderNo,
                 s.StepCode,
                 s.StepName,

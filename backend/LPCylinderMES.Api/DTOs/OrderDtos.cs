@@ -618,7 +618,33 @@ public record GenerateStepDocumentDto(
     string? Notes = null,
     string? ActingRole = null);
 
-public record StepMaterialUsageCreateDto(int PartItemId, decimal QuantityUsed, string? Uom, string RecordedByEmpNo, string? ActingRole = null);
+public record StepMaterialUsageCreateDto(
+    int PartItemId,
+    decimal QuantityUsed,
+    string? LotBatch,
+    string? Uom,
+    string RecordedByEmpNo,
+    string? ActingRole = null);
+public record StepMaterialUsageUpdateDto(
+    int PartItemId,
+    decimal QuantityUsed,
+    string? LotBatch,
+    string? Uom,
+    string RecordedByEmpNo,
+    string? ActingRole = null);
+public record DeleteStepMaterialUsageDto(
+    string RecordedByEmpNo,
+    string? ActingRole = null);
+public record StepMaterialUsageDto(
+    long Id,
+    int PartItemId,
+    string PartItemNo,
+    string? PartItemDescription,
+    string? LotBatch,
+    decimal QuantityUsed,
+    string? Uom,
+    DateTime RecordedUtc,
+    string RecordedByEmpNo);
 
 public record RecordStepProgressDto(decimal QuantityCompleted, decimal? QuantityScrapped, string EmpNo, string? Notes = null, string? ActingRole = null);
 
@@ -693,6 +719,7 @@ public record WorkCenterQueueItemDto(
     long StepInstanceId,
     int OrderId,
     int LineId,
+    decimal LineNo,
     string SalesOrderNo,
     string StepCode,
     string StepName,

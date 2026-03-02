@@ -392,6 +392,161 @@ public class SetupRoutingServiceTests
     }
 
     [Fact]
+    public async Task UpdateRouteTemplateAsync_ChangingStepTimeCaptureMode_UpdatesOpenStepInstances()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateRouteTemplateAsync_ChangingStepTimeCaptureMode_UpdatesOpenStepInstances));
+        SeedCommonLookups(db);
+
+        db.WorkCenters.Add(new WorkCenter
+        {
+            Id = 950,
+            WorkCenterCode = "WC-950",
+            WorkCenterName = "Time Capture",
+            SiteId = 1,
+            IsActive = true,
+            DefaultTimeCaptureMode = "Automated",
+            DefaultProcessingMode = "BatchQuantity",
+            RequiresScanByDefault = true,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+
+        db.RouteTemplates.Add(new RouteTemplate
+        {
+            Id = 951,
+            RouteTemplateCode = "RT-951",
+            RouteTemplateName = "Time Sync Template",
+            IsActive = true,
+            VersionNo = 1,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+            Steps =
+            {
+                new RouteTemplateStep
+                {
+                    Id = 952,
+                    StepSequence = 1,
+                    StepCode = "STEP-1",
+                    StepName = "Prep",
+                    WorkCenterId = 950,
+                    IsRequired = true,
+                    DataCaptureMode = "ElectronicRequired",
+                    TimeCaptureMode = "Automated",
+                    RequiresScan = true,
+                    ChecklistFailurePolicy = "BlockCompletion",
+                },
+                new RouteTemplateStep
+                {
+                    Id = 953,
+                    StepSequence = 2,
+                    StepCode = "STEP-2",
+                    StepName = "Finish",
+                    WorkCenterId = 950,
+                    IsRequired = true,
+                    DataCaptureMode = "ElectronicRequired",
+                    TimeCaptureMode = "Manual",
+                    RequiresScan = true,
+                    ChecklistFailurePolicy = "BlockCompletion",
+                },
+            },
+        });
+
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 954,
+            SalesOrderNo = "SO-954",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.Received,
+            OrderLifecycleStatus = OrderStatusCatalog.InProduction,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        db.SalesOrderDetails.Add(new SalesOrderDetail
+        {
+            Id = 955,
+            SalesOrderId = 954,
+            LineNo = 1,
+            ItemId = 10,
+            QuantityAsOrdered = 5,
+            QuantityAsReceived = 5,
+            SiteId = 1,
+        });
+        db.OrderLineRouteInstances.Add(new OrderLineRouteInstance
+        {
+            Id = 956,
+            SalesOrderId = 954,
+            SalesOrderDetailId = 955,
+            RouteTemplateId = 951,
+            RouteTemplateVersionNo = 1,
+            State = "Active",
+            StartedUtc = DateTime.UtcNow,
+        });
+        db.OrderLineRouteStepInstances.AddRange(
+            new OrderLineRouteStepInstance
+            {
+                Id = 957,
+                OrderLineRouteInstanceId = 956,
+                SalesOrderDetailId = 955,
+                StepSequence = 1,
+                StepCode = "STEP-1",
+                StepName = "Prep",
+                WorkCenterId = 950,
+                State = "Pending",
+                TimeCaptureMode = "Automated",
+                IsRequired = true,
+            },
+            new OrderLineRouteStepInstance
+            {
+                Id = 958,
+                OrderLineRouteInstanceId = 956,
+                SalesOrderDetailId = 955,
+                StepSequence = 2,
+                StepCode = "STEP-2",
+                StepName = "Finish",
+                WorkCenterId = 950,
+                State = "InProgress",
+                TimeCaptureMode = "Manual",
+                IsRequired = true,
+            },
+            new OrderLineRouteStepInstance
+            {
+                Id = 959,
+                OrderLineRouteInstanceId = 956,
+                SalesOrderDetailId = 955,
+                StepSequence = 1,
+                StepCode = "STEP-1",
+                StepName = "Prep Completed",
+                WorkCenterId = 950,
+                State = "Completed",
+                TimeCaptureMode = "Automated",
+                IsRequired = true,
+            });
+        await db.SaveChangesAsync();
+
+        var service = new SetupRoutingService(db);
+        await service.UpdateRouteTemplateAsync(
+            951,
+            new RouteTemplateUpsertDto(
+                "RT-951",
+                "Time Sync Template",
+                null,
+                true,
+                2,
+                [
+                    new RouteTemplateStepUpsertDto(1, "STEP-1", "Prep", 950, true, "ElectronicRequired", "Manual", null, true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
+                    new RouteTemplateStepUpsertDto(2, "STEP-2", "Finish", 950, true, "ElectronicRequired", "Hybrid", null, true, false, false, false, false, null, "BlockCompletion", true, false, false, false, false, false, false, true, null),
+                ]));
+
+        var pendingStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 957);
+        var inProgressStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 958);
+        var completedStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 959);
+
+        Assert.Equal("Manual", pendingStep.TimeCaptureMode);
+        Assert.Equal("Hybrid", inProgressStep.TimeCaptureMode);
+        Assert.Equal("Automated", completedStep.TimeCaptureMode);
+    }
+
+    [Fact]
     public async Task CreateUserAsync_WithRoleAssignments_CreatesUserWithRoles()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(CreateUserAsync_WithRoleAssignments_CreatesUserWithRoles));

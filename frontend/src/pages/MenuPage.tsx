@@ -31,6 +31,8 @@ import {
 } from "@fluentui/react-icons";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { formatCurrentUserDisplayName } from "../auth/userDisplay";
 import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
 import type { HoldOverlayType, OrderDraftListItem } from "../types/order";
 
@@ -265,6 +267,7 @@ function getLifecycleStatus(order: OrderDraftListItem): string {
 export function MenuPage() {
   const styles = useStyles();
   const navigate = useNavigate();
+  const { session, logout } = useAuth();
   const [orders, setOrders] = useState<OrderDraftListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -375,13 +378,22 @@ export function MenuPage() {
     setPendingFilters(reset);
     setAppliedFilters(reset);
   };
+  const currentUserLabel = formatCurrentUserDisplayName(
+    session?.displayName,
+    "Unknown User"
+  );
+  const currentSiteLabel = session?.siteName || "Unassigned";
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className={styles.page}>
       <main className={styles.content}>
         <div className={styles.topUtility}>
-          <span>Order Analyst</span>
-          <span>Site: Houston</span>
+          <span>{currentUserLabel}</span>
+          <span>Site: {currentSiteLabel}</span>
         </div>
 
         <div className={styles.topMenu}>
@@ -428,6 +440,13 @@ export function MenuPage() {
         <div className={styles.headerBar}>
           <Title1>Order Entry Workspace</Title1>
           <div className={styles.headerActions}>
+            <Button
+              className={styles.headerActionButton}
+              appearance="secondary"
+              onClick={() => void handleLogout()}
+            >
+              Logout
+            </Button>
             <Button
               className={styles.headerActionButton}
               appearance="secondary"

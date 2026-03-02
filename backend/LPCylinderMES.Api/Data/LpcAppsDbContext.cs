@@ -1645,6 +1645,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.OrderLineRouteStepInstanceId).HasColumnName("order_line_route_step_instance_id");
             entity.Property(e => e.SalesOrderDetailId).HasColumnName("sales_order_detail_id");
             entity.Property(e => e.PartItemId).HasColumnName("part_item_id");
+            entity.Property(e => e.LotBatch).HasMaxLength(120).IsUnicode(false).HasColumnName("lot_batch");
             entity.Property(e => e.QuantityUsed).HasColumnType("decimal(18,4)").HasColumnName("quantity_used");
             entity.Property(e => e.Uom).HasMaxLength(20).IsUnicode(false).HasColumnName("uom");
             entity.Property(e => e.RecordedByEmpNo).HasMaxLength(30).IsUnicode(false).HasColumnName("recorded_by_emp_no");

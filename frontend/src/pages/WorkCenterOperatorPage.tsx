@@ -22,9 +22,7 @@ import {
   ArrowUpload24Regular,
   Backspace24Filled,
   Building24Regular,
-  CheckmarkCircle24Regular,
   Clock24Regular,
-  Cube24Regular,
   Dismiss24Regular,
   List24Regular,
   Navigation24Regular,
@@ -32,14 +30,19 @@ import {
 } from "@fluentui/react-icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { formatCurrentUserDisplayName } from "../auth/userDisplay";
 import { orderLookupsApi, ordersApi } from "../services/orders";
+import { ApiError } from "../services/api";
+import { itemLookupsApi } from "../services/items";
 import { readTabletSetup } from "../features/tabletSetupStorage";
 import type { Lookup } from "../types/customer";
+import type { ItemSizeLookup } from "../types/item";
 import type {
   LineRouteExecution,
   OrderItemLookup,
   OrderRouteExecution,
   RouteStepExecution,
+  StepMaterialUsage,
   WorkCenterQueueItem,
 } from "../types/order";
 
@@ -234,7 +237,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalS,
   },
   sectionCard: {
-    border: "1px solid #E8E8E8",
+    border: "1px solid #D2D2D2",
     borderRadius: "8px",
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
@@ -261,6 +264,11 @@ const useStyles = makeStyles({
     display: "grid",
     gap: "10px",
   },
+  materialSectionBody: {
+    padding: "0",
+    height: "350px",
+    minHeight: "350px",
+  },
   sectionCardBodyTransparent: {
     backgroundColor: "transparent",
   },
@@ -285,14 +293,16 @@ const useStyles = makeStyles({
   },
   materialFlipScene: {
     perspective: "1200px",
-    minHeight: "336px",
+    height: "100%",
+    minHeight: 0,
     backgroundColor: "#F5F5F5",
     borderRadius: "10px",
   },
   materialFlipCard: {
     position: "relative",
     width: "100%",
-    minHeight: "336px",
+    height: "100%",
+    minHeight: 0,
     transformStyle: "preserve-3d",
     transition: "transform 300ms ease",
   },
@@ -327,11 +337,11 @@ const useStyles = makeStyles({
     minHeight: "46px",
     borderRadius: "8px",
     border: "none",
-    background: "linear-gradient(90deg, #0A67B3 0%, #0A4F93 55%, #123046 100%)",
+    backgroundColor: "#2b70a8",
     color: "#FFFFFF",
     fontWeight: 700,
     letterSpacing: "0.2px",
-    boxShadow: "0 2px 8px rgba(10, 79, 147, 0.28)",
+    boxShadow: "0 2px 8px rgba(43, 112, 168, 0.28)",
   },
   materialListWrap: {
     display: "grid",
@@ -675,7 +685,10 @@ const useStyles = makeStyles({
     perspective: "1200px",
     minHeight: 0,
     flex: 1,
+    width: "100%",
+    minWidth: 0,
     height: "100%",
+    overflowX: "hidden",
   },
   singleEntryStandardCard: {
     borderRadius: "10px",
@@ -683,6 +696,9 @@ const useStyles = makeStyles({
     backgroundColor: "#FFFFFF",
     boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
     padding: "10px",
+    height: "100%",
+    minHeight: 0,
+    minWidth: 0,
     display: "grid",
     gap: "10px",
     alignContent: "start",
@@ -722,13 +738,24 @@ const useStyles = makeStyles({
   singleEntrySerialGrid: {
     width: "100%",
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(160px, 1fr))",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
     gap: "8px",
+    minWidth: 0,
+    "& > *": {
+      minWidth: 0,
+    },
+    "& .fui-Input, & .fui-Select": {
+      width: "100%",
+      minWidth: 0,
+    },
     "@media (max-width: 1300px)": {
-      gridTemplateColumns: "repeat(3, minmax(160px, 1fr))",
+      gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     },
     "@media (max-width: 980px)": {
-      gridTemplateColumns: "repeat(2, minmax(160px, 1fr))",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    },
+    "@media (max-width: 820px)": {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     },
     "@media (max-width: 680px)": {
       gridTemplateColumns: "1fr",
@@ -1071,6 +1098,14 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
   },
+  fullWidthActionButton: {
+    width: "100%",
+  },
+  actionBlueButton: {
+    backgroundColor: "#2b70a8",
+    borderColor: "#2b70a8",
+    color: "#FFFFFF",
+  },
   requiredLabel: {
     color: "#8A8886",
     fontSize: "12px",
@@ -1101,7 +1136,56 @@ const EMPTY_CAPTURE_PROGRESS: CaptureProgress = {
 };
 
 const DEFAULT_ROLE = "Production" as const;
-const LID_SIZE_OPTIONS = ["Small", "Medium", "Large"] as const;
+const SINGLE_UNIT_SERIAL_INPUT_ID = "single-unit-serial-no-input";
+
+function formatLidSizeLabel(size: ItemSizeLookup): string {
+  return Number.isInteger(size.size) ? size.size.toFixed(0) : size.size.toString();
+}
+
+function focusSingleUnitSerialInput() {
+  window.setTimeout(() => {
+    const serialInput = document.getElementById(SINGLE_UNIT_SERIAL_INPUT_ID);
+    if (!(serialInput instanceof HTMLInputElement)) {
+      return;
+    }
+    serialInput.focus();
+    serialInput.select();
+  }, 0);
+}
+
+function getApiErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+  if (!error.body || typeof error.body !== "object") {
+    return null;
+  }
+
+  const details = error.body as {
+    detail?: string;
+    title?: string;
+    message?: string;
+    errors?: Record<string, string[]>;
+  };
+
+  if (typeof details.detail === "string" && details.detail.trim().length > 0) {
+    return details.detail;
+  }
+  if (typeof details.message === "string" && details.message.trim().length > 0) {
+    return details.message;
+  }
+  if (typeof details.title === "string" && details.title.trim().length > 0) {
+    return details.title;
+  }
+  if (details.errors && typeof details.errors === "object") {
+    const firstError = Object.values(details.errors).flat()[0];
+    if (typeof firstError === "string" && firstError.trim().length > 0) {
+      return firstError;
+    }
+  }
+
+  return null;
+}
 
 function getActiveLineRoute(
   execution: OrderRouteExecution | null,
@@ -1172,63 +1256,46 @@ function formatElapsed(scanInUtc: string | null): string {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-function isLikelyEmployeeNumber(value: string): boolean {
-  const normalized = value.trim();
-  if (!normalized) {
-    return false;
-  }
-  return (
-    /^[A-Z]{2,}\d+$/i.test(normalized) ||
-    /^EMP\d+$/i.test(normalized) ||
-    /^\d{4,}$/.test(normalized) ||
-    /^\d/.test(normalized) ||
-    /\d{4,}/.test(normalized)
-  );
-}
-
-function resolveOperatorDisplayName(sessionDisplayName: string, sessionEmpNo: string): string {
-  const normalizedDisplayName = sessionDisplayName.trim();
-  const normalizedEmpNo = sessionEmpNo.trim();
-
-  if (!normalizedDisplayName) {
-    return "Current User";
-  }
-
-  const prefixedNameMatch = normalizedDisplayName.match(/^(?:EMP)?\d+\s*[-:|]\s*(.+)$/i);
-  if (prefixedNameMatch?.[1]) {
-    const extractedName = prefixedNameMatch[1].trim();
-    if (extractedName && /[A-Za-z]/.test(extractedName)) {
-      return extractedName;
-    }
-  }
-
-  const trailingEmpNoMatch = normalizedDisplayName.match(/^(.+?)\s*\((?:EMP)?\d+\)\s*$/i);
-  if (trailingEmpNoMatch?.[1]) {
-    const extractedName = trailingEmpNoMatch[1].trim();
-    if (extractedName && /[A-Za-z]/.test(extractedName)) {
-      return extractedName;
-    }
-  }
-
-  if (
-    normalizedDisplayName &&
-    normalizedDisplayName !== normalizedEmpNo &&
-    !isLikelyEmployeeNumber(normalizedDisplayName)
-  ) {
-    return normalizedDisplayName;
-  }
-
-  return "Current User";
-}
-
 function normalizeFilterValue(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
+}
+
+function mapUsageRowsToMaterialCards(usageRows: StepMaterialUsage[]): MaterialCardItem[] {
+  return usageRows.map((usage) => ({
+    id: `db-${usage.id}`,
+    partItemId: usage.partItemId,
+    materialName: `${usage.partItemNo} - ${usage.partItemDescription ?? "--"}`,
+    lotBatch: usage.lotBatch ?? "",
+    quantity: usage.quantityUsed,
+    unit: usage.uom ?? "KG",
+  }));
+}
+
+function parsePersistedUsageId(materialId: string): number | null {
+  if (!materialId.startsWith("db-")) {
+    return null;
+  }
+
+  const idText = materialId.slice(3);
+  if (!/^\d+$/.test(idText)) {
+    return null;
+  }
+
+  return Number(idText);
+}
+
+function getMaterialItemNo(material: MaterialCardItem): string {
+  const separatorIndex = material.materialName.indexOf(" - ");
+  if (separatorIndex <= 0) {
+    return material.materialName.trim().toUpperCase();
+  }
+  return material.materialName.slice(0, separatorIndex).trim().toUpperCase();
 }
 
 export function WorkCenterOperatorPage() {
   const styles = useStyles();
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, logout } = useAuth();
   const setup = useMemo(() => readTabletSetup(), []);
   const [, setClockTick] = useState(0);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -1238,6 +1305,7 @@ export function WorkCenterOperatorPage() {
   const [execution, setExecution] = useState<OrderRouteExecution | null>(null);
   const [scrapReasons, setScrapReasons] = useState<Lookup[]>([]);
   const [orderItems, setOrderItems] = useState<OrderItemLookup[]>([]);
+  const [lidSizes, setLidSizes] = useState<ItemSizeLookup[]>([]);
   const [itemLookupError, setItemLookupError] = useState<string | null>(null);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [itemSearchQuery, setItemSearchQuery] = useState("");
@@ -1255,6 +1323,7 @@ export function WorkCenterOperatorPage() {
   const [isPaused, setIsPaused] = useState(false);
 
   const [materials, setMaterials] = useState<MaterialCardItem[]>([]);
+  const [materialsByStepId, setMaterialsByStepId] = useState<Record<number, MaterialCardItem[]>>({});
   const [isMaterialCardFlipped, setIsMaterialCardFlipped] = useState(false);
   const [materialPendingRemoval, setMaterialPendingRemoval] = useState<MaterialCardItem | null>(null);
   const [editingMaterialId, setEditingMaterialId] = useState<string | null>(null);
@@ -1278,7 +1347,14 @@ export function WorkCenterOperatorPage() {
   const [progressByStep, setProgressByStep] = useState<Record<number, CaptureProgress>>({});
   const sessionEmpNo = session?.empNo?.trim() ?? "";
   const sessionDisplayName = session?.displayName?.trim() ?? "";
-  const operatorDisplayName = resolveOperatorDisplayName(sessionDisplayName, sessionEmpNo);
+  const operatorDisplayName = formatCurrentUserDisplayName(
+    sessionDisplayName,
+    "Current User"
+  );
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1297,19 +1373,21 @@ export function WorkCenterOperatorPage() {
       setLoading(true);
       setError(null);
       try {
-        const [queueRows, scrapReasonRows, items, productLines, colorRows] = await Promise.all([
+        const [queueRows, scrapReasonRows, items, productLines, colorRows, sizeRows] = await Promise.all([
           ordersApi.workCenterQueue(setup.workCenterId),
           orderLookupsApi.scrapReasons(),
           orderLookupsApi.items(),
           orderLookupsApi.productLines("JobMaterialUsed"),
           orderLookupsApi.colors(),
+          itemLookupsApi.itemSizes(),
         ]);
         setQueue(queueRows);
-        setSelectedQueueItem(queueRows[0] ?? null);
+        setSelectedQueueItem(queueRows[0] ? { ...queueRows[0] } : null);
         setScrapReasons(scrapReasonRows);
         setOrderItems(items);
         setProductLineOptions(productLines);
         setLidColors(colorRows);
+        setLidSizes(sizeRows);
         setItemLookupError(null);
       } catch {
         setError("Unable to load work center queue.");
@@ -1372,7 +1450,8 @@ export function WorkCenterOperatorPage() {
   }, [sessionEmpNo, setup]);
 
   useEffect(() => {
-    setMaterials([]);
+    const stepInstanceId = selectedQueueItem?.stepInstanceId;
+    setMaterials(stepInstanceId ? (materialsByStepId[stepInstanceId] ?? []) : []);
     setIsMaterialCardFlipped(false);
     setEditingMaterialId(null);
     setMaterialPartItemId("");
@@ -1381,6 +1460,65 @@ export function WorkCenterOperatorPage() {
     setMaterialQuantity("");
     setSingleUnitCompletedQtyOverride(null);
   }, [selectedQueueItem?.stepInstanceId]);
+
+  useEffect(() => {
+    if (!selectedQueueItem || !step) {
+      return;
+    }
+
+    const loadStepUsage = async () => {
+      try {
+        const usageRows = await ordersApi.getStepUsage(
+          selectedQueueItem.orderId,
+          selectedQueueItem.lineId,
+          step.stepInstanceId
+        );
+        const restoredMaterials = mapUsageRowsToMaterialCards(usageRows);
+        setMaterials(restoredMaterials);
+        setMaterialsByStepId((existing) => ({
+          ...existing,
+          [step.stepInstanceId]: restoredMaterials,
+        }));
+        setProgressByStep((current) => ({
+          ...current,
+          [step.stepInstanceId]: {
+            ...(current[step.stepInstanceId] ?? EMPTY_CAPTURE_PROGRESS),
+            usageDone: restoredMaterials.length > 0,
+          },
+        }));
+      } catch {
+        setError("Unable to load saved material usage.");
+      }
+    };
+
+    void loadStepUsage();
+  }, [selectedQueueItem, step]);
+
+  const updateStepMaterials = (updater: (current: MaterialCardItem[]) => MaterialCardItem[]) => {
+    const stepInstanceId = selectedQueueItem?.stepInstanceId;
+    setMaterials((current) => {
+      const next = updater(current);
+      if (!stepInstanceId) {
+        return next;
+      }
+      setMaterialsByStepId((existing) => ({
+        ...existing,
+        [stepInstanceId]: next,
+      }));
+      return next;
+    });
+  };
+
+  const refreshStepUsage = async (orderId: number, lineId: number, stepInstanceId: number) => {
+    const usageRows = await ordersApi.getStepUsage(orderId, lineId, stepInstanceId);
+    const restoredMaterials = mapUsageRowsToMaterialCards(usageRows);
+    setMaterials(restoredMaterials);
+    setMaterialsByStepId((existing) => ({
+      ...existing,
+      [stepInstanceId]: restoredMaterials,
+    }));
+    withStepProgress({ usageDone: restoredMaterials.length > 0 });
+  };
 
   const captureProgress = step ? progressByStep[step.stepInstanceId] ?? EMPTY_CAPTURE_PROGRESS : EMPTY_CAPTURE_PROGRESS;
   const stepRequiresSerialCapture = Boolean(step?.requiresSerialCapture);
@@ -1407,8 +1545,6 @@ export function WorkCenterOperatorPage() {
   const qtyCompleted = lineRoute?.quantityCompleted ?? 0;
   const displayQtyCompleted =
     singleUnitCompletedQtyOverride !== null ? singleUnitCompletedQtyOverride : qtyCompleted;
-  const progressPercent =
-    qtyOrdered > 0 ? Math.min(100, Math.round((displayQtyCompleted / qtyOrdered) * 100)) : 0;
   const isSingleUnitMode = step?.processingMode === "SingleUnit";
   const isSingleUnitReadyToCompleteStep = isSingleUnitMode && qtyReceived > 0 && displayQtyCompleted >= qtyReceived;
   const showBatchSerialSection = !isSingleUnitMode && stepRequiresSerialCapture;
@@ -1461,6 +1597,16 @@ export function WorkCenterOperatorPage() {
       return searchText.includes(query);
     });
   }, [itemSearchQuery, jobMaterialItems, selectedProductLineFilter]);
+  const sortedMaterials = useMemo(
+    () =>
+      [...materials].sort((left, right) =>
+        getMaterialItemNo(left).localeCompare(getMaterialItemNo(right), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      ),
+    [materials]
+  );
 
   const withStepProgress = (patch: Partial<CaptureProgress>) => {
     if (!step) {
@@ -1481,8 +1627,8 @@ export function WorkCenterOperatorPage() {
     setInfo(null);
     try {
       await fn();
-    } catch {
-      setError("Action failed. Please retry.");
+    } catch (caughtError) {
+      setError(getApiErrorMessage(caughtError) ?? "Action failed. Please retry.");
     } finally {
       setBusyAction(null);
     }
@@ -1553,15 +1699,34 @@ export function WorkCenterOperatorPage() {
     setIsMaterialCardFlipped(true);
   };
 
-  const removeMaterial = (itemId: string) => {
-    setMaterials((current) => {
-      const next = current.filter((item) => item.id !== itemId);
-      if (!next.length) {
-        withStepProgress({ usageDone: false });
-      }
-      return next;
+  const removeMaterial = async (itemId: string) => {
+    const persistedUsageId = parsePersistedUsageId(itemId);
+    if (persistedUsageId === null || !step || !selectedQueueItem) {
+      updateStepMaterials((current) => {
+        const next = current.filter((item) => item.id !== itemId);
+        if (!next.length) {
+          withStepProgress({ usageDone: false });
+        }
+        return next;
+      });
+      setInfo("Material entry removed.");
+      return;
+    }
+
+    await runAction("removeMaterial", async () => {
+      await ordersApi.deleteStepUsage(
+        selectedQueueItem.orderId,
+        selectedQueueItem.lineId,
+        step.stepInstanceId,
+        persistedUsageId,
+        {
+          recordedByEmpNo: empNo.trim(),
+          actingRole: DEFAULT_ROLE,
+        }
+      );
+      await refreshStepUsage(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId);
+      setInfo("Material entry removed.");
     });
-    setInfo("Material entry removed.");
   };
 
   const requestRemoveMaterial = (item: MaterialCardItem) => {
@@ -1572,7 +1737,7 @@ export function WorkCenterOperatorPage() {
     if (!materialPendingRemoval) {
       return;
     }
-    removeMaterial(materialPendingRemoval.id);
+    void removeMaterial(materialPendingRemoval.id);
     setMaterialPendingRemoval(null);
   };
 
@@ -1616,7 +1781,33 @@ export function WorkCenterOperatorPage() {
     const materialName = `${selectedLookupItem.itemNo} - ${selectedLookupItem.itemDescription ?? "--"}`;
 
     if (editingMaterialId) {
-      setMaterials((current) =>
+      const persistedUsageId = parsePersistedUsageId(editingMaterialId);
+      if (persistedUsageId !== null) {
+        await runAction("updateMaterial", async () => {
+          await ordersApi.updateStepUsage(
+            selectedQueueItem.orderId,
+            selectedQueueItem.lineId,
+            step.stepInstanceId,
+            persistedUsageId,
+            {
+              partItemId: parsedPartItemId,
+              quantityUsed: parsedQuantity,
+              lotBatch: materialLotBatch.trim() || null,
+              uom: "KG",
+              recordedByEmpNo: empNo.trim(),
+              actingRole: DEFAULT_ROLE,
+            }
+          );
+          await refreshStepUsage(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId);
+          withStepProgress({ usageDone: true });
+          setInfo("Material entry updated.");
+          setIsMaterialCardFlipped(false);
+          resetMaterialForm();
+        });
+        return;
+      }
+
+      updateStepMaterials((current) =>
         current.map((item) =>
           item.id === editingMaterialId
             ? {
@@ -1641,21 +1832,12 @@ export function WorkCenterOperatorPage() {
       await ordersApi.addStepUsage(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
         partItemId: parsedPartItemId,
         quantityUsed: parsedQuantity,
+        lotBatch: materialLotBatch.trim() || null,
         uom: "KG",
         recordedByEmpNo: empNo.trim(),
         actingRole: DEFAULT_ROLE,
       });
-      setMaterials((current) => [
-        {
-          id: `${Date.now()}-${parsedPartItemId}`,
-          materialName,
-          partItemId: parsedPartItemId,
-          lotBatch: materialLotBatch.trim(),
-          quantity: parsedQuantity,
-          unit: "KG",
-        },
-        ...current,
-      ]);
+      await refreshStepUsage(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId);
       withStepProgress({ usageDone: true });
       setInfo("Material usage recorded.");
       setIsMaterialCardFlipped(false);
@@ -1724,13 +1906,14 @@ export function WorkCenterOperatorPage() {
             {
               partItemId: material.partItemId,
               quantityUsed: 1,
+              lotBatch: material.lotBatch || null,
               uom: material.unit || "EA",
               recordedByEmpNo: empNo.trim(),
               actingRole: DEFAULT_ROLE,
             }
           );
         }
-        setMaterials((current) =>
+        updateStepMaterials((current) =>
           current.map((material) => ({
             ...material,
             quantity: material.quantity + 1,
@@ -1771,6 +1954,9 @@ export function WorkCenterOperatorPage() {
       setProgressScrapQuantity("");
       if (!singleUnit) {
         setInfo("Batch quantity progress recorded.");
+      }
+      if (singleUnit && stepRequiresSerialCapture) {
+        focusSingleUnitSerialInput();
       }
     });
   };
@@ -1887,7 +2073,7 @@ export function WorkCenterOperatorPage() {
                       : undefined
                   )}
                   onClick={() => {
-                    setSelectedQueueItem(row);
+                    setSelectedQueueItem({ ...row });
                     setQueueOpen(false);
                   }}
                 >
@@ -1898,7 +2084,7 @@ export function WorkCenterOperatorPage() {
                     </div>
                     <div className={styles.queueCardField}>
                       <span className={styles.queueCardLabel}>Line No.</span>
-                      <span className={styles.queueCardValue}>{row.lineId}</span>
+                      <span className={styles.queueCardValue}>{row.lineNo ?? row.lineId}</span>
                     </div>
                     <div className={styles.queueCardField}>
                       <span className={styles.queueCardLabel}>Quantity</span>
@@ -1936,13 +2122,7 @@ export function WorkCenterOperatorPage() {
             <Navigation24Regular />
           </Button>
           <div>
-          <div className={mergeClasses(styles.topBarTitle, styles.titleWithIcon)}>
-            <span className={styles.titleIcon}>
-              <Cube24Regular />
-            </span>
-            Work Center Operator - LPC Mode
-          </div>
-          <Body1>Current Shift | Shift 1 | 06:00 - 14:00</Body1>
+          <div className={styles.topBarTitle}>LPC Operator</div>
           </div>
         </div>
         <div className={styles.topBarMeta}>
@@ -1972,6 +2152,9 @@ export function WorkCenterOperatorPage() {
           </span>
         </div>
         <div className={styles.tabletActions}>
+          <Button className={styles.tallButton} appearance="secondary" onClick={() => void handleLogout()}>
+            Logout
+          </Button>
           <Button className={styles.tallButton} appearance="secondary" onClick={() => navigate("/setup/tablet")}>
             Change Tablet Setup
           </Button>
@@ -1996,7 +2179,10 @@ export function WorkCenterOperatorPage() {
           ) : (
             <>
               <div className={styles.jobCard}>
-                <div className={styles.jobCardHeader}>CURRENT JOB # {selectedQueueItem.salesOrderNo}</div>
+                <div className={styles.jobCardHeader}>
+                  Current Order # {selectedQueueItem.salesOrderNo} - Line #{" "}
+                  {selectedQueueItem.lineNo ?? selectedQueueItem.lineId}
+                </div>
                 <div className={styles.jobCardBody}>
                   <div className={styles.jobSummaryGrid}>
                     <div className={styles.jobSummaryColumn}>
@@ -2021,11 +2207,6 @@ export function WorkCenterOperatorPage() {
                       <strong>Blocked:</strong> {step.blockedReason}
                     </Body1>
                   ) : null}
-                  <div className={styles.progressTrack}>
-                    <div className={styles.progressFill} style={{ width: `${progressPercent}%` }}>
-                      {progressPercent}%
-                    </div>
-                  </div>
                   {isSingleUnitMode ? (
                     <div className={styles.singleEntryScene}>
                       <div className={styles.singleEntryStandardCard}>
@@ -2035,7 +2216,11 @@ export function WorkCenterOperatorPage() {
                         {showSingleUnitSerialFields ? (
                           <div className={styles.singleEntrySerialGrid}>
                             <Field label="Serial No">
-                              <Input value={serialNo} onChange={(_, data) => setSerialNo(data.value)} />
+                              <Input
+                                id={SINGLE_UNIT_SERIAL_INPUT_ID}
+                                value={serialNo}
+                                onChange={(_, data) => setSerialNo(data.value)}
+                              />
                             </Field>
                             <Field label="Manufacturer">
                               <Input value={serialManufacturer} onChange={(_, data) => setSerialManufacturer(data.value)} />
@@ -2062,9 +2247,9 @@ export function WorkCenterOperatorPage() {
                             <Field label="LidSize">
                               <Select value={serialLidSize} onChange={(event) => setSerialLidSize(event.target.value)}>
                                 <option value="">Select lid size</option>
-                                {LID_SIZE_OPTIONS.map((size, index) => (
-                                  <option key={size} value={index + 1}>
-                                    {size}
+                                {lidSizes.map((size) => (
+                                  <option key={size.id} value={size.id}>
+                                    {formatLidSizeLabel(size)}
                                   </option>
                                 ))}
                               </Select>
@@ -2095,44 +2280,47 @@ export function WorkCenterOperatorPage() {
                                 (showSingleUnitSerialFields && !serialNo.trim())
                           }
                         >
-                          {isSingleUnitReadyToCompleteStep ? "Complete Step" : "Complete Next Unit"}
+                          {isSingleUnitReadyToCompleteStep ? "Complete Final Unit" : "Complete Next Unit"}
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className={styles.fieldGrid}>
-                      <Field label="Batch Qty Complete">
-                        <Input
-                          value={progressQuantity}
-                          onChange={(_, data) => setProgressQuantity(data.value)}
-                        />
-                      </Field>
-                      <Field label="Batch Qty Scrap (optional)">
-                        <Input
-                          value={progressScrapQuantity}
-                          onChange={(_, data) => setProgressScrapQuantity(data.value)}
-                        />
-                      </Field>
-                      <Button
-                        className={styles.tallButton}
-                        appearance="primary"
-                        onClick={() => void recordProgress(false)}
-                        disabled={busyAction !== null || !hasEmpNo}
-                      >
-                        Log Batch Quantities
-                      </Button>
-                    </div>
+                    <>
+                      <div className={styles.fieldGrid}>
+                        <Field label="Batch Qty Complete">
+                          <Input
+                            value={progressQuantity}
+                            onChange={(_, data) => setProgressQuantity(data.value)}
+                          />
+                        </Field>
+                        <Field label="Batch Qty Scrap (optional)">
+                          <Input
+                            value={progressScrapQuantity}
+                            onChange={(_, data) => setProgressScrapQuantity(data.value)}
+                          />
+                        </Field>
+                      </div>
+                      <div className={styles.actionRow}>
+                        <Button
+                          className={mergeClasses(
+                            styles.footerButton,
+                            styles.fullWidthActionButton,
+                            styles.actionBlueButton
+                          )}
+                          appearance="primary"
+                          onClick={() => void completeStep()}
+                          disabled={busyAction !== null || !canComplete}
+                        >
+                          Complete Step
+                        </Button>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
 
               <div className={styles.sectionCard}>
-                <div className={styles.sectionCardHeader}>
-                  <span className={styles.sectionCardHeaderIcon}>
-                    <Clock24Regular />
-                  </span>
-                  Time Logging
-                </div>
+                <div className={styles.sectionCardHeader}>Time Logging</div>
                 <div className={styles.sectionCardBody}>
                   <div
                     className={mergeClasses(
@@ -2246,14 +2434,6 @@ export function WorkCenterOperatorPage() {
                       </div>
                     ) : null}
                   </div>
-                  <Field label="Completion Notes">
-                    <Input
-                      className={styles.noteInput}
-                      value={notes}
-                      onChange={(_, data) => setNotes(data.value)}
-                      placeholder="Tap to add detailed notes..."
-                    />
-                  </Field>
                   {!isAutomatedTimeCapture && !isManualTimeCapture && (
                     <div className={styles.manualDurationInline}>
                       <div className={styles.manualDurationRow}>
@@ -2269,16 +2449,6 @@ export function WorkCenterOperatorPage() {
                   )}
                 </div>
               </div>
-              <div className={styles.columnActionBar}>
-                <Button
-                  className={mergeClasses(styles.footerButton, styles.footerSubmit)}
-                  appearance="secondary"
-                  onClick={() => void completeStep()}
-                  disabled={busyAction !== null || !canComplete}
-                >
-                  Complete Step
-                </Button>
-              </div>
             </>
           )}
         </div>
@@ -2286,14 +2456,9 @@ export function WorkCenterOperatorPage() {
         <div className={styles.rightColumn}>
           {!step || !selectedQueueItem ? null : (
             <>
-              <div className={mergeClasses(styles.sectionCard, styles.sectionCardTransparent)}>
-                  <div className={styles.sectionCardHeader}>
-                    <span className={styles.sectionCardHeaderIcon}>
-                      <Cube24Regular />
-                    </span>
-                    Material Used
-                  </div>
-                  <div className={mergeClasses(styles.sectionCardBody, styles.sectionCardBodyTransparent)}>
+              <div className={styles.sectionCard}>
+                  <div className={styles.sectionCardHeader}>Material Used</div>
+                  <div className={mergeClasses(styles.sectionCardBody, styles.materialSectionBody)}>
                   <div className={styles.materialFlipScene}>
                     <div
                       className={mergeClasses(
@@ -2311,8 +2476,8 @@ export function WorkCenterOperatorPage() {
                           + ADD MATERIAL
                         </Button>
                         <div className={styles.materialListWrap}>
-                          {materials.length ? (
-                            materials.map((material) => (
+                          {sortedMaterials.length ? (
+                            sortedMaterials.map((material) => (
                               <div key={material.id} className={styles.materialListCard}>
                                 <div className={styles.materialListRow}>
                                   <span className={styles.materialName}>{material.materialName}</span>
@@ -2556,12 +2721,7 @@ export function WorkCenterOperatorPage() {
 
                 {showBatchSerialSection ? (
                   <div className={styles.sectionCard}>
-                    <div className={styles.sectionCardHeader}>
-                      <span className={styles.sectionCardHeaderIcon}>
-                        <CheckmarkCircle24Regular />
-                      </span>
-                      Serial Numbers
-                    </div>
+                    <div className={styles.sectionCardHeader}>Serial Numbers</div>
                     <div className={styles.sectionCardBody}>
                       <div className={styles.stacked}>
                         <Body1 className={styles.requiredLabel}>Serial required.</Body1>
@@ -2591,9 +2751,9 @@ export function WorkCenterOperatorPage() {
                           <Field label="LidSize">
                             <Select value={serialLidSize} onChange={(event) => setSerialLidSize(event.target.value)}>
                               <option value="">Select lid size</option>
-                              {LID_SIZE_OPTIONS.map((size, index) => (
-                                <option key={size} value={index + 1}>
-                                  {size}
+                              {lidSizes.map((size) => (
+                                <option key={size.id} value={size.id}>
+                                  {formatLidSizeLabel(size)}
                                 </option>
                               ))}
                             </Select>

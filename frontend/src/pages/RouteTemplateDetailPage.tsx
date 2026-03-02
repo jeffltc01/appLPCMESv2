@@ -16,6 +16,7 @@ import {
   MessageBar,
   MessageBarBody,
   Option,
+  Select,
   Table,
   TableBody,
   TableCell,
@@ -282,6 +283,10 @@ function parseOptionalInteger(value: string): number | null {
   if (!trimmed) return null;
   const parsed = Number(trimmed);
   return Number.isInteger(parsed) ? parsed : Number.NaN;
+}
+
+function resolveDropdownValue(data: { optionValue?: string; optionText?: string }): string | undefined {
+  return data.optionValue ?? data.optionText;
 }
 
 function toAssignmentForm(assignment: RouteTemplateAssignment): AssignmentFormState {
@@ -1026,7 +1031,8 @@ export function RouteTemplateDetailPage() {
                       onOptionSelect={(_, data) =>
                         setStepEditor((current) => ({
                           ...current,
-                          dataCaptureMode: (data.optionValue as DataCaptureMode) ?? "ElectronicRequired",
+                          dataCaptureMode:
+                            (resolveDropdownValue(data) as DataCaptureMode | undefined) ?? current.dataCaptureMode,
                         }))
                       }
                     >
@@ -1036,20 +1042,19 @@ export function RouteTemplateDetailPage() {
                     </Dropdown>
                   </Field>
                   <Field label="Time Capture Mode" required>
-                    <Dropdown
+                    <Select
                       value={stepEditor.timeCaptureMode}
-                      selectedOptions={[stepEditor.timeCaptureMode]}
-                      onOptionSelect={(_, data) =>
+                      onChange={(_, data) =>
                         setStepEditor((current) => ({
                           ...current,
-                          timeCaptureMode: (data.optionValue as TimeCaptureMode) ?? "Automated",
+                          timeCaptureMode: (data.value as TimeCaptureMode) ?? current.timeCaptureMode,
                         }))
                       }
                     >
-                      <Option value="Automated">Automated</Option>
-                      <Option value="Manual">Manual</Option>
-                      <Option value="Hybrid">Hybrid</Option>
-                    </Dropdown>
+                      <option value="Automated">Automated</option>
+                      <option value="Manual">Manual</option>
+                      <option value="Hybrid">Hybrid</option>
+                    </Select>
                   </Field>
                 </div>
                 <div className={styles.formRow}>
@@ -1061,9 +1066,10 @@ export function RouteTemplateDetailPage() {
                         setStepEditor((current) => ({
                           ...current,
                           processingModeOverride:
-                            data.optionValue === "__default"
+                            resolveDropdownValue(data) === "__default"
                               ? null
-                              : ((data.optionValue as ProcessingMode) ?? null),
+                              : ((resolveDropdownValue(data) as ProcessingMode | undefined) ??
+                                current.processingModeOverride),
                         }))
                       }
                     >
@@ -1083,7 +1089,8 @@ export function RouteTemplateDetailPage() {
                         setStepEditor((current) => ({
                           ...current,
                           checklistFailurePolicy:
-                            (data.optionValue as ChecklistFailurePolicy) ?? "BlockCompletion",
+                            (resolveDropdownValue(data) as ChecklistFailurePolicy | undefined) ??
+                            current.checklistFailurePolicy,
                         }))
                       }
                     >

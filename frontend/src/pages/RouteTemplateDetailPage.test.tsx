@@ -46,6 +46,7 @@ vi.mock("../services/items", () => ({
 
 describe("RouteTemplateDetailPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     listWorkCentersMock.mockResolvedValue([
       {
         id: 10,
@@ -174,5 +175,36 @@ describe("RouteTemplateDetailPage", () => {
     expect(await screen.findByDisplayValue("RT-FILL-STD")).toBeInTheDocument();
     expect(screen.getByText("Applies To (Assignment Rules)")).toBeInTheDocument();
     expect(screen.getByText("Houston default")).toBeInTheDocument();
+  });
+
+  it("persists edited step time capture mode in update payload", async () => {
+    render(
+      <MemoryRouter initialEntries={["/setup/route-templates/1"]}>
+        <Routes>
+          <Route path="/setup/route-templates/:templateId" element={<RouteTemplateDetailPage />} />
+          <Route path="/setup/route-templates" element={<div>Route Template List</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByDisplayValue("RT-FILL-STD")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Time Capture Mode" }), {
+      target: { value: "Manual" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Step" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Route Template" }));
+
+    await waitFor(() => {
+      expect(updateRouteTemplateMock).toHaveBeenCalled();
+    });
+
+    const payload = updateRouteTemplateMock.mock.calls.at(-1)?.[1] as {
+      steps: Array<{ timeCaptureMode: string }>;
+    };
+    expect(payload.steps[0].timeCaptureMode).toBe("Manual");
   });
 });

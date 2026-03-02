@@ -376,6 +376,43 @@ public sealed class SetupRoutingService(
         }
     }
 
+    private async Task SyncOpenStepTimeCaptureModesForTemplateAsync(
+        int routeTemplateId,
+        IReadOnlyCollection<RouteTemplateStepUpsertDto> steps,
+        CancellationToken cancellationToken)
+    {
+        var modeByStepKey = steps.ToDictionary(
+            step => BuildRouteStepKey(step.StepSequence, step.StepCode),
+            step => step.TimeCaptureMode.Trim(),
+            StringComparer.Ordinal);
+        if (modeByStepKey.Count == 0)
+        {
+            return;
+        }
+
+        var openStates = new[] { "Pending", "InProgress" };
+        var openStepRows = await (
+                from step in db.OrderLineRouteStepInstances
+                join route in db.OrderLineRouteInstances on step.OrderLineRouteInstanceId equals route.Id
+                where route.RouteTemplateId == routeTemplateId && openStates.Contains(step.State)
+                select step)
+            .ToListAsync(cancellationToken);
+
+        foreach (var step in openStepRows)
+        {
+            var key = BuildRouteStepKey(step.StepSequence, step.StepCode);
+            if (!modeByStepKey.TryGetValue(key, out var desiredMode))
+            {
+                continue;
+            }
+
+            if (!string.Equals(step.TimeCaptureMode, desiredMode, StringComparison.Ordinal))
+            {
+                step.TimeCaptureMode = desiredMode;
+            }
+        }
+    }
+
     public async Task DeleteWorkCenterAsync(int id, CancellationToken cancellationToken = default)
     {
         var workCenter = await db.WorkCenters.FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
@@ -463,6 +500,7 @@ public sealed class SetupRoutingService(
             .Select(ToRouteTemplateStepEntity)
             .ToList();
 
+        await SyncOpenStepTimeCaptureModesForTemplateAsync(id, dto.Steps, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return ToRouteTemplateDetailDto(template);
     }
@@ -1099,6 +1137,9 @@ public sealed class SetupRoutingService(
 
     private static string? NormalizeNullable(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string BuildRouteStepKey(int stepSequence, string stepCode) =>
+        $"{stepSequence}|{stepCode.Trim().ToUpperInvariant()}";
 
     private static int BuildShowWhereMask(IEnumerable<string> showWhereValues)
     {
