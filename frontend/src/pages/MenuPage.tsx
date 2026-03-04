@@ -2,31 +2,23 @@ import {
   Body1,
   Button,
   Card,
-  Field,
-  Input,
   Menu,
   MenuItem,
   MenuList,
   MenuPopover,
   MenuTrigger,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
   Title1,
-  Title3,
   makeStyles,
+  mergeClasses,
   tokens,
 } from "@fluentui/react-components";
 import {
+  ClipboardCheckmark24Regular,
   ClipboardTask24Regular,
-  Filter24Regular,
   VehicleTruckProfile24Regular,
   Receipt24Regular,
   Board24Regular,
+  PeopleTeam24Regular,
   Settings24Regular,
 } from "@fluentui/react-icons";
 import { useEffect, useMemo, useState } from "react";
@@ -34,15 +26,15 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { formatCurrentUserDisplayName } from "../auth/userDisplay";
 import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
-import type { HoldOverlayType, OrderDraftListItem } from "../types/order";
+import type { OrderDraftListItem } from "../types/order";
 
 const NAV_ITEMS = [
   { key: "orderEntry", label: "Order Entry", icon: <ClipboardTask24Regular />, path: "/orders" },
-  { key: "workCenter", label: "Work Center", icon: <Board24Regular />, path: "/operator/work-center" },
   { key: "transportation", label: "Transportation", icon: <VehicleTruckProfile24Regular />, path: "/transportation" },
-  { key: "receiving", label: "Receiving", icon: <VehicleTruckProfile24Regular />, path: "/receiving" },
+  { key: "receiving", label: "Receiving", icon: <ClipboardCheckmark24Regular />, path: "/receiving" },
   { key: "invoicing", label: "Invoicing", icon: <Receipt24Regular />, path: "/invoices" },
-  { key: "plantManager", label: "Plant Manager", icon: <Board24Regular /> },
+  { key: "plantManager", label: "Plant Manager", icon: <PeopleTeam24Regular />, path: "/plant-manager" },
+  { key: "workCenter", label: "Work Center", icon: <Board24Regular />, path: "/operator/work-center" },
 ];
 
 const ADMIN_MENU_ITEMS = [
@@ -81,14 +73,17 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground2,
     fontSize: "12px",
   },
+  utilityLogoutButton: {
+    minHeight: "28px",
+  },
   topMenu: {
     backgroundColor: "#123046",
     color: "#FFFFFF",
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingRight: tokens.spacingHorizontalL,
+    justifyContent: "flex-start",
     paddingLeft: tokens.spacingHorizontalL,
+    paddingRight: tokens.spacingHorizontalL,
     borderTop: "1px solid rgba(255,255,255,0.08)",
   },
   brand: {
@@ -96,13 +91,17 @@ const useStyles = makeStyles({
     fontSize: "16px",
     letterSpacing: "0.02em",
   },
-  menuButtons: {
+  dashboardNavStrip: {
     display: "flex",
-    gap: tokens.spacingHorizontalXS,
+    gap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  menuButton: {
-    minHeight: "34px",
+  dashboardNavButton: {
+    minHeight: "68px",
+    width: "168px",
+    maxWidth: "168px",
   },
   headerBar: {
     backgroundColor: "#123046",
@@ -147,13 +146,56 @@ const useStyles = makeStyles({
   },
   kpiCard: {
     display: "grid",
-    gap: tokens.spacingVerticalXS,
+    gap: tokens.spacingVerticalS,
     border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: "8px",
+    background: "linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)",
+    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)",
+    paddingTop: tokens.spacingVerticalM,
+    paddingRight: tokens.spacingHorizontalM,
+    paddingBottom: tokens.spacingVerticalM,
+    paddingLeft: tokens.spacingHorizontalM,
+  },
+  kpiHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
+    color: tokens.colorNeutralForeground2,
+    fontWeight: 600,
+    fontSize: "12px",
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+  kpiIconWrap: {
+    width: "24px",
+    height: "24px",
+    borderRadius: "999px",
+    display: "grid",
+    placeItems: "center",
+    backgroundColor: "#E0EFF8",
+    color: "#123046",
   },
   kpiValue: {
-    fontSize: "24px",
+    fontSize: "30px",
     fontWeight: 700,
     color: "#123046",
+    lineHeight: 1,
+  },
+  kpiHint: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: "12px",
+  },
+  kpiAccentOpen: {
+    borderTop: "4px solid #123046",
+  },
+  kpiAccentAwaitingReceipt: {
+    borderTop: "4px solid #017CC5",
+  },
+  kpiAccentInProduction: {
+    borderTop: "4px solid #2B3B84",
+  },
+  kpiAccentAwaitingInvoicing: {
+    borderTop: "4px solid #0095EB",
   },
   card: {
     border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -240,12 +282,112 @@ const useStyles = makeStyles({
     height: "10px",
     borderRadius: "999px",
   },
+  chartsGrid: {
+    display: "grid",
+    gap: tokens.spacingVerticalM,
+  },
+  chartsTopRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: tokens.spacingHorizontalM,
+  },
+  chartsBottomRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: tokens.spacingHorizontalM,
+  },
+  chartCard: {
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    display: "grid",
+    gap: tokens.spacingVerticalS,
+  },
+  chartTitle: {
+    color: "#123046",
+    fontWeight: 700,
+    fontSize: "14px",
+  },
+  chartSubtitle: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: "12px",
+  },
+  bucketChart: {
+    display: "grid",
+    gridTemplateColumns: "36px minmax(0, 1fr)",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+  },
+  bucketYAxis: {
+    height: "130px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  bucketYAxisTick: {
+    fontSize: "11px",
+    color: tokens.colorNeutralForeground2,
+    lineHeight: 1,
+  },
+  bucketBars: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: tokens.spacingHorizontalS,
+    alignItems: "end",
+    height: "130px",
+    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    paddingLeft: tokens.spacingHorizontalS,
+    paddingBottom: tokens.spacingVerticalXXS,
+  },
+  bucketGridlines: {
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
+    display: "grid",
+    gridTemplateRows: "repeat(4, 1fr)",
+  },
+  bucketGridline: {
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    opacity: 0.45,
+    ":last-child": {
+      borderTop: "none",
+    },
+  },
+  bucketColumnWrap: {
+    display: "grid",
+    gap: tokens.spacingVerticalXS,
+    justifyItems: "center",
+  },
+  bucketCount: {
+    fontSize: "12px",
+    color: "#123046",
+    fontWeight: 600,
+  },
+  bucketColumn: {
+    width: "100%",
+    maxWidth: "86px",
+    background: "linear-gradient(180deg, #017CC5 0%, #123046 100%)",
+    borderRadius: "6px 6px 0 0",
+    minHeight: "8px",
+  },
+  bucketLabel: {
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  lineChartWrap: {
+    width: "100%",
+    height: "220px",
+  },
+  lineChartAxisLabel: {
+    fontSize: "12px",
+    fill: tokens.colorNeutralForeground2,
+  },
+  noData: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: "12px",
+  },
 });
-
-type FilterState = {
-  search: string;
-  status: string;
-};
 
 const LIFECYCLE_STAGE_KEYS = [
   "Draft",
@@ -256,12 +398,84 @@ const LIFECYCLE_STAGE_KEYS = [
 ] as const;
 
 const NEEDS_REVIEW_STATUSES = new Set(["Draft", "PendingOrderEntryValidation"]);
-const READY_TO_RELEASE_STATUSES = new Set(["ProductionComplete", "OutboundLogisticsPlanned"]);
-const NON_RISK_OVERLAYS = new Set<HoldOverlayType>(["Cancelled"]);
+const AWAITING_RECEIPT_STATUSES = new Set([
+  "Draft",
+  "PendingOrderEntryValidation",
+  "InboundLogisticsPlanned",
+  "InboundInTransit",
+]);
+const IN_PRODUCTION_STATUSES = new Set([
+  "ReceivedPendingReconciliation",
+  "ReadyForProduction",
+  "InProduction",
+  "ProductionCompletePendingApproval",
+  "ProductionComplete",
+  "OutboundLogisticsPlanned",
+]);
+const AWAITING_INVOICING_STATUSES = new Set(["DispatchedOrPickupReleased", "InvoiceReady"]);
 
 function getLifecycleStatus(order: OrderDraftListItem): string {
   const rawStatus = order.orderLifecycleStatus ?? order.orderStatus;
   return getWorkspaceCurrentStatus(rawStatus);
+}
+
+type MonthlyAveragePoint = {
+  month: string;
+  value: number;
+};
+
+function toDate(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toMonthKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function toMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleString(undefined, { month: "short", year: "2-digit" });
+}
+
+function diffDays(start: Date, end: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return (end.getTime() - start.getTime()) / msPerDay;
+}
+
+function buildMonthlyAverage(
+  orders: OrderDraftListItem[],
+  getStart: (order: OrderDraftListItem) => Date | null,
+  getEnd: (order: OrderDraftListItem) => Date | null
+): MonthlyAveragePoint[] {
+  const totals = new Map<string, { total: number; count: number }>();
+  for (const order of orders) {
+    const start = getStart(order);
+    const end = getEnd(order);
+    if (!start || !end) {
+      continue;
+    }
+    const days = diffDays(start, end);
+    if (days < 0) {
+      continue;
+    }
+    const monthKey = toMonthKey(end);
+    const current = totals.get(monthKey) ?? { total: 0, count: 0 };
+    totals.set(monthKey, { total: current.total + days, count: current.count + 1 });
+  }
+
+  return Array.from(totals.entries())
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([month, aggregate]) => ({
+      month,
+      value: Math.round((aggregate.total / aggregate.count) * 10) / 10,
+    }));
 }
 
 export function MenuPage() {
@@ -271,9 +485,6 @@ export function MenuPage() {
   const [orders, setOrders] = useState<OrderDraftListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [pendingFilters, setPendingFilters] = useState<FilterState>({ search: "", status: "all" });
-  const [appliedFilters, setAppliedFilters] = useState<FilterState>({ search: "", status: "all" });
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -292,92 +503,89 @@ export function MenuPage() {
   }, []);
 
   const filteredOrders = useMemo(() => {
-    const search = appliedFilters.search.trim().toLowerCase();
-    return orders.filter((order) => {
-      const lifecycleStatus = getLifecycleStatus(order);
-      const statusMatches =
-        appliedFilters.status === "all" || lifecycleStatus === appliedFilters.status;
-      const searchMatches =
-        !search ||
-        order.salesOrderNo.toLowerCase().includes(search) ||
-        order.customerName.toLowerCase().includes(search) ||
-        lifecycleStatus.toLowerCase().includes(search);
-
-      return statusMatches && searchMatches;
-    });
-  }, [orders, appliedFilters]);
+    return orders;
+  }, [orders]);
 
   const kpis = useMemo(() => {
-    const openOrders = filteredOrders.length;
-    const needsReview = filteredOrders.filter((order) =>
-      NEEDS_REVIEW_STATUSES.has(getLifecycleStatus(order))
+    const openOrders = filteredOrders.filter(
+      (order) => getLifecycleStatus(order) !== "Invoiced"
     ).length;
-    const lateRisk = filteredOrders.filter((order) => {
-      if (!order.holdOverlay) {
-        return false;
+    const awaitingReceipt = filteredOrders.filter((order) =>
+      AWAITING_RECEIPT_STATUSES.has(getLifecycleStatus(order))
+    ).length;
+    const inProduction = filteredOrders.filter((order) =>
+      IN_PRODUCTION_STATUSES.has(getLifecycleStatus(order))
+    ).length;
+    const awaitingInvoicing = filteredOrders.filter((order) =>
+      AWAITING_INVOICING_STATUSES.has(getLifecycleStatus(order))
+    ).length;
+
+    return { openOrders, awaitingReceipt, inProduction, awaitingInvoicing };
+  }, [filteredOrders]);
+
+  const openOrderAgingChart = useMemo(() => {
+    const now = new Date();
+    const buckets = [
+      { label: "0-15", count: 0 },
+      { label: "16-30", count: 0 },
+      { label: "31-60", count: 0 },
+      { label: ">60", count: 0 },
+    ];
+
+    for (const order of filteredOrders) {
+      if (getLifecycleStatus(order) === "Invoiced") {
+        continue;
       }
-      return !NON_RISK_OVERLAYS.has(order.holdOverlay);
-    }).length;
-    const readyToRelease = filteredOrders.filter((order) =>
-      READY_TO_RELEASE_STATUSES.has(getLifecycleStatus(order))
-    ).length;
-
-    return { openOrders, needsReview, lateRisk, readyToRelease };
-  }, [filteredOrders]);
-
-  const intakeRows = useMemo(() => {
-    const counts = LIFECYCLE_STAGE_KEYS.map((status) => ({
-      name:
-        status === "PendingOrderEntryValidation"
-          ? "Pending Validation"
-          : status === "InboundLogisticsPlanned"
-          ? "Inbound Planned"
-          : status === "ReadyForProduction"
-          ? "Production Ready"
-          : status === "InvoiceReady"
-          ? "Invoice Ready"
-          : status,
-      count: filteredOrders.filter((order) => getLifecycleStatus(order) === status).length,
-    }));
-    const maxCount = Math.max(1, ...counts.map((row) => row.count));
-    return counts.map((row) => ({
-      ...row,
-      widthPercent: Math.round((row.count / maxCount) * 100),
-    }));
-  }, [filteredOrders]);
-
-  const riskMix = useMemo(() => {
-    const total = filteredOrders.length;
-    if (total === 0) {
-      return { low: 0, medium: 0, high: 0, total: 0 };
+      const orderDate = toDate(order.orderDate);
+      if (!orderDate) {
+        continue;
+      }
+      const ageDays = Math.floor(diffDays(orderDate, now));
+      if (ageDays <= 15) {
+        buckets[0].count += 1;
+      } else if (ageDays <= 30) {
+        buckets[1].count += 1;
+      } else if (ageDays <= 60) {
+        buckets[2].count += 1;
+      } else {
+        buckets[3].count += 1;
+      }
     }
 
-    const high = filteredOrders.filter((order) => Boolean(order.holdOverlay)).length;
-    const medium = filteredOrders.filter(
-      (order) =>
-        !order.holdOverlay && NEEDS_REVIEW_STATUSES.has(getLifecycleStatus(order))
-    ).length;
-    const low = Math.max(0, total - high - medium);
-
-    return { low, medium, high, total };
+    const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count));
+    const chartMaxHeightPx = 130;
+    const chartMinHeightPx = 10;
+    return {
+      buckets: buckets.map((bucket) => ({
+        ...bucket,
+        heightPx:
+          bucket.count === 0
+            ? chartMinHeightPx
+            : Math.max(
+                chartMinHeightPx,
+                Math.round((bucket.count / maxCount) * chartMaxHeightPx)
+              ),
+      })),
+      ticks: [maxCount, Math.round((maxCount * 2) / 3), Math.round(maxCount / 3), 0],
+    };
   }, [filteredOrders]);
+  const avgDaysToPickupByMonth = useMemo(
+    () => buildMonthlyAverage(filteredOrders, (order) => toDate(order.orderDate), (order) => toDate(order.receivedDate)),
+    [filteredOrders]
+  );
+  const avgDaysToManufacturerByMonth = useMemo(
+    () => buildMonthlyAverage(filteredOrders, (order) => toDate(order.receivedDate), (order) => toDate(order.readyToInvoiceDate)),
+    [filteredOrders]
+  );
+  const avgDaysToInvoiceByMonth = useMemo(
+    () => buildMonthlyAverage(filteredOrders, (order) => toDate(order.readyToInvoiceDate), (order) => toDate(order.invoiceDate)),
+    [filteredOrders]
+  );
+  const avgTotalOrderToInvoiceByMonth = useMemo(
+    () => buildMonthlyAverage(filteredOrders, (order) => toDate(order.orderDate), (order) => toDate(order.invoiceDate)),
+    [filteredOrders]
+  );
 
-  const queueRows = useMemo(() => filteredOrders.slice(0, 5), [filteredOrders]);
-  const hasAnyData = orders.length > 0;
-  const hasFilteredData = filteredOrders.length > 0;
-  const riskLowEnd = riskMix.total === 0 ? 0 : Math.round((riskMix.low / riskMix.total) * 100);
-  const riskMediumEnd =
-    riskMix.total === 0
-      ? 0
-      : riskLowEnd + Math.round((riskMix.medium / riskMix.total) * 100);
-  const donutGradient = `conic-gradient(#2B3B84 0 ${riskLowEnd}%, #017CC5 ${riskLowEnd}% ${riskMediumEnd}%, #0095EB ${riskMediumEnd}% 100%)`;
-
-  const applyFilters = () => setAppliedFilters(pendingFilters);
-  const resetFilters = () => {
-    const reset = { search: "", status: "all" };
-    setPendingFilters(reset);
-    setAppliedFilters(reset);
-  };
   const currentUserLabel = formatCurrentUserDisplayName(
     session?.displayName,
     "Unknown User"
@@ -387,24 +595,83 @@ export function MenuPage() {
     await logout();
     navigate("/login", { replace: true });
   };
+  const renderLineChart = (points: MonthlyAveragePoint[]) => {
+    if (points.length === 0) {
+      return <span className={styles.noData}>No data available for this chart yet.</span>;
+    }
+
+    const width = 520;
+    const height = 220;
+    const leftPad = 44;
+    const rightPad = 12;
+    const topPad = 12;
+    const bottomPad = 28;
+    const plotWidth = width - leftPad - rightPad;
+    const plotHeight = height - topPad - bottomPad;
+    const maxY = Math.max(1, ...points.map((point) => point.value));
+    const coordinates = points.map((point, index) => {
+      const x =
+        leftPad +
+        (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
+      const y = topPad + (1 - point.value / maxY) * plotHeight;
+      return { ...point, x, y };
+    });
+    const polylinePoints = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+
+    return (
+      <svg viewBox={`0 0 ${width} ${height}`} className={styles.lineChartWrap} role="img" aria-label="Monthly average days chart">
+        <line x1={leftPad} y1={topPad} x2={leftPad} y2={height - bottomPad} stroke="#D2D2D2" />
+        <line x1={leftPad} y1={height - bottomPad} x2={width - rightPad} y2={height - bottomPad} stroke="#D2D2D2" />
+        <polyline fill="none" stroke="#123046" strokeWidth="2.5" points={polylinePoints} />
+        {coordinates.map((point) => (
+          <g key={point.month}>
+            <circle cx={point.x} cy={point.y} r="3.5" fill="#017CC5" />
+            <text x={point.x} y={height - 10} textAnchor="middle" className={styles.lineChartAxisLabel}>
+              {toMonthLabel(point.month)}
+            </text>
+          </g>
+        ))}
+        <text x={leftPad - 6} y={topPad + 2} textAnchor="end" className={styles.lineChartAxisLabel}>
+          {maxY.toFixed(0)}d
+        </text>
+      </svg>
+    );
+  };
 
   return (
     <div className={styles.page}>
       <main className={styles.content}>
         <div className={styles.topUtility}>
           <span>{currentUserLabel}</span>
+          <Button
+            className={styles.utilityLogoutButton}
+            appearance="secondary"
+            onClick={() => void handleLogout()}
+          >
+            Logout
+          </Button>
           <span>Site: {currentSiteLabel}</span>
         </div>
 
         <div className={styles.topMenu}>
-          <div className={styles.brand}>LPC Order Ops</div>
-          <div className={styles.menuButtons}>
+        </div>
+
+        <div className={styles.headerBar}>
+          <Title1>LP Cylinder</Title1>
+          <div className={styles.headerActions} />
+        </div>
+
+        <section className={styles.body}>
+          {isLoading ? <Body1>Loading metrics...</Body1> : null}
+          {error ? <Body1>{error}</Body1> : null}
+
+          <div className={styles.dashboardNavStrip}>
             {NAV_ITEMS.map((item) => (
               <Button
                 key={item.key}
                 icon={item.icon}
                 appearance={item.key === "orderEntry" ? "primary" : "secondary"}
-                className={styles.menuButton}
+                className={styles.dashboardNavButton}
                 onClick={item.path ? () => navigate(item.path) : undefined}
               >
                 {item.label}
@@ -415,9 +682,9 @@ export function MenuPage() {
                 <Button
                   icon={<Settings24Regular />}
                   appearance="secondary"
-                  className={styles.menuButton}
+                  className={styles.dashboardNavButton}
                 >
-                  Admin Maintenance
+                  Admin
                 </Button>
               </MenuTrigger>
               <MenuPopover>
@@ -435,181 +702,109 @@ export function MenuPage() {
               </MenuPopover>
             </Menu>
           </div>
-        </div>
-
-        <div className={styles.headerBar}>
-          <Title1>Order Entry Workspace</Title1>
-          <div className={styles.headerActions}>
-            <Button
-              className={styles.headerActionButton}
-              appearance="secondary"
-              onClick={() => void handleLogout()}
-            >
-              Logout
-            </Button>
-            <Button
-              className={styles.headerActionButton}
-              appearance="secondary"
-              icon={<Filter24Regular />}
-              onClick={() => setShowFilters((current) => !current)}
-            >
-              Filters
-            </Button>
-            <Button
-              className={styles.headerActionButton}
-              appearance="primary"
-              onClick={() => navigate("/orders/new", { state: { backTo: "/" } })}
-            >
-              New Sales Order
-            </Button>
-          </div>
-        </div>
-
-        <section className={styles.body}>
-          {showFilters ? (
-            <div className={styles.filterPanel}>
-              <Field label="Search">
-                <Input
-                  value={pendingFilters.search}
-                  onChange={(_, data) =>
-                    setPendingFilters((current) => ({ ...current, search: data.value }))
-                  }
-                  placeholder="SO, customer, status"
-                />
-              </Field>
-              <Field label="Lifecycle Status">
-                <Select
-                  value={pendingFilters.status}
-                  onChange={(event) =>
-                    setPendingFilters((current) => ({ ...current, status: event.target.value }))
-                  }
-                >
-                  <option value="all">All statuses</option>
-                  {LIFECYCLE_STAGE_KEYS.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Button appearance="primary" onClick={applyFilters}>
-                Apply
-              </Button>
-              <Button appearance="secondary" onClick={resetFilters}>
-                Reset
-              </Button>
-            </div>
-          ) : null}
-
-          {isLoading ? <Body1>Loading metrics...</Body1> : null}
-          {error ? <Body1>{error}</Body1> : null}
 
           <div className={styles.kpiStrip}>
-            <Card className={styles.kpiCard}>
-              <Body1>Open Orders</Body1>
+            <Card className={mergeClasses(styles.kpiCard, styles.kpiAccentOpen)}>
+              <div className={styles.kpiHeader}>
+                <span className={styles.kpiIconWrap}>
+                  <ClipboardTask24Regular />
+                </span>
+                <span>Total Open Orders</span>
+              </div>
               <div className={styles.kpiValue}>{kpis.openOrders}</div>
+              <span className={styles.kpiHint}>All non-invoiced orders</span>
             </Card>
-            <Card className={styles.kpiCard}>
-              <Body1>Needs Review</Body1>
-              <div className={styles.kpiValue}>{kpis.needsReview}</div>
+            <Card className={mergeClasses(styles.kpiCard, styles.kpiAccentAwaitingReceipt)}>
+              <div className={styles.kpiHeader}>
+                <span className={styles.kpiIconWrap}>
+                  <ClipboardCheckmark24Regular />
+                </span>
+                <span>Total Awaiting Receipt</span>
+              </div>
+              <div className={styles.kpiValue}>{kpis.awaitingReceipt}</div>
+              <span className={styles.kpiHint}>Not yet received at plant</span>
             </Card>
-            <Card className={styles.kpiCard}>
-              <Body1>Late Risk</Body1>
-              <div className={styles.kpiValue}>{kpis.lateRisk}</div>
+            <Card className={mergeClasses(styles.kpiCard, styles.kpiAccentInProduction)}>
+              <div className={styles.kpiHeader}>
+                <span className={styles.kpiIconWrap}>
+                  <Board24Regular />
+                </span>
+                <span>Total In Production</span>
+              </div>
+              <div className={styles.kpiValue}>{kpis.inProduction}</div>
+              <span className={styles.kpiHint}>Received but not yet shipped</span>
             </Card>
-            <Card className={styles.kpiCard}>
-              <Body1>Ready to Release</Body1>
-              <div className={styles.kpiValue}>{kpis.readyToRelease}</div>
+            <Card className={mergeClasses(styles.kpiCard, styles.kpiAccentAwaitingInvoicing)}>
+              <div className={styles.kpiHeader}>
+                <span className={styles.kpiIconWrap}>
+                  <Receipt24Regular />
+                </span>
+                <span>Total Awaiting Invoicing</span>
+              </div>
+              <div className={styles.kpiValue}>{kpis.awaitingInvoicing}</div>
+              <span className={styles.kpiHint}>Shipped/released and not invoiced</span>
             </Card>
           </div>
 
-          <Card className={styles.card}>
-            <div className={styles.cardHeader}>
-              <Title3>Order Intake by Lifecycle Stage</Title3>
-              <Body1>Last 24 hours</Body1>
-            </div>
-            <div className={styles.itemList}>
-              {intakeRows.map((row) => (
-                <div key={row.name} className={styles.barRow}>
-                  <span>{row.name}</span>
-                  <div className={styles.barTrack}>
-                    <div className={styles.barFill} style={{ width: `${row.widthPercent}%` }} />
+          <div className={styles.chartsGrid}>
+            <div className={styles.chartsTopRow}>
+              <Card className={styles.chartCard}>
+                <span className={styles.chartTitle}>Open Order Aging Buckets</span>
+                <span className={styles.chartSubtitle}>From order date to today for non-invoiced orders</span>
+                <div className={styles.bucketChart}>
+                  <div className={styles.bucketYAxis}>
+                    {openOrderAgingChart.ticks.map((tick, index) => (
+                      <span key={`aging-tick-${index}`} className={styles.bucketYAxisTick}>
+                        {tick}
+                      </span>
+                    ))}
                   </div>
-                  <span>{row.count}</span>
+                  <div className={styles.bucketBars}>
+                    <div className={styles.bucketGridlines} aria-hidden="true">
+                      <div className={styles.bucketGridline} />
+                      <div className={styles.bucketGridline} />
+                      <div className={styles.bucketGridline} />
+                      <div className={styles.bucketGridline} />
+                    </div>
+                    {openOrderAgingChart.buckets.map((bucket) => (
+                      <div key={bucket.label} className={styles.bucketColumnWrap}>
+                        <span className={styles.bucketCount}>{bucket.count}</span>
+                        <div className={styles.bucketColumn} style={{ height: `${bucket.heightPx}px` }} />
+                        <span className={styles.bucketLabel}>{bucket.label} days</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </Card>
+              </Card>
 
-          <div className={styles.lowerGrid}>
-            <Card className={styles.card}>
-              <div className={styles.cardHeader}>
-                <Title3>Open Order Queue</Title3>
-                <Body1>{hasFilteredData ? "Filtered result set" : "No orders in view"}</Body1>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHeaderCell>Order</TableHeaderCell>
-                    <TableHeaderCell>Customer</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell>Site</TableHeaderCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {queueRows.map((order) => (
-                    <TableRow
-                      key={order.id}
-                      className={styles.clickableRow}
-                      onClick={() => navigate(`/orders/${order.id}`)}
-                    >
-                      <TableCell>{order.salesOrderNo}</TableCell>
-                      <TableCell>{order.customerName}</TableCell>
-                      <TableCell>{getLifecycleStatus(order)}</TableCell>
-                      <TableCell>{order.siteName}</TableCell>
-                    </TableRow>
-                  ))}
-                  {!isLoading && !hasFilteredData ? (
-                    <TableRow>
-                      <TableCell>-</TableCell>
-                      <TableCell>-</TableCell>
-                      <TableCell>No matching orders.</TableCell>
-                      <TableCell>-</TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </Card>
+              <Card className={styles.chartCard}>
+                <span className={styles.chartTitle}>Avg Total Days Order to Invoice (Monthly)</span>
+                <span className={styles.chartSubtitle}>Order date to invoiced date</span>
+                {renderLineChart(avgTotalOrderToInvoiceByMonth)}
+              </Card>
+            </div>
 
-            <Card className={styles.card}>
-              <div className={styles.cardHeader}>
-                <Title3>Order Risk Mix</Title3>
-              </div>
-              <div className={styles.riskWrap}>
-                <div className={styles.donut} style={{ backgroundImage: donutGradient }}>
-                  <div className={styles.donutInner}>
-                    <div>{riskMix.total}</div>
-                    <div style={{ fontSize: "11px", fontWeight: 500 }}>Total</div>
-                  </div>
-                </div>
-                <div className={styles.legend}>
-                  <div className={styles.legendItem}>
-                    <span className={styles.dot} style={{ backgroundColor: "#2B3B84" }} />
-                    <span>Low risk ({riskMix.low})</span>
-                  </div>
-                  <div className={styles.legendItem}>
-                    <span className={styles.dot} style={{ backgroundColor: "#017CC5" }} />
-                    <span>Medium risk ({riskMix.medium})</span>
-                  </div>
-                  <div className={styles.legendItem}>
-                    <span className={styles.dot} style={{ backgroundColor: "#0095EB" }} />
-                    <span>High risk ({riskMix.high})</span>
-                  </div>
-                  {!hasAnyData ? <span className={styles.muted}>No order data available.</span> : null}
-                </div>
-              </div>
-            </Card>
+            <div className={styles.chartsBottomRow}>
+              <Card className={styles.chartCard}>
+                <span className={styles.chartTitle}>Avg Days to Pickup (Monthly)</span>
+                <span className={styles.chartSubtitle}>Order date to received date</span>
+                {renderLineChart(avgDaysToPickupByMonth)}
+              </Card>
+
+              <Card className={styles.chartCard}>
+                <span className={styles.chartTitle}>Avg Days to Manufacturer (Monthly)</span>
+                <span className={styles.chartSubtitle}>Received date to ready-to-invoice date</span>
+                {renderLineChart(avgDaysToManufacturerByMonth)}
+              </Card>
+
+              <Card className={styles.chartCard}>
+                <span className={styles.chartTitle}>Avg Days to Invoice (Monthly)</span>
+                <span className={styles.chartSubtitle}>Ready-to-invoice date to invoiced date</span>
+                {renderLineChart(avgDaysToInvoiceByMonth)}
+              </Card>
+            </div>
           </div>
+
         </section>
       </main>
     </div>

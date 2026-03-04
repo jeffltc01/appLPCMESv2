@@ -26,6 +26,8 @@ public interface IOrderQueryService
         string? carrier,
         CancellationToken cancellationToken = default);
 
+    Task<List<PlantManagerBoardItemDto>> GetPlantManagerBoardAsync(CancellationToken cancellationToken = default);
+
     Task<List<string>> GetStatusesAsync(CancellationToken cancellationToken = default);
 
     Task<List<ReceivingOrderListItemDto>> GetReceivingQueueAsync(CancellationToken cancellationToken = default);

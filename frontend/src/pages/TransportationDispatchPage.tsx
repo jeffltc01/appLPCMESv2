@@ -23,6 +23,7 @@ import { ArrowClockwise24Regular } from "@fluentui/react-icons";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
 import { LifecycleNavigator } from "../components/orders/LifecycleNavigator";
 import { ordersApi } from "../services/orders";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 import type {
   ApplyHoldRequest,
   ClearHoldRequest,
@@ -539,7 +540,9 @@ export function TransportationDispatchPage() {
                         )}
                         onClick={() => setSelectedOrderId((prev) => (prev === order.id ? null : order.id))}
                       >
-                        <TableCell>{order.salesOrderNo}</TableCell>
+                        <TableCell>
+                          {formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}
+                        </TableCell>
                         <TableCell>{order.customerName}</TableCell>
                         <TableCell>{toDisplayDate(order.orderDate)}</TableCell>
                         <TableCell>{order.siteName}</TableCell>
@@ -609,7 +612,12 @@ export function TransportationDispatchPage() {
                                       <Body1 className={styles.detailGroupTitle}>Order Summary</Body1>
                                       <div className={styles.detailLine}>
                                         <span className={styles.detailLabel}>Order:</span>
-                                        <span>{order.salesOrderNo}</span>
+                                        <span>
+                                          {formatOrderDisplayNo(
+                                            order.salesOrderNo,
+                                            order.ipadOrderNo
+                                          )}
+                                        </span>
                                       </div>
                                       <div className={styles.detailLine}>
                                         <span className={styles.detailLabel}>Customer:</span>

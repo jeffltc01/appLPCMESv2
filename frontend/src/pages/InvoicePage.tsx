@@ -19,6 +19,7 @@ import { ArrowClockwise24Regular } from "@fluentui/react-icons";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
 import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
 import type { OrderDraftListItem } from "../types/order";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 
 const INVOICE_CANDIDATE_STATUSES = new Set(["DispatchedOrPickupReleased", "InvoiceReady"]);
 
@@ -195,7 +196,9 @@ export function InvoicePage() {
                       className={styles.clickableRow}
                       onClick={() => navigate(`/invoices/${order.id}`)}
                     >
-                      <TableCell>{order.salesOrderNo}</TableCell>
+                      <TableCell>
+                        {formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}
+                      </TableCell>
                       <TableCell>{order.customerName}</TableCell>
                       <TableCell>{lifecycleStatus}</TableCell>
                       <TableCell>{formatDate(order.orderDate)}</TableCell>

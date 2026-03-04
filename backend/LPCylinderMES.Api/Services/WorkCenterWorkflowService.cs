@@ -600,7 +600,10 @@ public class WorkCenterWorkflowService(
                 s.OrderLineRouteInstance.SalesOrder.Priority,
                 s.OrderLineRouteInstance.SalesOrderDetail.Notes,
                 s.OrderLineRouteInstance.SalesOrder.Comments,
-                s.OrderLineRouteInstance.SalesOrderDetail.QuantityAsReceived))
+                s.OrderLineRouteInstance.SalesOrderDetail.QuantityAsReceived,
+                s.OrderLineRouteInstance.SalesOrder.IpadOrderId.HasValue
+                    ? s.OrderLineRouteInstance.SalesOrder.IpadOrderId.Value.ToString()
+                    : null))
             .ToListAsync(cancellationToken);
     }
 

@@ -115,13 +115,22 @@ describe("MenuPage", () => {
       </BrowserRouter>,
     );
 
-    expect(await screen.findByText("SO-1001")).toBeInTheDocument();
-    expect(screen.getByText("Order Entry Workspace")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    expect(screen.getByText("LP Cylinder")).toBeInTheDocument();
+    expect(screen.queryByText("LPC Order Ops")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order Entry Workspace")).not.toBeInTheDocument();
     expect(screen.getByText("Test Operator")).toBeInTheDocument();
     expect(screen.getByText("Site: Houston")).toBeInTheDocument();
-    expect(screen.getByText("Open Order Queue")).toBeInTheDocument();
-    expect(screen.getByText("Order Risk Mix")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /New Sales Order/i })).toBeInTheDocument();
+    expect(screen.queryByText("Order Intake by Lifecycle Stage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Open Order Queue")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order Risk Mix")).not.toBeInTheDocument();
+    expect(screen.getByText("Open Order Aging Buckets")).toBeInTheDocument();
+    expect(screen.getByText("Avg Days to Pickup (Monthly)")).toBeInTheDocument();
+    expect(screen.getByText("Avg Total Days Order to Invoice (Monthly)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /New Sales Order/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Filters/i })).not.toBeInTheDocument();
   });
 
   it("renders only person name when session displayName includes employee number", async () => {
@@ -160,7 +169,9 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
     fireEvent.click(screen.getByRole("button", { name: /^Invoicing$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/invoices");
@@ -174,7 +185,9 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
     fireEvent.click(screen.getByRole("button", { name: /^Receiving$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/receiving");
@@ -188,10 +201,28 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
     fireEvent.click(screen.getByRole("button", { name: /^Work Center$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/operator/work-center");
+  });
+
+  it("navigates to plant manager board from top menu", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Plant Manager$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/plant-manager");
   });
 
   it("opens admin maintenance menu and navigates to product lines setup", async () => {
@@ -202,8 +233,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Product Lines$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/production-lines");
@@ -217,8 +250,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Items$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/items");
@@ -232,8 +267,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Work Centers$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/work-centers");
@@ -247,8 +284,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Route Templates$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/route-templates");
@@ -262,8 +301,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Tablet Setup$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/tablet");
@@ -277,8 +318,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Users & Roles$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/users-roles");
@@ -292,8 +335,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Order Audit Log$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/order-audit-log");
@@ -307,8 +352,10 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: /^Admin Maintenance$/i }));
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /^Feature Flags & Site Policies$/i }));
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/feature-flags-policies");
@@ -321,14 +368,13 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("SO-1001")).toBeInTheDocument();
-    expect(screen.getByText("Open Orders").parentElement).toHaveTextContent("3");
-    expect(screen.getByText("Needs Review").parentElement).toHaveTextContent("1");
-    expect(screen.getByText("Late Risk").parentElement).toHaveTextContent("1");
-    expect(screen.getByText("Ready to Release").parentElement).toHaveTextContent("1");
-    expect(screen.getByText("Low risk (1)")).toBeInTheDocument();
-    expect(screen.getByText("Medium risk (1)")).toBeInTheDocument();
-    expect(screen.getByText("High risk (1)")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    expect(screen.getByText("Total Open Orders").parentElement?.parentElement).toHaveTextContent("3");
+    expect(screen.getByText("Total Awaiting Receipt").parentElement?.parentElement).toHaveTextContent("1");
+    expect(screen.getByText("Total In Production").parentElement?.parentElement).toHaveTextContent("1");
+    expect(screen.getByText("Total Awaiting Invoicing").parentElement?.parentElement).toHaveTextContent("1");
   });
 
   it("maps legacy workflow statuses into lifecycle metrics when lifecycle is missing", async () => {
@@ -376,41 +422,11 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("SO-2001")).toBeInTheDocument();
-    expect(screen.getByText("Needs Review").parentElement).toHaveTextContent("1");
-    expect(screen.getByText("Ready to Release").parentElement).toHaveTextContent("1");
-  });
-
-  it("applies filters to queue and metrics", async () => {
-    render(
-      <MemoryRouter>
-        <MenuPage />
-      </MemoryRouter>,
-    );
-
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
-    fireEvent.change(screen.getByLabelText("Search"), { target: { value: "SO-1003" } });
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-
-    expect(screen.getByText("SO-1003")).toBeInTheDocument();
-    expect(screen.queryByText("SO-1001")).not.toBeInTheDocument();
-    expect(screen.getAllByText("1").length).toBeGreaterThan(0);
-    expect(screen.getByText("High risk (1)")).toBeInTheDocument();
-  });
-
-  it("navigates to new sales order screen", async () => {
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <MenuPage />
-        <LocationProbe />
-      </MemoryRouter>,
-    );
-
-    await screen.findByText("SO-1001");
-    fireEvent.click(screen.getByRole("button", { name: "New Sales Order" }));
-
-    expect(screen.getByTestId("current-path")).toHaveTextContent("/orders/new");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    expect(screen.getByText("Total Awaiting Receipt").parentElement?.parentElement).toHaveTextContent("1");
+    expect(screen.getByText("Total In Production").parentElement?.parentElement).toHaveTextContent("1");
   });
 
   it("logs out and redirects to login", async () => {
@@ -423,7 +439,9 @@ describe("MenuPage", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("SO-1001");
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
     fireEvent.click(screen.getByRole("button", { name: "Logout" }));
 
     expect(logoutMock).toHaveBeenCalledTimes(1);

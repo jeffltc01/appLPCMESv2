@@ -19,29 +19,59 @@ import { Add24Regular } from "@fluentui/react-icons";
 import { ordersApi } from "../services/orders";
 import type { OrderDraftListItem } from "../types/order";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 
 const useStyles = makeStyles({
   page: {
     minHeight: "100vh",
     backgroundColor: "#f5f5f5",
-    padding: tokens.spacingVerticalL,
   },
-  shell: {
-    maxWidth: "1200px",
-    margin: "0 auto",
+  main: {
     display: "grid",
-    gap: tokens.spacingVerticalM,
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    height: "100vh",
+    minWidth: 0,
   },
-  header: {
+  utilityBar: {
     display: "flex",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
-    gap: tokens.spacingHorizontalM,
+    gap: tokens.spacingHorizontalS,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
+  headerTitle: {
+    color: "#ffffff",
   },
   headerActions: {
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "hidden",
+    minHeight: 0,
+  },
+  shell: {
+    maxWidth: "1200px",
+    height: "100%",
+    minHeight: 0,
+    margin: "0 auto",
+    display: "grid",
+    gap: tokens.spacingVerticalM,
   },
   controls: {
     display: "flex",
@@ -50,9 +80,14 @@ const useStyles = makeStyles({
   },
   tableCard: {
     border: "1px solid #e8e8e8",
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
   },
   tableWrap: {
     overflow: "auto",
+    minHeight: 0,
+    flex: 1,
   },
   clickableRow: {
     cursor: "pointer",
@@ -125,91 +160,97 @@ export function OrderListPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.shell}>
-        <div className={styles.header}>
-          <div>
-            <Title2>Sales Orders</Title2>
-          </div>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <Button appearance="subtle" onClick={() => navigate("/")}>
+            Back to Dashboard
+          </Button>
+          <HelpEntryPoint route="/orders" />
+        </div>
+        <header className={styles.headerBar}>
+          <Title2 className={styles.headerTitle}>Sales Orders</Title2>
           <div className={styles.headerActions}>
-            <HelpEntryPoint route="/orders" />
-            <Button appearance="secondary" onClick={() => navigate("/")}>
-              Back to Dashboard
-            </Button>
             <Button
-              appearance="primary"
+              appearance="secondary"
               icon={<Add24Regular />}
               onClick={() => navigate("/orders/new")}
             >
               Create New Order
             </Button>
           </div>
-        </div>
+        </header>
 
-        <Card className={styles.tableCard}>
-          <div className={styles.controls}>
-            <Field label="Search">
-              <Input
-                value={search}
-                onChange={(_, data) => setSearch(data.value)}
-                placeholder="Order no, customer, or status"
-              />
-            </Field>
-            <Button
-              appearance="secondary"
-              onClick={() => void loadOrders(search)}
-              disabled={loading}
-            >
-              {loading ? "Loading..." : "Search"}
-            </Button>
+        <section className={styles.content}>
+          <div className={styles.shell}>
+            <Card className={styles.tableCard}>
+              <div className={styles.controls}>
+                <Field label="Search">
+                  <Input
+                    value={search}
+                    onChange={(_, data) => setSearch(data.value)}
+                    placeholder="Order no, customer, or status"
+                  />
+                </Field>
+                <Button
+                  appearance="secondary"
+                  onClick={() => void loadOrders(search)}
+                  disabled={loading}
+                >
+                  {loading ? "Loading..." : "Search"}
+                </Button>
+              </div>
+              {error ? (
+                <div className={styles.errorBanner}>
+                  <span className={styles.errorTitle}>Error</span>
+                  <span className={styles.errorMessage}>{error}</span>
+                </div>
+              ) : null}
+              <div className={styles.tableWrap}>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHeaderCell>Order No</TableHeaderCell>
+                      <TableHeaderCell>Customer</TableHeaderCell>
+                      <TableHeaderCell>Lifecycle Status</TableHeaderCell>
+                      <TableHeaderCell>Legacy Status</TableHeaderCell>
+                      <TableHeaderCell>Order Date</TableHeaderCell>
+                      <TableHeaderCell>Site</TableHeaderCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.map((order) => (
+                      <TableRow
+                        key={order.id}
+                        className={styles.clickableRow}
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                      >
+                        <TableCell>
+                          {formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}
+                        </TableCell>
+                        <TableCell>{order.customerName}</TableCell>
+                        <TableCell>{order.orderLifecycleStatus ?? "-"}</TableCell>
+                        <TableCell>{order.orderStatus}</TableCell>
+                        <TableCell>{formatDate(order.orderDate)}</TableCell>
+                        <TableCell>{order.siteName}</TableCell>
+                      </TableRow>
+                    ))}
+                    {!loading && orders.length === 0 ? (
+                      <TableRow>
+                        <TableCell>-</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>No orders found.</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>-</TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
           </div>
-          {error ? (
-            <div className={styles.errorBanner}>
-              <span className={styles.errorTitle}>Error</span>
-              <span className={styles.errorMessage}>{error}</span>
-            </div>
-          ) : null}
-          <div className={styles.tableWrap}>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHeaderCell>Order No</TableHeaderCell>
-                  <TableHeaderCell>Customer</TableHeaderCell>
-                  <TableHeaderCell>Lifecycle Status</TableHeaderCell>
-                  <TableHeaderCell>Legacy Status</TableHeaderCell>
-                  <TableHeaderCell>Order Date</TableHeaderCell>
-                  <TableHeaderCell>Site</TableHeaderCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow
-                    key={order.id}
-                    className={styles.clickableRow}
-                    onClick={() => navigate(`/orders/${order.id}`)}
-                  >
-                    <TableCell>{order.salesOrderNo}</TableCell>
-                    <TableCell>{order.customerName}</TableCell>
-                    <TableCell>{order.orderLifecycleStatus ?? "-"}</TableCell>
-                    <TableCell>{order.orderStatus}</TableCell>
-                    <TableCell>{formatDate(order.orderDate)}</TableCell>
-                    <TableCell>{order.siteName}</TableCell>
-                  </TableRow>
-                ))}
-                {!loading && orders.length === 0 ? (
-                  <TableRow>
-                    <TableCell>-</TableCell>
-                    <TableCell>-</TableCell>
-                    <TableCell>No orders found.</TableCell>
-                    <TableCell>-</TableCell>
-                    <TableCell>-</TableCell>
-                    <TableCell>-</TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

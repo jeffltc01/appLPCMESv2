@@ -8,6 +8,7 @@ import type {
   OrderLine,
   OrderLineCreate,
   OrderLineUpdate,
+  PlantManagerBoardItem,
   OrderListParams,
   TransportBoardParams,
   TransportBoardItem,
@@ -419,6 +420,8 @@ export const ordersApi = {
       `/orders/transport-board${query ? `?${query}` : ""}`
     );
   },
+
+  plantManagerBoard: () => api.get<PlantManagerBoardItem[]>("/orders/plant-manager-board"),
 
   saveTransportBoard: (updates: TransportBoardUpdate[]) =>
     api.put<TransportBoardItem[]>("/orders/transport-board", updates),

@@ -70,6 +70,9 @@ internal sealed class FakeOrderQueryService : IOrderQueryService
         int page, int pageSize, string? search, string? movementType, string? status, int? siteId, string? carrier, CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();
 
+    public Task<List<PlantManagerBoardItemDto>> GetPlantManagerBoardAsync(CancellationToken cancellationToken = default) =>
+        throw new NotImplementedException();
+
     public Task<List<string>> GetStatusesAsync(CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();
 

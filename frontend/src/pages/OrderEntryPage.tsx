@@ -45,6 +45,7 @@ import { orderLinesApi, orderLookupsApi, ordersApi } from "../services/orders";
 import { orderPoliciesApi } from "../services/orderPolicies";
 import { getWorkspaceCurrentStatus } from "../services/orders";
 import { ApiError } from "../services/api";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 import type {
   AddressLookup,
   ApplyHoldRequest,
@@ -1316,7 +1317,9 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
 
         <header className={styles.headerBar}>
           <Title2 className={styles.headerTitle}>
-            {order ? `Sales Order ${order.salesOrderNo}` : "Create New Sales Order"}
+            {order
+              ? `Sales Order ${formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}`
+              : "Create New Sales Order"}
           </Title2>
           <div className={styles.headerActions}>
             {invoiceMode ? (
@@ -1399,7 +1402,11 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                   <div className={styles.sectionDivider}>Core Order</div>
                   <Field label="Sales Order No">
                     <Input
-                      value={order?.salesOrderNo ?? "(new order)"}
+                      value={
+                        order
+                          ? formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)
+                          : "(new order)"
+                      }
                       readOnly
                       className={styles.orderNoInput}
                     />
@@ -2006,7 +2013,10 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
         <DialogSurface>
           <DialogBody>
             <DialogTitle>
-              Invoice Submission Wizard{order ? ` - ${order.salesOrderNo}` : ""}
+              Invoice Submission Wizard
+              {order
+                ? ` - ${formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}`
+                : ""}
             </DialogTitle>
             <DialogContent>
               {invoiceWizardStep === 1 ? (

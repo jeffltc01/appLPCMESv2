@@ -4,6 +4,9 @@ public record OrderDraftListDto(
     int Id,
     string SalesOrderNo,
     DateOnly OrderDate,
+    DateTime? ReceivedDate,
+    DateTime? ReadyToInvoiceDate,
+    DateTime? InvoiceDate,
     string OrderStatus,
     int CustomerId,
     string CustomerName,
@@ -57,7 +60,8 @@ public record OrderDraftListDto(
     DateTime? PromiseDateLastChangedUtc = null,
     string? PromiseDateLastChangedByEmpNo = null,
     int PromiseRevisionCount = 0,
-    string? PromiseMissReasonCode = null);
+    string? PromiseMissReasonCode = null,
+    string? IpadOrderNo = null);
 
 public record OrderDraftDetailDto(
     int Id,
@@ -134,7 +138,8 @@ public record OrderDraftDetailDto(
     string? InvoiceSubmissionCorrelationId = null,
     string? InvoiceStagingResult = null,
     string? InvoiceStagingError = null,
-    string? ErpInvoiceReference = null);
+    string? ErpInvoiceReference = null,
+    string? IpadOrderNo = null);
 
 public record OrderLifecycleMigrationResultDto(
     int TotalOrdersScanned,
@@ -421,7 +426,8 @@ public record TransportBoardItemDto(
     bool IsProductionComplete = false,
     bool IsProductionCompleteForShipment = false,
     bool IsInvoiceComplete = false,
-    bool IsReworkOpen = false);
+    bool IsReworkOpen = false,
+    string? IpadOrderNo = null);
 
 public record TransportBoardLineDto(
     int LineId,
@@ -439,6 +445,26 @@ public record TransportBoardUpdateDto(
     DateTime? ScheduledDate,
     string? TransportationStatus,
     string? TransportationNotes);
+
+public record PlantManagerBoardItemDto(
+    int Id,
+    string SalesOrderNo,
+    string? IpadOrderNo,
+    string OrderStatus,
+    string? OrderLifecycleStatus,
+    string SiteName,
+    string CustomerName,
+    string? CustomerCity,
+    string? CustomerState,
+    bool IsPickup,
+    List<PlantManagerBoardLineDto> Lines);
+
+public record PlantManagerBoardLineDto(
+    int LineId,
+    decimal LineNo,
+    string ItemDescription,
+    decimal DisplayQuantity,
+    string DisplayQuantityLabel);
 
 public record ReceivingOrderListItemDto(
     int Id,
@@ -468,7 +494,8 @@ public record ProductionOrderListItemDto(
     string ItemsOrderedSummary,
     DateTime? ReceivedDate,
     int LineCount,
-    decimal TotalOrderedQuantity);
+    decimal TotalOrderedQuantity,
+    string? IpadOrderNo = null);
 
 public record ReceivingOrderLineDto(
     int Id,
@@ -492,7 +519,8 @@ public record ReceivingOrderDetailDto(
     string? OrderComments,
     DateTime? ReceivedDate,
     List<ReceivingOrderLineDto> Lines,
-    string? PickUpAddressStreet = null);
+    string? PickUpAddressStreet = null,
+    string? IpadOrderNo = null);
 
 public record ProductionOrderDetailDto(
     int Id,
@@ -503,7 +531,8 @@ public record ProductionOrderDetailDto(
     string? TrailerNo,
     string? OrderComments,
     DateTime? ReceivedDate,
-    List<ProductionOrderLineDto> Lines);
+    List<ProductionOrderLineDto> Lines,
+    string? IpadOrderNo = null);
 
 public record ProductionSerialNumberDto(
     int Id,
@@ -733,7 +762,8 @@ public record WorkCenterQueueItemDto(
     int? Priority = null,
     string? LineNotes = null,
     string? OrderComments = null,
-    decimal? QuantityAsReceived = null);
+    decimal? QuantityAsReceived = null,
+    string? IpadOrderNo = null);
 
 public record RouteStepExecutionDto(
     long StepInstanceId,

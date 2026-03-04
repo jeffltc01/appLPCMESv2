@@ -35,6 +35,7 @@ import { orderLookupsApi, ordersApi } from "../services/orders";
 import { ApiError } from "../services/api";
 import { itemLookupsApi } from "../services/items";
 import { readTabletSetup } from "../features/tabletSetupStorage";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 import type { Lookup } from "../types/customer";
 import type { ItemSizeLookup } from "../types/item";
 import type {
@@ -2079,7 +2080,9 @@ export function WorkCenterOperatorPage() {
                   <div className={styles.queueCardTopRow}>
                     <div className={styles.queueCardField}>
                       <span className={styles.queueCardLabel}>Order No.</span>
-                      <span className={styles.queueCardValue}>{row.salesOrderNo}</span>
+                      <span className={styles.queueCardValue}>
+                        {formatOrderDisplayNo(row.salesOrderNo, row.ipadOrderNo)}
+                      </span>
                     </div>
                     <div className={styles.queueCardField}>
                       <span className={styles.queueCardLabel}>Line No.</span>
@@ -2184,7 +2187,12 @@ export function WorkCenterOperatorPage() {
             <>
               <div className={styles.jobCard}>
                 <div className={styles.jobCardHeader}>
-                  Current Order # {selectedQueueItem.salesOrderNo} - Line #{" "}
+                  Current Order #{" "}
+                  {formatOrderDisplayNo(
+                    selectedQueueItem.salesOrderNo,
+                    selectedQueueItem.ipadOrderNo
+                  )}{" "}
+                  - Line #{" "}
                   {selectedQueueItem.lineNo ?? selectedQueueItem.lineId}
                 </div>
                 <div className={styles.jobCardBody}>

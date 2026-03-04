@@ -20,6 +20,7 @@ import { ArrowClockwise24Regular } from "@fluentui/react-icons";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
 import { ordersApi } from "../services/orders";
 import type { ReceivingOrderListItem } from "../types/order";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 
 const useStyles = makeStyles({
   page: {
@@ -120,7 +121,7 @@ export function ReceivingQueuePage() {
     }
     return orders.filter((order) => {
       const haystack = [
-        order.salesOrderNo,
+        formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo),
         order.customerName,
         order.siteName,
         order.receivingMode,
@@ -190,7 +191,9 @@ export function ReceivingQueuePage() {
                     className={styles.clickableRow}
                     onClick={() => navigate(`/receiving/${order.id}`)}
                   >
-                    <TableCell>{order.salesOrderNo}</TableCell>
+                    <TableCell>
+                      {formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}
+                    </TableCell>
                     <TableCell>{order.customerName}</TableCell>
                     <TableCell>{order.receivingMode}</TableCell>
                     <TableCell>{formatDate(order.pickupScheduledDate)}</TableCell>

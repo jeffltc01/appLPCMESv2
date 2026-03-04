@@ -173,6 +173,9 @@ internal sealed class FakeProductionOrderQueryService : IOrderQueryService
         string? carrier,
         CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
+    public Task<List<PlantManagerBoardItemDto>> GetPlantManagerBoardAsync(CancellationToken cancellationToken = default) =>
+        throw new NotImplementedException();
+
     public Task<List<string>> GetStatusesAsync(CancellationToken cancellationToken = default) =>
         throw new NotImplementedException();
 

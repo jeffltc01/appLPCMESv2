@@ -48,6 +48,12 @@ public class OrdersController(
         return Ok(result);
     }
 
+    [HttpGet("plant-manager-board")]
+    public async Task<ActionResult<List<PlantManagerBoardItemDto>>> GetPlantManagerBoard()
+    {
+        return Ok(await orderQueryService.GetPlantManagerBoardAsync());
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<OrderDraftDetailDto>> Get(int id)
     {

@@ -31,6 +31,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
         {
             query = query.Where(o =>
                 o.SalesOrderNo.Contains(search) ||
+                (o.IpadOrderId.HasValue && o.IpadOrderId.Value.ToString().Contains(search)) ||
                 o.Customer.Name.Contains(search) ||
                 (o.CustomerPoNo != null && o.CustomerPoNo.Contains(search)));
         }
@@ -58,6 +59,9 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 o.Id,
                 o.SalesOrderNo,
                 o.OrderDate,
+                o.ReceivedDate,
+                o.ReadyToShipDate,
+                o.InvoiceDate,
                 o.OrderStatus,
                 o.CustomerId,
                 o.Customer.Name,
@@ -111,7 +115,8 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 o.PromiseDateLastChangedUtc,
                 o.PromiseDateLastChangedByEmpNo,
                 o.PromiseRevisionCount ?? 0,
-                o.PromiseMissReasonCode))
+                o.PromiseMissReasonCode,
+                o.IpadOrderId.HasValue ? o.IpadOrderId.Value.ToString() : null))
             .ToListAsync(cancellationToken);
 
         items = items
@@ -243,7 +248,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.InvoiceSubmissionCorrelationId,
             order.InvoiceStagingResult,
             order.InvoiceStagingError,
-            order.ErpInvoiceReference);
+            order.ErpInvoiceReference)
+        {
+            IpadOrderNo = order.IpadOrderId.HasValue ? order.IpadOrderId.Value.ToString() : null
+        };
     }
 
     public async Task<PaginatedResponse<TransportBoardItemDto>> GetTransportBoardAsync(
@@ -264,6 +272,7 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
         {
             query = query.Where(o =>
                 o.SalesOrderNo.Contains(search) ||
+                (o.IpadOrderId.HasValue && o.IpadOrderId.Value.ToString().Contains(search)) ||
                 o.Customer.Name.Contains(search) ||
                 (o.Contact != null && o.Contact.Contains(search)) ||
                 (o.Comments != null && o.Comments.Contains(search)) ||
@@ -318,6 +327,51 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             .ToList();
 
         return new PaginatedResponse<TransportBoardItemDto>(items, totalCount, page, pageSize);
+    }
+
+    public async Task<List<PlantManagerBoardItemDto>> GetPlantManagerBoardAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await db.SalesOrders
+            .Include(o => o.Customer)
+            .Include(o => o.Site)
+            .Include(o => o.ShipToAddress)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.Item)
+            .OrderByDescending(o => o.OrderDate)
+            .ThenByDescending(o => o.Id)
+            .ToListAsync(cancellationToken);
+
+        return orders.Select(order =>
+        {
+            var lifecycleStatus = ResolveLifecycleStatus(order.OrderLifecycleStatus, order.OrderStatus);
+            var shouldShowReceivedQuantity = IsReceivedStageOrLater(lifecycleStatus);
+            var lines = order.SalesOrderDetails
+                .OrderBy(d => d.LineNo)
+                .Select(d => new PlantManagerBoardLineDto(
+                    d.Id,
+                    d.LineNo,
+                    d.Item?.ItemDescription ?? d.Item?.ItemNo ?? d.ItemName ?? $"Item {d.ItemId}",
+                    shouldShowReceivedQuantity && d.QuantityAsReceived.HasValue
+                        ? d.QuantityAsReceived.Value
+                        : d.QuantityAsOrdered,
+                    shouldShowReceivedQuantity && d.QuantityAsReceived.HasValue
+                        ? "Received"
+                        : "Ordered"))
+                .ToList();
+
+            return new PlantManagerBoardItemDto(
+                order.Id,
+                order.SalesOrderNo,
+                order.IpadOrderId.HasValue ? order.IpadOrderId.Value.ToString() : null,
+                order.OrderStatus,
+                order.OrderLifecycleStatus,
+                order.Site.Name,
+                order.Customer.Name,
+                TrimToNull(order.ShipToAddress?.City),
+                TrimToNull(order.ShipToAddress?.State),
+                string.Equals(order.OutboundMode, "CustomerPickup", StringComparison.OrdinalIgnoreCase),
+                lines);
+        }).ToList();
     }
 
     public Task<List<string>> GetStatusesAsync(CancellationToken cancellationToken = default)
@@ -519,7 +573,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             progress.IsProductionComplete,
             progress.IsProductionCompleteForShipment,
             progress.IsInvoiceComplete,
-            progress.IsReworkOpen);
+            progress.IsReworkOpen)
+        {
+            IpadOrderNo = order.IpadOrderId.HasValue ? order.IpadOrderId.Value.ToString() : null
+        };
     }
 
     private static string? FormatAddressLabel(Address? address)
@@ -569,6 +626,19 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
         }
 
         return OrderStatusCatalog.MapLegacyToLifecycle(legacyStatus);
+    }
+
+    private static bool IsReceivedStageOrLater(string lifecycleStatus)
+    {
+        return lifecycleStatus is OrderStatusCatalog.ReceivedPendingReconciliation or
+            OrderStatusCatalog.ReadyForProduction or
+            OrderStatusCatalog.InProduction or
+            OrderStatusCatalog.ProductionCompletePendingApproval or
+            OrderStatusCatalog.ProductionComplete or
+            OrderStatusCatalog.OutboundLogisticsPlanned or
+            OrderStatusCatalog.DispatchedOrPickupReleased or
+            OrderStatusCatalog.InvoiceReady or
+            OrderStatusCatalog.Invoiced;
     }
 
     private static (bool IsInboundComplete, bool IsProductionComplete, bool IsProductionCompleteForShipment, bool IsInvoiceComplete, bool IsReworkOpen)
@@ -633,7 +703,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             TrimToNull(order.Comments),
             order.ReceivedDate,
             lines,
-            TrimToNull(order.PickUpAddress?.Address1));
+            TrimToNull(order.PickUpAddress?.Address1))
+        {
+            IpadOrderNo = order.IpadOrderId.HasValue ? order.IpadOrderId.Value.ToString() : null
+        };
     }
 
     private static ProductionOrderDetailDto ToProductionDetailDto(SalesOrder order)
@@ -688,7 +761,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             order.TrailerNo,
             TrimToNull(order.Comments),
             order.ReceivedDate,
-            lines);
+            lines)
+        {
+            IpadOrderNo = order.IpadOrderId.HasValue ? order.IpadOrderId.Value.ToString() : null
+        };
     }
 
     private async Task<List<ProductionOrderListItemDto>> GetProductionQueueByOrderIdsAsync(
@@ -721,7 +797,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 BuildLineSummary(o.SalesOrderDetails),
                 o.ReceivedDate,
                 o.SalesOrderDetails.Count,
-                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered)))
+                o.SalesOrderDetails.Sum(d => d.QuantityAsOrdered))
+            {
+                IpadOrderNo = o.IpadOrderId.HasValue ? o.IpadOrderId.Value.ToString() : null
+            })
             .ToList();
     }
 }

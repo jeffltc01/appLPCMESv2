@@ -23,6 +23,7 @@ import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
 import { orderLookupsApi, ordersApi } from "../services/orders";
 import { ApiError } from "../services/api";
 import type { OrderItemLookup, ReceivingOrderDetail, ReceivingOrderLine } from "../types/order";
+import { formatOrderDisplayNo } from "../utils/orderNumber";
 
 type DraftLine = {
   lineId: number;
@@ -838,7 +839,11 @@ export function ReceivingDetailPage() {
             <div className={styles.summaryGrid}>
               <div className={styles.summaryField}>
                 <span className={styles.summaryLabel}>Order Number</span>
-                <span className={styles.summaryValue}>{detail?.salesOrderNo ?? "-"}</span>
+                <span className={styles.summaryValue}>
+                  {detail
+                    ? formatOrderDisplayNo(detail.salesOrderNo, detail.ipadOrderNo)
+                    : "-"}
+                </span>
               </div>
               <div className={styles.summaryField}>
                 <span className={styles.summaryLabel}>Customer</span>

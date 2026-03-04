@@ -314,7 +314,11 @@ export function getHoldOverlayMetadata(
 export interface OrderDraftListItem {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   orderDate: string;
+  receivedDate?: string | null;
+  readyToInvoiceDate?: string | null;
+  invoiceDate?: string | null;
   orderStatus: string;
   customerId: number;
   customerName: string;
@@ -401,6 +405,7 @@ export interface OrderLine {
 export interface OrderDraftDetail {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   orderDate: string;
   orderStatus: string;
   orderCreatedDate: string;
@@ -573,6 +578,7 @@ export interface TransportBoardParams {
 export interface TransportBoardItem {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   orderStatus: string;
   orderLifecycleStatus?: string | null;
   movementType: "Pickup" | "Shipment";
@@ -612,6 +618,28 @@ export interface TransportBoardLineItem {
   itemDescription: string;
   productLine: string | null;
   quantityOrdered: number;
+}
+
+export interface PlantManagerBoardItem {
+  id: number;
+  salesOrderNo: string;
+  ipadOrderNo?: string | null;
+  orderStatus: string;
+  orderLifecycleStatus?: string | null;
+  siteName: string;
+  customerName: string;
+  customerCity?: string | null;
+  customerState?: string | null;
+  isPickup: boolean;
+  lines: PlantManagerBoardLineItem[];
+}
+
+export interface PlantManagerBoardLineItem {
+  lineId: number;
+  lineNo: number;
+  itemDescription: string;
+  displayQuantity: number;
+  displayQuantityLabel: "Ordered" | "Received" | string;
 }
 
 export interface TransportBoardUpdate {
@@ -660,6 +688,7 @@ export interface ReceivingOrderLine {
 export interface ReceivingOrderDetail {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   orderStatus: string;
   customerName: string;
   pickUpAddress: string | null;
@@ -673,6 +702,7 @@ export interface ReceivingOrderDetail {
 export interface ProductionOrderListItem {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   customerName: string;
   siteName: string;
   priority: number | null;
@@ -685,6 +715,7 @@ export interface ProductionOrderListItem {
 export interface ProductionOrderDetail {
   id: number;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   orderStatus: string;
   customerName: string;
   pickUpAddress: string | null;
@@ -1048,6 +1079,7 @@ export interface WorkCenterQueueItem {
   lineId: number;
   lineNo?: number | null;
   salesOrderNo: string;
+  ipadOrderNo?: string | null;
   stepCode: string;
   stepName: string;
   stepSequence: number;
