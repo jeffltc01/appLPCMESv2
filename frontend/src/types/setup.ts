@@ -30,12 +30,10 @@ export interface AppRoleUpsert {
 export interface AppUserRoleAssignment {
   roleId: number;
   roleName: string;
-  siteId: number | null;
 }
 
 export interface AppUserRoleAssignmentUpsert {
   roleId: number;
-  siteId?: number | null;
 }
 
 export interface AppUser {

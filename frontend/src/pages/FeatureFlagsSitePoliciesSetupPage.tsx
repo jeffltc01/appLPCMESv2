@@ -20,7 +20,7 @@ import {
   TableRow,
   TabList,
   Textarea,
-  Title2,
+  Title1,
   Title3,
   makeStyles,
   tokens,
@@ -40,21 +40,46 @@ import type {
 
 const useStyles = makeStyles({
   page: {
-    display: "grid",
-    gap: tokens.spacingVerticalL,
-    padding: tokens.spacingHorizontalL,
-    backgroundColor: "#FCFCFC",
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
   },
-  header: {
+  main: {
+    display: "grid",
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    minWidth: 0,
+  },
+  utilityBar: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: tokens.spacingHorizontalM,
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  nav: {
+  headerActions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
     flexWrap: "wrap",
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "auto",
+  },
+  contentStack: {
+    display: "grid",
+    gap: tokens.spacingVerticalL,
   },
   filtersCard: {
     border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -560,33 +585,44 @@ export function FeatureFlagsSitePoliciesSetupPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <Title2>Setup - Feature Flags &amp; Site Policies</Title2>
-        <div className={styles.nav}>
-          <Button appearance="secondary" onClick={() => navigate("/setup/users-roles")}>
-            Users &amp; Roles Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/route-templates")}>
-            Route Templates Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/")}>
-            Home
-          </Button>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <span>Order Analyst</span>
+          <span>Site: Houston</span>
         </div>
-      </div>
 
-      {error ? (
-        <MessageBar intent="error">
-          <MessageBarBody>{error}</MessageBarBody>
-        </MessageBar>
-      ) : null}
-      {info ? (
-        <MessageBar intent="warning">
-          <MessageBarBody>{info}</MessageBarBody>
-        </MessageBar>
-      ) : null}
+        <header className={styles.headerBar}>
+          <Title1 style={{ color: "#ffffff" }}>Feature Flags &amp; Site Policies Maintenance</Title1>
+          <div className={styles.headerActions}>
+            <Button appearance="secondary" onClick={() => navigate("/setup/users")}>
+              Users Setup
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/setup/roles")}>
+              Roles Setup
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/setup/route-templates")}>
+              Route Templates Setup
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Home
+            </Button>
+          </div>
+        </header>
 
-      <div className={styles.mainGrid}>
+        <section className={styles.content}>
+          <div className={styles.contentStack}>
+            {error ? (
+              <MessageBar intent="error">
+                <MessageBarBody>{error}</MessageBarBody>
+              </MessageBar>
+            ) : null}
+            {info ? (
+              <MessageBar intent="warning">
+                <MessageBarBody>{info}</MessageBarBody>
+              </MessageBar>
+            ) : null}
+
+            <div className={styles.mainGrid}>
         <Card className={styles.filtersCard}>
           <Title3>Filters</Title3>
           <Field label="Site">
@@ -834,31 +870,34 @@ export function FeatureFlagsSitePoliciesSetupPage() {
             </div>
           </div>
         </Card>
-      </div>
+            </div>
 
-      <Card className={styles.auditCard}>
-        <Title3>Audit Timeline</Title3>
-        {auditEntries.map((entry) => (
-          <div key={entry.id} className={styles.timelineRow}>
-            <span>{entry.changedUtc}</span>
-            <span>{entry.changedByEmpNo}</span>
-            <span>{`${entry.action} '${entry.configKey}' (${entry.previousValue} -> ${entry.newValue})`}</span>
-            <span>{entry.correlationId}</span>
+            <Card className={styles.auditCard}>
+              <Title3>Audit Timeline</Title3>
+              {auditEntries.map((entry) => (
+                <div key={entry.id} className={styles.timelineRow}>
+                  <span>{entry.changedUtc}</span>
+                  <span>{entry.changedByEmpNo}</span>
+                  <span>{`${entry.action} '${entry.configKey}' (${entry.previousValue} -> ${entry.newValue})`}</span>
+                  <span>{entry.correlationId}</span>
+                </div>
+              ))}
+            </Card>
+
+            <div className={styles.stickyFooter}>
+              <Body1 className={styles.muted}>Submit policy changes after peer review.</Body1>
+              <div className={styles.actions}>
+                <Button appearance="secondary" onClick={resetEditor}>
+                  Discard Draft
+                </Button>
+                <Button appearance="primary" onClick={() => void saveCurrentSelection()} disabled={saving}>
+                  Submit Changes
+                </Button>
+              </div>
+            </div>
           </div>
-        ))}
-      </Card>
-
-      <div className={styles.stickyFooter}>
-        <Body1 className={styles.muted}>Submit policy changes after peer review.</Body1>
-        <div className={styles.actions}>
-          <Button appearance="secondary" onClick={resetEditor}>
-            Discard Draft
-          </Button>
-          <Button appearance="primary" onClick={() => void saveCurrentSelection()} disabled={saving}>
-            Submit Changes
-          </Button>
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

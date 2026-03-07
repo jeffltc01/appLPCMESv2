@@ -19,7 +19,6 @@ public sealed class SetupRoutingService(
     private static readonly string[] SupportedTimeCaptureModes = ["Automated", "Manual", "Hybrid"];
     private static readonly string[] SupportedProcessingModes = ["BatchQuantity", "SingleUnit"];
     private static readonly string[] SupportedDataCaptureModes = ["ElectronicRequired", "ElectronicOptional", "PaperOnly"];
-    private static readonly string[] SupportedChecklistFailurePolicies = ["BlockCompletion", "AllowWithSupervisorOverride"];
     private static readonly string[] SupportedUserStates = ["Active", "Inactive", "Locked"];
     private static readonly Dictionary<string, int> ShowWhereFlags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -149,7 +148,6 @@ public sealed class SetupRoutingService(
                 .Select(r => new AppUserRole
                 {
                     RoleId = r.RoleId,
-                    SiteId = r.SiteId,
                     CreatedUtc = now,
                     CreatedBy = "setup-ui",
                 })
@@ -185,7 +183,6 @@ public sealed class SetupRoutingService(
             .Select(r => new AppUserRole
             {
                 RoleId = r.RoleId,
-                SiteId = r.SiteId,
                 CreatedUtc = DateTime.UtcNow,
                 CreatedBy = "setup-ui",
             })
@@ -338,6 +335,7 @@ public sealed class SetupRoutingService(
         workCenter.RequiresScanByDefault = dto.RequiresScanByDefault;
         workCenter.UpdatedUtc = DateTime.UtcNow;
         await SyncOpenStepProcessingModesForWorkCenterAsync(workCenter, cancellationToken);
+        await SyncOpenStepTimeCaptureModesForWorkCenterAsync(workCenter, cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
         return ToWorkCenterDto(workCenter);
@@ -346,69 +344,31 @@ public sealed class SetupRoutingService(
     private async Task SyncOpenStepProcessingModesForWorkCenterAsync(WorkCenter workCenter, CancellationToken cancellationToken)
     {
         var openStates = new[] { "Pending", "InProgress" };
-        var openStepRows = await (
-                from step in db.OrderLineRouteStepInstances
-                join route in db.OrderLineRouteInstances on step.OrderLineRouteInstanceId equals route.Id
-                join templateStep in db.RouteTemplateSteps
-                    on new { route.RouteTemplateId, step.StepSequence, step.StepCode }
-                    equals new { templateStep.RouteTemplateId, templateStep.StepSequence, templateStep.StepCode }
-                    into templateStepGroup
-                from templateStep in templateStepGroup.DefaultIfEmpty()
-                where step.WorkCenterId == workCenter.Id && openStates.Contains(step.State)
-                select new
-                {
-                    Step = step,
-                    ProcessingModeOverride = templateStep != null ? templateStep.ProcessingModeOverride : null,
-                })
+        var openSteps = await db.OrderLineRouteStepInstances
+            .Where(step => step.WorkCenterId == workCenter.Id && openStates.Contains(step.State))
             .ToListAsync(cancellationToken);
 
-        foreach (var row in openStepRows)
+        foreach (var step in openSteps)
         {
-            if (!string.IsNullOrWhiteSpace(row.ProcessingModeOverride))
+            if (!string.Equals(step.ProcessingMode, workCenter.DefaultProcessingMode, StringComparison.Ordinal))
             {
-                continue;
-            }
-
-            if (!string.Equals(row.Step.ProcessingMode, workCenter.DefaultProcessingMode, StringComparison.Ordinal))
-            {
-                row.Step.ProcessingMode = workCenter.DefaultProcessingMode;
+                step.ProcessingMode = workCenter.DefaultProcessingMode;
             }
         }
     }
 
-    private async Task SyncOpenStepTimeCaptureModesForTemplateAsync(
-        int routeTemplateId,
-        IReadOnlyCollection<RouteTemplateStepUpsertDto> steps,
-        CancellationToken cancellationToken)
+    private async Task SyncOpenStepTimeCaptureModesForWorkCenterAsync(WorkCenter workCenter, CancellationToken cancellationToken)
     {
-        var modeByStepKey = steps.ToDictionary(
-            step => BuildRouteStepKey(step.StepSequence, step.StepCode),
-            step => step.TimeCaptureMode.Trim(),
-            StringComparer.Ordinal);
-        if (modeByStepKey.Count == 0)
-        {
-            return;
-        }
-
         var openStates = new[] { "Pending", "InProgress" };
-        var openStepRows = await (
-                from step in db.OrderLineRouteStepInstances
-                join route in db.OrderLineRouteInstances on step.OrderLineRouteInstanceId equals route.Id
-                where route.RouteTemplateId == routeTemplateId && openStates.Contains(step.State)
-                select step)
+        var openStepRows = await db.OrderLineRouteStepInstances
+            .Where(step => step.WorkCenterId == workCenter.Id && openStates.Contains(step.State))
             .ToListAsync(cancellationToken);
 
         foreach (var step in openStepRows)
         {
-            var key = BuildRouteStepKey(step.StepSequence, step.StepCode);
-            if (!modeByStepKey.TryGetValue(key, out var desiredMode))
+            if (!string.Equals(step.TimeCaptureMode, workCenter.DefaultTimeCaptureMode, StringComparison.Ordinal))
             {
-                continue;
-            }
-
-            if (!string.Equals(step.TimeCaptureMode, desiredMode, StringComparison.Ordinal))
-            {
-                step.TimeCaptureMode = desiredMode;
+                step.TimeCaptureMode = workCenter.DefaultTimeCaptureMode;
             }
         }
     }
@@ -500,7 +460,6 @@ public sealed class SetupRoutingService(
             .Select(ToRouteTemplateStepEntity)
             .ToList();
 
-        await SyncOpenStepTimeCaptureModesForTemplateAsync(id, dto.Steps, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return ToRouteTemplateDetailDto(template);
     }
@@ -874,10 +833,10 @@ public sealed class SetupRoutingService(
         }
 
         var duplicateAssignments = dto.Roles
-            .GroupBy(r => new { r.RoleId, r.SiteId })
+            .GroupBy(r => r.RoleId)
             .Any(g => g.Count() > 1);
         if (duplicateAssignments)
-            throw new ServiceException(StatusCodes.Status400BadRequest, "Role assignments must be unique by role and site.");
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Role assignments must be unique by role.");
 
         var roleIds = dto.Roles.Select(r => r.RoleId).Distinct().ToList();
         if (roleIds.Count > 0)
@@ -891,21 +850,6 @@ public sealed class SetupRoutingService(
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"Unknown RoleId values: {string.Join(", ", unknownRoleIds)}.");
         }
 
-        var siteIds = dto.Roles
-            .Where(r => r.SiteId.HasValue)
-            .Select(r => r.SiteId!.Value)
-            .Distinct()
-            .ToList();
-        if (siteIds.Count > 0)
-        {
-            var knownSiteIds = await db.Sites
-                .Where(s => siteIds.Contains(s.Id))
-                .Select(s => s.Id)
-                .ToListAsync(cancellationToken);
-            var unknownSiteIds = siteIds.Except(knownSiteIds).ToList();
-            if (unknownSiteIds.Count > 0)
-                throw new ServiceException(StatusCodes.Status400BadRequest, $"Unknown SiteId values in role assignments: {string.Join(", ", unknownSiteIds)}.");
-        }
     }
 
     private async Task ValidateWorkCenterAsync(WorkCenterUpsertDto dto, int? existingId, CancellationToken cancellationToken)
@@ -1007,8 +951,6 @@ public sealed class SetupRoutingService(
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"TimeCaptureMode must be one of: {string.Join(", ", SupportedTimeCaptureModes)}.");
             if (!string.IsNullOrWhiteSpace(step.ProcessingModeOverride) && !SupportedProcessingModes.Contains(step.ProcessingModeOverride))
                 throw new ServiceException(StatusCodes.Status400BadRequest, $"ProcessingModeOverride must be one of: {string.Join(", ", SupportedProcessingModes)}.");
-            if (!SupportedChecklistFailurePolicies.Contains(step.ChecklistFailurePolicy))
-                throw new ServiceException(StatusCodes.Status400BadRequest, $"ChecklistFailurePolicy must be one of: {string.Join(", ", SupportedChecklistFailurePolicies)}.");
         }
     }
 
@@ -1138,9 +1080,6 @@ public sealed class SetupRoutingService(
     private static string? NormalizeNullable(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static string BuildRouteStepKey(int stepSequence, string stepCode) =>
-        $"{stepSequence}|{stepCode.Trim().ToUpperInvariant()}";
-
     private static int BuildShowWhereMask(IEnumerable<string> showWhereValues)
     {
         var mask = 0;
@@ -1191,8 +1130,7 @@ public sealed class SetupRoutingService(
             user.UpdatedUtc,
             user.UserRoles
                 .OrderBy(ur => ur.Role.RoleName)
-                .ThenBy(ur => ur.SiteId)
-                .Select(ur => new AppUserRoleAssignmentDto(ur.RoleId, ur.Role.RoleName, ur.SiteId))
+                .Select(ur => new AppUserRoleAssignmentDto(ur.RoleId, ur.Role.RoleName))
                 .ToList());
 
     private static string? ResolveOperatorPasswordHash(AppUserUpsertDto dto, string? currentHash)

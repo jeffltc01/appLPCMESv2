@@ -46,7 +46,6 @@ type WorkCenter = { id: number; workCenterCode: string; workCenterName: string }
 type DataCaptureMode = "ElectronicRequired" | "ElectronicOptional" | "PaperOnly";
 type TimeCaptureMode = "Automated" | "Manual" | "Hybrid";
 type ProcessingMode = "BatchQuantity" | "SingleUnit";
-type ChecklistFailurePolicy = "BlockCompletion" | "AllowWithSupervisorOverride";
 
 interface StepFormState extends RouteTemplateStepUpsert {
   localId: string;
@@ -61,10 +60,7 @@ interface TemplateFormState {
   steps: StepFormState[];
 }
 
-interface StepEditorState extends RouteTemplateStepUpsert {
-  checklistTemplateIdText: string;
-  slaMinutesText: string;
-}
+interface StepEditorState extends RouteTemplateStepUpsert {}
 
 type SupervisorGateOverrideState = "default" | "yes" | "no";
 
@@ -195,7 +191,6 @@ const EMPTY_STEP_EDITOR: StepEditorState = {
   requiresSerialCapture: false,
   requiresChecklistCompletion: false,
   checklistTemplateId: null,
-  checklistTemplateIdText: "",
   checklistFailurePolicy: "BlockCompletion",
   requireScrapReasonWhenBad: false,
   requiresTrailerCapture: false,
@@ -206,7 +201,6 @@ const EMPTY_STEP_EDITOR: StepEditorState = {
   requiresSupervisorApproval: false,
   autoQueueNextStep: true,
   slaMinutes: null,
-  slaMinutesText: "",
 };
 
 const EMPTY_TEMPLATE_FORM: TemplateFormState = {
@@ -273,8 +267,6 @@ function toStepForm(step: RouteTemplateStep): StepFormState {
 function toStepEditor(step: StepFormState): StepEditorState {
   return {
     ...step,
-    checklistTemplateIdText: step.checklistTemplateId != null ? String(step.checklistTemplateId) : "",
-    slaMinutesText: step.slaMinutes != null ? String(step.slaMinutes) : "",
   };
 }
 
@@ -468,18 +460,6 @@ export function RouteTemplateDetailPage() {
       return;
     }
 
-    const checklistTemplateId = parseOptionalInteger(stepEditor.checklistTemplateIdText);
-    if (Number.isNaN(checklistTemplateId) || (checklistTemplateId != null && checklistTemplateId <= 0)) {
-      setError("Checklist Template Id must be a positive whole number when provided.");
-      return;
-    }
-
-    const slaMinutes = parseOptionalInteger(stepEditor.slaMinutesText);
-    if (Number.isNaN(slaMinutes) || (slaMinutes != null && slaMinutes <= 0)) {
-      setError("SLA Minutes must be a positive whole number when provided.");
-      return;
-    }
-
     setError(null);
     const updatedStep: StepFormState = {
       localId: stepEditingLocalId ?? createLocalId(),
@@ -496,8 +476,8 @@ export function RouteTemplateDetailPage() {
       requiresScrapEntry: stepEditor.requiresScrapEntry,
       requiresSerialCapture: stepEditor.requiresSerialCapture,
       requiresChecklistCompletion: stepEditor.requiresChecklistCompletion,
-      checklistTemplateId,
-      checklistFailurePolicy: stepEditor.checklistFailurePolicy,
+      checklistTemplateId: stepEditor.checklistTemplateId ?? null,
+      checklistFailurePolicy: stepEditor.checklistFailurePolicy ?? "BlockCompletion",
       requireScrapReasonWhenBad: stepEditor.requireScrapReasonWhenBad,
       requiresTrailerCapture: stepEditor.requiresTrailerCapture,
       requiresSerialLoadVerification: stepEditor.requiresSerialLoadVerification,
@@ -506,7 +486,7 @@ export function RouteTemplateDetailPage() {
       requiresAttachment: stepEditor.requiresAttachment,
       requiresSupervisorApproval: stepEditor.requiresSupervisorApproval,
       autoQueueNextStep: stepEditor.autoQueueNextStep,
-      slaMinutes,
+      slaMinutes: stepEditor.slaMinutes ?? null,
     };
 
     setForm((current) => {
@@ -1081,45 +1061,6 @@ export function RouteTemplateDetailPage() {
                   <div />
                 </div>
                 <div className={styles.formRow}>
-                  <Field label="Checklist Failure Policy" required>
-                    <Dropdown
-                      value={stepEditor.checklistFailurePolicy}
-                      selectedOptions={[stepEditor.checklistFailurePolicy]}
-                      onOptionSelect={(_, data) =>
-                        setStepEditor((current) => ({
-                          ...current,
-                          checklistFailurePolicy:
-                            (resolveDropdownValue(data) as ChecklistFailurePolicy | undefined) ??
-                            current.checklistFailurePolicy,
-                        }))
-                      }
-                    >
-                      <Option value="BlockCompletion">BlockCompletion</Option>
-                      <Option value="AllowWithSupervisorOverride">AllowWithSupervisorOverride</Option>
-                    </Dropdown>
-                  </Field>
-                  <Field label="Checklist Template Id">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={stepEditor.checklistTemplateIdText}
-                      onChange={(_, data) =>
-                        setStepEditor((current) => ({ ...current, checklistTemplateIdText: data.value }))
-                      }
-                    />
-                  </Field>
-                </div>
-                <div className={styles.formRow}>
-                  <Field label="SLA Minutes">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={stepEditor.slaMinutesText}
-                      onChange={(_, data) =>
-                        setStepEditor((current) => ({ ...current, slaMinutesText: data.value }))
-                      }
-                    />
-                  </Field>
                   <Field label="Required">
                     <Checkbox
                       label="Is Required"
@@ -1129,6 +1070,7 @@ export function RouteTemplateDetailPage() {
                       }
                     />
                   </Field>
+                  <div />
                 </div>
                 <Field label="Step Flags">
                   <div className={styles.checkboxGrid}>

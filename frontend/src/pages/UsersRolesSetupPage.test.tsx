@@ -27,6 +27,7 @@ vi.mock("../services/orders", () => ({
 
 describe("UsersRolesSetupPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     listRolesMock.mockResolvedValue([
       {
         id: 1,
@@ -49,7 +50,7 @@ describe("UsersRolesSetupPage", () => {
         isActive: true,
         createdUtc: "2026-02-28T00:00:00Z",
         updatedUtc: "2026-02-28T00:00:00Z",
-        roles: [{ roleId: 1, roleName: "Admin", siteId: null }],
+        roles: [{ roleId: 1, roleName: "Admin" }],
       },
     ]);
     sitesMock.mockResolvedValue([{ id: 10, name: "Houston" }]);
@@ -73,5 +74,41 @@ describe("UsersRolesSetupPage", () => {
     expect(screen.getByRole("button", { name: "Add User" })).toBeInTheDocument();
     expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
     expect(screen.getByText("Alice Operator")).toBeInTheDocument();
+  });
+
+  it("renders users-only mode", async () => {
+    render(
+      <MemoryRouter>
+        <UsersRolesSetupPage mode="users" />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(listRolesMock).toHaveBeenCalled();
+      expect(listUsersMock).toHaveBeenCalled();
+      expect(sitesMock).toHaveBeenCalled();
+    });
+
+    expect(screen.getByText("Setup - Users")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add Role" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add User" })).toBeInTheDocument();
+  });
+
+  it("renders roles-only mode", async () => {
+    render(
+      <MemoryRouter>
+        <UsersRolesSetupPage mode="roles" />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(listRolesMock).toHaveBeenCalled();
+    });
+
+    expect(listUsersMock).not.toHaveBeenCalled();
+    expect(sitesMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Setup - Roles")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Role" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add User" })).not.toBeInTheDocument();
   });
 });

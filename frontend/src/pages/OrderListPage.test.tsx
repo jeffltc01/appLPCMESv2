@@ -39,6 +39,8 @@ describe("OrderListPage", () => {
 
     expect(await screen.findByText("Sales Orders")).toBeInTheDocument();
     expect(screen.getByText("SO-1001")).toBeInTheDocument();
+    expect(screen.getByText("1 sales order(s)")).toBeInTheDocument();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back to Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create New Order" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Transportation Dispatch" })).not.toBeInTheDocument();

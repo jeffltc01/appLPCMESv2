@@ -17,7 +17,16 @@ vi.mock("../services/orders", async (importOriginal) => {
 
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="current-path">{location.pathname}</span>;
+  return (
+    <>
+      <span data-testid="current-path">{location.pathname}</span>
+      <span data-testid="current-state-back-to">
+        {typeof (location.state as { backTo?: unknown } | null)?.backTo === "string"
+          ? (location.state as { backTo: string }).backTo
+          : ""}
+      </span>
+    </>
+  );
 }
 
 describe("PlantManagerBoardPage", () => {
@@ -74,5 +83,6 @@ describe("PlantManagerBoardPage", () => {
     fireEvent.click(orderNo);
 
     expect(screen.getByTestId("current-path")).toHaveTextContent("/orders/2101");
+    expect(screen.getByTestId("current-state-back-to")).toHaveTextContent("/plant-manager");
   });
 });

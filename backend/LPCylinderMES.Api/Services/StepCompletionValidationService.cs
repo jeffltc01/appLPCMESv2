@@ -7,8 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace LPCylinderMES.Api.Services;
 
 internal sealed class StepCompletionValidationService(
-    LpcAppsDbContext db,
-    IRolePermissionService rolePermissionService)
+    LpcAppsDbContext db)
 {
     public async Task ValidateAsync(
         OrderLineRouteStepInstance step,
@@ -89,26 +88,9 @@ internal sealed class StepCompletionValidationService(
                 string.Equals(r.ResultStatus, "Fail", StringComparison.OrdinalIgnoreCase));
             if (requiredFailExists)
             {
-                if (string.Equals(step.ChecklistFailurePolicy, "BlockCompletion", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new ServiceException(
-                        StatusCodes.Status409Conflict,
-                        "Checklist failed required items and policy blocks completion.");
-                }
-
-                if (string.Equals(step.ChecklistFailurePolicy, "AllowWithSupervisorOverride", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (string.IsNullOrWhiteSpace(dto.SupervisorOverrideEmpNo) ||
-                        string.IsNullOrWhiteSpace(dto.SupervisorOverrideReason) ||
-                        string.IsNullOrWhiteSpace(dto.SupervisorOverrideActingRole))
-                    {
-                        throw new ServiceException(
-                            StatusCodes.Status409Conflict,
-                            "Checklist failed required items and requires supervisor override role and reason.");
-                    }
-
-                    rolePermissionService.EnsureChecklistOverrideAllowed(dto.SupervisorOverrideActingRole);
-                }
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    "Checklist failed required items.");
             }
         }
 
@@ -165,7 +147,7 @@ internal sealed class StepCompletionValidationService(
         }
     }
 
-    private static Task ValidateOperationalCompletionRulesAsync(
+    private Task ValidateOperationalCompletionRulesAsync(
         OrderLineRouteStepInstance step,
         CompleteWorkCenterStepDto dto,
         SalesOrder order,
@@ -191,7 +173,8 @@ internal sealed class StepCompletionValidationService(
             throw new ServiceException(StatusCodes.Status409Conflict, "Bill of lading must be generated before completion.");
         }
 
-        if (string.Equals(step.TimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase))
+        var effectiveTimeCaptureMode = ResolveWorkCenterTimeCaptureMode(step);
+        if (string.Equals(effectiveTimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase))
         {
             if (dto.ManualDurationMinutes.HasValue && dto.ManualDurationMinutes.Value <= 0)
             {
@@ -208,6 +191,12 @@ internal sealed class StepCompletionValidationService(
         }
 
         return Task.CompletedTask;
+    }
+
+    private static string ResolveWorkCenterTimeCaptureMode(OrderLineRouteStepInstance step)
+    {
+        var workCenterMode = step.WorkCenter?.DefaultTimeCaptureMode;
+        return string.IsNullOrWhiteSpace(workCenterMode) ? "Automated" : workCenterMode.Trim();
     }
 
     private static HashSet<string> ParseVerifiedSerialsFromNotes(string? notes)

@@ -296,10 +296,6 @@ namespace LPCylinderMES.Api.Migrations
                         .HasColumnType("int")
                         .HasColumnName("role_id");
 
-                    b.Property<int?>("SiteId")
-                        .HasColumnType("int")
-                        .HasColumnName("site_id");
-
                     b.Property<int>("UserId")
                         .HasColumnType("int")
                         .HasColumnName("user_id");
@@ -308,11 +304,8 @@ namespace LPCylinderMES.Api.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.HasIndex("SiteId");
-
-                    b.HasIndex("UserId", "RoleId", "SiteId")
-                        .IsUnique()
-                        .HasFilter("[site_id] IS NOT NULL");
+                    b.HasIndex("UserId", "RoleId")
+                        .IsUnique();
 
                     b.ToTable("app_user_roles", (string)null);
                 });
@@ -3903,11 +3896,6 @@ namespace LPCylinderMES.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("LPCylinderMES.Api.Models.Site", "Site")
-                        .WithMany()
-                        .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("LPCylinderMES.Api.Models.AppUser", "User")
                         .WithMany("UserRoles")
                         .HasForeignKey("UserId")
@@ -3915,8 +3903,6 @@ namespace LPCylinderMES.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
-
-                    b.Navigation("Site");
 
                     b.Navigation("User");
                 });

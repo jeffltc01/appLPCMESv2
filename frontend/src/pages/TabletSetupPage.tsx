@@ -9,7 +9,7 @@ import {
   MessageBarBody,
   Select,
   Switch,
-  Title2,
+  Title1,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -27,14 +27,44 @@ import {
 const useStyles = makeStyles({
   page: {
     minHeight: "100vh",
-    backgroundColor: "#FCFCFC",
-    padding: tokens.spacingHorizontalL,
+    backgroundColor: "#f5f5f5",
+  },
+  main: {
+    display: "grid",
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    minWidth: 0,
+  },
+  utilityBar: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
+  headerActions: {
+    display: "flex",
+    gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "auto",
     display: "grid",
     gap: tokens.spacingVerticalM,
     alignContent: "start",
-  },
-  heading: {
-    color: "#123046",
   },
   card: {
     maxWidth: "760px",
@@ -160,95 +190,115 @@ export function TabletSetupPage() {
   };
 
   return (
-    <main className={styles.page}>
-      <Title2 className={styles.heading}>Tablet Setup</Title2>
-      <Body1 className={styles.helper}>
-        Set this tablet to a work center once. Next use, the operator screen will remember it.
-      </Body1>
+    <div className={styles.page}>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <span>Order Analyst</span>
+          <span>Site: Houston</span>
+        </div>
 
-      {error ? (
-        <MessageBar intent="error">
-          <MessageBarBody>{error}</MessageBarBody>
-        </MessageBar>
-      ) : null}
-      {info ? (
-        <MessageBar>
-          <MessageBarBody>{info}</MessageBarBody>
-        </MessageBar>
-      ) : null}
-
-      <Card className={styles.card}>
-        {loading ? (
-          <Body1>Loading setup options...</Body1>
-        ) : (
-          <div className={styles.formGrid}>
-            <Field label="Site" required>
-              <Select
-                value={siteId}
-                onChange={(event) => {
-                  setSiteId(event.target.value);
-                  setWorkCenterId("");
-                }}
-              >
-                <option value="">Select site</option>
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field label="Work Center" required>
-              <Select value={workCenterId} onChange={(event) => setWorkCenterId(event.target.value)}>
-                <option value="">Select work center</option>
-                {workCentersForSite.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.workCenterCode} - {row.workCenterName}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field label="Default Operator (fallback, optional)">
-              <Input value={operatorEmpNo} onChange={(_, data) => setOperatorEmpNo(data.value)} />
-            </Field>
-
-            <Field label="Device ID (optional)">
-              <Input value={deviceId} onChange={(_, data) => setDeviceId(data.value)} />
-            </Field>
-
-            <Field label="Operator Identity Lock">
-              <Switch
-                checked={lockOperatorToLoggedInUser}
-                onChange={(_, data) => setLockOperatorToLoggedInUser(data.checked)}
-                label="Lock operator to logged-in user (no manual override)"
-              />
-            </Field>
-
-            <div className={styles.actionRow}>
-              <Button
-                appearance="primary"
-                className={styles.primaryButton}
-                onClick={() => void save()}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Save & Open Operator Screen"}
-              </Button>
-              <Button appearance="secondary" className={styles.secondaryButton} onClick={clear}>
-                Clear Saved Setup
-              </Button>
-              <Button
-                appearance="secondary"
-                className={styles.secondaryButton}
-                onClick={() => navigate("/")}
-              >
-                Home
-              </Button>
-            </div>
+        <header className={styles.headerBar}>
+          <Title1 style={{ color: "#ffffff" }}>Tablet Setup</Title1>
+          <div className={styles.headerActions}>
+            <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
+              Work Centers Setup
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Home
+            </Button>
           </div>
-        )}
-      </Card>
-    </main>
+        </header>
+
+        <section className={styles.content}>
+          <Body1 className={styles.helper}>
+            Set this tablet to a work center once. Next use, the operator screen will remember it.
+          </Body1>
+
+          {error ? (
+            <MessageBar intent="error">
+              <MessageBarBody>{error}</MessageBarBody>
+            </MessageBar>
+          ) : null}
+          {info ? (
+            <MessageBar>
+              <MessageBarBody>{info}</MessageBarBody>
+            </MessageBar>
+          ) : null}
+
+          <Card className={styles.card}>
+            {loading ? (
+              <Body1>Loading setup options...</Body1>
+            ) : (
+              <div className={styles.formGrid}>
+                <Field label="Site" required>
+                  <Select
+                    value={siteId}
+                    onChange={(event) => {
+                      setSiteId(event.target.value);
+                      setWorkCenterId("");
+                    }}
+                  >
+                    <option value="">Select site</option>
+                    {sites.map((site) => (
+                      <option key={site.id} value={site.id}>
+                        {site.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <Field label="Work Center" required>
+                  <Select value={workCenterId} onChange={(event) => setWorkCenterId(event.target.value)}>
+                    <option value="">Select work center</option>
+                    {workCentersForSite.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.workCenterCode} - {row.workCenterName}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <Field label="Default Operator (fallback, optional)">
+                  <Input value={operatorEmpNo} onChange={(_, data) => setOperatorEmpNo(data.value)} />
+                </Field>
+
+                <Field label="Device ID (optional)">
+                  <Input value={deviceId} onChange={(_, data) => setDeviceId(data.value)} />
+                </Field>
+
+                <Field label="Operator Identity Lock">
+                  <Switch
+                    checked={lockOperatorToLoggedInUser}
+                    onChange={(_, data) => setLockOperatorToLoggedInUser(data.checked)}
+                    label="Lock operator to logged-in user (no manual override)"
+                  />
+                </Field>
+
+                <div className={styles.actionRow}>
+                  <Button
+                    appearance="primary"
+                    className={styles.primaryButton}
+                    onClick={() => void save()}
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Save & Open Operator Screen"}
+                  </Button>
+                  <Button appearance="secondary" className={styles.secondaryButton} onClick={clear}>
+                    Clear Saved Setup
+                  </Button>
+                  <Button
+                    appearance="secondary"
+                    className={styles.secondaryButton}
+                    onClick={() => navigate("/")}
+                  >
+                    Home
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </section>
+      </main>
+    </div>
   );
 }

@@ -63,11 +63,15 @@ internal static class RouteInstantiationService
                 (!a.EffectiveFromUtc.HasValue || a.EffectiveFromUtc <= now) &&
                 (!a.EffectiveToUtc.HasValue || a.EffectiveToUtc >= now))
             .ToListAsync(cancellationToken);
-        var workCenterModeById = await db.WorkCenters
+        var workCenterDefaultsById = await db.WorkCenters
             .AsNoTracking()
             .ToDictionaryAsync(
                 wc => wc.Id,
-                wc => string.IsNullOrWhiteSpace(wc.DefaultProcessingMode) ? "BatchQuantity" : wc.DefaultProcessingMode.Trim(),
+                wc => new
+                {
+                    TimeCaptureMode = string.IsNullOrWhiteSpace(wc.DefaultTimeCaptureMode) ? "Automated" : wc.DefaultTimeCaptureMode.Trim(),
+                    ProcessingMode = string.IsNullOrWhiteSpace(wc.DefaultProcessingMode) ? "BatchQuantity" : wc.DefaultProcessingMode.Trim(),
+                },
                 cancellationToken);
 
         foreach (var line in lines)
@@ -120,6 +124,7 @@ internal static class RouteInstantiationService
             db.OrderLineRouteInstances.Add(route);
             foreach (var step in templateSteps)
             {
+                var workCenterDefaults = workCenterDefaultsById.GetValueOrDefault(step.WorkCenterId);
                 db.OrderLineRouteStepInstances.Add(new OrderLineRouteStepInstance
                 {
                     OrderLineRouteInstance = route,
@@ -131,8 +136,8 @@ internal static class RouteInstantiationService
                     State = "Pending",
                     IsRequired = step.IsRequired,
                     DataCaptureMode = step.DataCaptureMode,
-                    TimeCaptureMode = step.TimeCaptureMode,
-                    ProcessingMode = ResolveProcessingMode(step.ProcessingModeOverride, workCenterModeById.GetValueOrDefault(step.WorkCenterId, "BatchQuantity")),
+                    TimeCaptureMode = workCenterDefaults?.TimeCaptureMode ?? "Automated",
+                    ProcessingMode = workCenterDefaults?.ProcessingMode ?? "BatchQuantity",
                     RequiresScan = step.RequiresScan,
                     RequiresUsageEntry = step.RequiresUsageEntry,
                     RequiresScrapEntry = step.RequiresScrapEntry,
@@ -263,13 +268,4 @@ internal static class RouteInstantiationService
         return null;
     }
 
-    private static string ResolveProcessingMode(string? processingModeOverride, string workCenterDefaultMode)
-    {
-        if (!string.IsNullOrWhiteSpace(processingModeOverride))
-        {
-            return processingModeOverride.Trim();
-        }
-
-        return string.IsNullOrWhiteSpace(workCenterDefaultMode) ? "BatchQuantity" : workCenterDefaultMode.Trim();
-    }
 }

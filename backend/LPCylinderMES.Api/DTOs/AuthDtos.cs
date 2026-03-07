@@ -13,7 +13,8 @@ public sealed record OperatorPreLoginResponseDto(
     string EmpNo,
     string DisplayName,
     bool PasswordRequired,
-    List<OperatorAssignmentDto> Assignments);
+    List<OperatorAssignmentDto> Assignments,
+    List<string> Roles);
 
 public sealed record OperatorLoginRequestDto(
     string EmpNo,

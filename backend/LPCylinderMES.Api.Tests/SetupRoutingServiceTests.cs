@@ -244,9 +244,9 @@ public class SetupRoutingServiceTests
     }
 
     [Fact]
-    public async Task UpdateWorkCenterAsync_ChangingDefaultProcessingMode_UpdatesOpenStepInstancesWithoutOverride()
+    public async Task UpdateWorkCenterAsync_ChangingDefaultProcessingMode_UpdatesAllOpenStepInstancesAtWorkCenter()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateWorkCenterAsync_ChangingDefaultProcessingMode_UpdatesOpenStepInstancesWithoutOverride));
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateWorkCenterAsync_ChangingDefaultProcessingMode_UpdatesAllOpenStepInstancesAtWorkCenter));
         SeedCommonLookups(db);
 
         db.WorkCenters.Add(new WorkCenter
@@ -387,14 +387,14 @@ public class SetupRoutingServiceTests
         var completedStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 943);
 
         Assert.Equal("SingleUnit", updatedNoOverride.ProcessingMode);
-        Assert.Equal("BatchQuantity", updatedWithOverride.ProcessingMode);
+        Assert.Equal("SingleUnit", updatedWithOverride.ProcessingMode);
         Assert.Equal("BatchQuantity", completedStep.ProcessingMode);
     }
 
     [Fact]
-    public async Task UpdateRouteTemplateAsync_ChangingStepTimeCaptureMode_UpdatesOpenStepInstances()
+    public async Task UpdateRouteTemplateAsync_ChangingStepTimeCaptureMode_DoesNotOverwriteOpenStepModes()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateRouteTemplateAsync_ChangingStepTimeCaptureMode_UpdatesOpenStepInstances));
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateRouteTemplateAsync_ChangingStepTimeCaptureMode_DoesNotOverwriteOpenStepModes));
         SeedCommonLookups(db);
 
         db.WorkCenters.Add(new WorkCenter
@@ -541,8 +541,8 @@ public class SetupRoutingServiceTests
         var inProgressStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 958);
         var completedStep = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 959);
 
-        Assert.Equal("Manual", pendingStep.TimeCaptureMode);
-        Assert.Equal("Hybrid", inProgressStep.TimeCaptureMode);
+        Assert.Equal("Automated", pendingStep.TimeCaptureMode);
+        Assert.Equal("Manual", inProgressStep.TimeCaptureMode);
         Assert.Equal("Automated", completedStep.TimeCaptureMode);
     }
 
@@ -567,15 +567,15 @@ public class SetupRoutingServiceTests
             "Active",
             true,
             [
-                new AppUserRoleAssignmentUpsertDto(1000, null),
-                new AppUserRoleAssignmentUpsertDto(1001, 1),
+                new AppUserRoleAssignmentUpsertDto(1000),
+                new AppUserRoleAssignmentUpsertDto(1001),
             ]));
 
         Assert.Equal("EMP100", created.EmpNo);
         Assert.Equal("Test User", created.DisplayName);
         Assert.Equal(2, created.Roles.Count);
-        Assert.Contains(created.Roles, r => r.RoleName == "Admin" && r.SiteId is null);
-        Assert.Contains(created.Roles, r => r.RoleName == "Setup" && r.SiteId == 1);
+        Assert.Contains(created.Roles, r => r.RoleName == "Admin");
+        Assert.Contains(created.Roles, r => r.RoleName == "Setup");
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public class WorkCenterWorkflowService(
     private readonly IOrderWorkflowService? _orderWorkflowService = orderWorkflowService;
     private readonly IAttachmentStorage? _attachmentStorage = attachmentStorage;
     private readonly IRolePermissionService _rolePermissionService = rolePermissionService ?? new RolePermissionService();
-    private readonly StepCompletionValidationService _stepCompletionValidationService = new(db, rolePermissionService ?? new RolePermissionService());
+    private readonly StepCompletionValidationService _stepCompletionValidationService = new(db);
 
     public async Task<OrderRouteExecutionDto> ScanInAsync(int orderId, int lineId, long stepId, OperatorScanInDto dto, CancellationToken cancellationToken = default)
     {
@@ -81,7 +81,7 @@ public class WorkCenterWorkflowService(
         if (step.ScanInUtc.HasValue && now >= step.ScanInUtc.Value)
         {
             step.DurationMinutes = (decimal)(now - step.ScanInUtc.Value).TotalMinutes;
-            if (!string.Equals(step.TimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(ResolveTimeCaptureMode(step), "Manual", StringComparison.OrdinalIgnoreCase))
             {
                 step.TimeCaptureSource = "SystemScan";
             }
@@ -112,7 +112,8 @@ public class WorkCenterWorkflowService(
             throw new ServiceException(StatusCodes.Status400BadRequest, "QuantityCompleted must be greater than zero.");
         }
 
-        var isSingleUnitMode = string.Equals(step.ProcessingMode, "SingleUnit", StringComparison.OrdinalIgnoreCase);
+        var effectiveProcessingMode = ResolveProcessingMode(step);
+        var isSingleUnitMode = string.Equals(effectiveProcessingMode, "SingleUnit", StringComparison.OrdinalIgnoreCase);
         if (isSingleUnitMode && dto.QuantityCompleted != 1)
         {
             throw new ServiceException(StatusCodes.Status409Conflict, "Single unit mode only allows QuantityCompleted = 1.");
@@ -132,7 +133,7 @@ public class WorkCenterWorkflowService(
             line.QuantityAsScrapped = (line.QuantityAsScrapped ?? 0m) + dto.QuantityScrapped.Value;
         }
 
-        var notes = $"mode={step.ProcessingMode};qtyCompleted={dto.QuantityCompleted};qtyScrapped={dto.QuantityScrapped?.ToString() ?? "0"};note={dto.Notes ?? string.Empty}";
+        var notes = $"mode={effectiveProcessingMode};qtyCompleted={dto.QuantityCompleted};qtyScrapped={dto.QuantityScrapped?.ToString() ?? "0"};note={dto.Notes ?? string.Empty}";
         await AddActivityAsync(step, dto.EmpNo.Trim(), "UnitProgress", null, notes, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         return await GetOrderRouteExecutionAsync(orderId, lineId, cancellationToken);
@@ -346,7 +347,7 @@ public class WorkCenterWorkflowService(
     public async Task<OrderRouteExecutionDto> CorrectDurationAsync(int orderId, int lineId, long stepId, CorrectStepDurationDto dto, CancellationToken cancellationToken = default)
     {
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
-        var mode = (step.TimeCaptureMode ?? string.Empty).Trim();
+        var mode = ResolveTimeCaptureMode(step);
         if (string.IsNullOrWhiteSpace(mode))
         {
             throw new ServiceException(StatusCodes.Status409Conflict, "Step time capture mode is not configured.");
@@ -531,7 +532,7 @@ public class WorkCenterWorkflowService(
         var step = await GetStepAsync(orderId, lineId, stepId, cancellationToken);
         await _stepCompletionValidationService.ValidateAsync(step, dto, cancellationToken);
 
-        var isManualMode = string.Equals(step.TimeCaptureMode, "Manual", StringComparison.OrdinalIgnoreCase);
+        var isManualMode = string.Equals(ResolveTimeCaptureMode(step), "Manual", StringComparison.OrdinalIgnoreCase);
         var isManualPendingCompletion = isManualMode && string.Equals(step.State, "Pending", StringComparison.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(step.State) ||
             (!string.Equals(step.State, "InProgress", StringComparison.OrdinalIgnoreCase) && !isManualPendingCompletion))
@@ -646,8 +647,12 @@ public class WorkCenterWorkflowService(
                         s.IsRequired,
                         s.RequiresScan,
                         s.DataCaptureMode,
-                        s.TimeCaptureMode,
-                        s.ProcessingMode,
+                        string.IsNullOrWhiteSpace(s.WorkCenter.DefaultTimeCaptureMode)
+                            ? "Automated"
+                            : s.WorkCenter.DefaultTimeCaptureMode,
+                        string.IsNullOrWhiteSpace(s.WorkCenter.DefaultProcessingMode)
+                            ? "BatchQuantity"
+                            : s.WorkCenter.DefaultProcessingMode,
                         s.ScanInUtc,
                         s.ScanOutUtc,
                         s.CompletedUtc,
@@ -1029,11 +1034,32 @@ public class WorkCenterWorkflowService(
         }
     }
 
+    private static string ResolveTimeCaptureMode(OrderLineRouteStepInstance step)
+    {
+        if (!string.IsNullOrWhiteSpace(step.WorkCenter?.DefaultTimeCaptureMode))
+        {
+            return step.WorkCenter.DefaultTimeCaptureMode.Trim();
+        }
+
+        return "Automated";
+    }
+
+    private static string ResolveProcessingMode(OrderLineRouteStepInstance step)
+    {
+        if (!string.IsNullOrWhiteSpace(step.WorkCenter?.DefaultProcessingMode))
+        {
+            return step.WorkCenter.DefaultProcessingMode.Trim();
+        }
+
+        return "BatchQuantity";
+    }
+
     private async Task<OrderLineRouteStepInstance> GetStepAsync(int orderId, int lineId, long stepId, CancellationToken cancellationToken)
     {
         var step = await db.OrderLineRouteStepInstances
             .Include(s => s.OrderLineRouteInstance)
                 .ThenInclude(r => r.SalesOrder)
+            .Include(s => s.WorkCenter)
             .FirstOrDefaultAsync(s => s.Id == stepId, cancellationToken)
             ?? throw new ServiceException(StatusCodes.Status404NotFound, "Step not found.");
 

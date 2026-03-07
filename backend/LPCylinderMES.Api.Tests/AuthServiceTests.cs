@@ -26,6 +26,7 @@ public sealed class AuthServiceTests
         Assert.False(response.PasswordRequired);
         Assert.NotEmpty(response.Assignments);
         Assert.Contains(response.Assignments, a => a.SiteId == 1 && a.WorkCenterId == 10);
+        Assert.Contains("Production", response.Roles);
     }
 
     [Fact]
@@ -95,6 +96,7 @@ public sealed class AuthServiceTests
 
         Assert.Equal("EMP001", response.EmpNo);
         Assert.NotEmpty(response.Assignments);
+        Assert.Contains("Admin", response.Roles);
     }
 
     [Fact]
@@ -118,7 +120,6 @@ public sealed class AuthServiceTests
         SeedOperatorContext(
             db,
             withPassword: false,
-            roleSiteId: null,
             defaultSiteId: null,
             includeWorkCenter: false);
         await db.SaveChangesAsync();
@@ -138,7 +139,6 @@ public sealed class AuthServiceTests
             db,
             withPassword: false,
             roleName: "Office",
-            roleSiteId: null,
             defaultSiteId: null,
             includeWorkCenter: false);
         await db.SaveChangesAsync();
@@ -159,7 +159,6 @@ public sealed class AuthServiceTests
             db,
             withPassword: false,
             roleName: "Production",
-            roleSiteId: null,
             defaultSiteId: null,
             includeWorkCenter: false);
         await db.SaveChangesAsync();
@@ -186,7 +185,6 @@ public sealed class AuthServiceTests
         LpcAppsDbContext db,
         bool withPassword,
         string roleName = "Production",
-        int? roleSiteId = 1,
         int? defaultSiteId = 1,
         bool includeWorkCenter = true)
     {
@@ -231,7 +229,6 @@ public sealed class AuthServiceTests
             Id = 200,
             UserId = 1,
             RoleId = 100,
-            SiteId = roleSiteId,
             CreatedUtc = DateTime.UtcNow,
             CreatedBy = "test",
         });

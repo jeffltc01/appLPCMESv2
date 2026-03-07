@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  Body1,
   Button,
   Card,
   Field,
@@ -11,14 +12,15 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
-  Title2,
   makeStyles,
+  mergeClasses,
   tokens,
 } from "@fluentui/react-components";
 import { Add24Regular } from "@fluentui/react-icons";
 import { ordersApi } from "../services/orders";
 import type { OrderDraftListItem } from "../types/order";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
+import { PageHeader } from "../components/layout/PageHeader";
 import { formatOrderDisplayNo } from "../utils/orderNumber";
 
 const useStyles = makeStyles({
@@ -28,37 +30,9 @@ const useStyles = makeStyles({
   },
   main: {
     display: "grid",
-    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    gridTemplateRows: "56px minmax(0, 1fr)",
     height: "100vh",
     minWidth: 0,
-  },
-  utilityBar: {
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    padding: "0 24px",
-    backgroundColor: "#ffffff",
-    borderBottom: "1px solid #e8e8e8",
-    fontSize: "12px",
-    color: tokens.colorNeutralForeground2,
-  },
-  headerBar: {
-    backgroundColor: "#123046",
-    color: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 20px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
-  headerTitle: {
-    color: "#ffffff",
-  },
-  headerActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
   },
   content: {
     padding: "16px 20px",
@@ -83,14 +57,76 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+  },
+  tableMeta: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: "12px",
+    padding: "0 4px 4px",
   },
   tableWrap: {
     overflow: "auto",
     minHeight: 0,
     flex: 1,
+    border: "1px solid #e8e8e8",
+    borderRadius: "6px",
+    backgroundColor: "#ffffff",
+  },
+  tableHeaderCell: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
+    fontWeight: 700,
+    borderBottom: "1px solid #123046",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
   },
   clickableRow: {
     cursor: "pointer",
+    ":nth-child(even)": {
+      backgroundColor: "#fcfcfc",
+    },
+    ":hover": {
+      backgroundColor: "#e0eff8",
+    },
+  },
+  dataCell: {
+    borderBottom: "1px solid #e8e8e8",
+    paddingTop: "10px",
+    paddingBottom: "10px",
+  },
+  orderNo: {
+    color: "#123046",
+    fontWeight: 700,
+  },
+  statusPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: "999px",
+    padding: "2px 10px",
+    fontSize: "12px",
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  },
+  statusPillInfo: {
+    backgroundColor: "#e0eff8",
+    color: "#123046",
+  },
+  statusPillInProgress: {
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+  },
+  statusPillReady: {
+    backgroundColor: "#d1ecf1",
+    color: "#0c5460",
+  },
+  statusPillComplete: {
+    backgroundColor: "#f5f5f5",
+    color: "#6e6e6e",
+  },
+  statusPillDefault: {
+    backgroundColor: "#f5f5f5",
+    color: "#242424",
   },
   muted: {
     color: tokens.colorNeutralForeground2,
@@ -129,6 +165,29 @@ function formatDate(value: string | null | undefined): string {
   return parsed.toLocaleDateString();
 }
 
+function getLifecyclePillClass(
+  styles: ReturnType<typeof useStyles>,
+  lifecycleStatus: string | null | undefined
+): string {
+  const status = (lifecycleStatus ?? "").toLowerCase();
+  if (!status) {
+    return styles.statusPillDefault;
+  }
+  if (status.includes("invoice") && status.includes("invoiced")) {
+    return styles.statusPillComplete;
+  }
+  if (status.includes("invoice")) {
+    return styles.statusPillReady;
+  }
+  if (status.includes("production")) {
+    return styles.statusPillInProgress;
+  }
+  if (status.includes("draft") || status.includes("pending") || status.includes("inbound")) {
+    return styles.statusPillInfo;
+  }
+  return styles.statusPillDefault;
+}
+
 export function OrderListPage() {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -161,24 +220,24 @@ export function OrderListPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <div className={styles.utilityBar}>
-          <Button appearance="subtle" onClick={() => navigate("/")}>
-            Back to Dashboard
-          </Button>
-          <HelpEntryPoint route="/orders" />
-        </div>
-        <header className={styles.headerBar}>
-          <Title2 className={styles.headerTitle}>Sales Orders</Title2>
-          <div className={styles.headerActions}>
-            <Button
-              appearance="secondary"
-              icon={<Add24Regular />}
-              onClick={() => navigate("/orders/new")}
-            >
-              Create New Order
-            </Button>
-          </div>
-        </header>
+        <PageHeader
+          title="Sales Orders"
+          actions={
+            <>
+              <Button appearance="secondary" onClick={() => navigate("/")}>
+                Back to Dashboard
+              </Button>
+              <Button
+                appearance="secondary"
+                icon={<Add24Regular />}
+                onClick={() => navigate("/orders/new")}
+              >
+                Create New Order
+              </Button>
+              <HelpEntryPoint route="/orders" />
+            </>
+          }
+        />
 
         <section className={styles.content}>
           <div className={styles.shell}>
@@ -199,6 +258,9 @@ export function OrderListPage() {
                   {loading ? "Loading..." : "Search"}
                 </Button>
               </div>
+              <Body1 className={styles.tableMeta}>
+                {loading ? "Loading sales orders..." : `${orders.length} sales order(s)`}
+              </Body1>
               {error ? (
                 <div className={styles.errorBanner}>
                   <span className={styles.errorTitle}>Error</span>
@@ -209,12 +271,12 @@ export function OrderListPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHeaderCell>Order No</TableHeaderCell>
-                      <TableHeaderCell>Customer</TableHeaderCell>
-                      <TableHeaderCell>Lifecycle Status</TableHeaderCell>
-                      <TableHeaderCell>Legacy Status</TableHeaderCell>
-                      <TableHeaderCell>Order Date</TableHeaderCell>
-                      <TableHeaderCell>Site</TableHeaderCell>
+                      <TableHeaderCell className={styles.tableHeaderCell}>Order No</TableHeaderCell>
+                      <TableHeaderCell className={styles.tableHeaderCell}>Customer</TableHeaderCell>
+                      <TableHeaderCell className={styles.tableHeaderCell}>Lifecycle Status</TableHeaderCell>
+                      <TableHeaderCell className={styles.tableHeaderCell}>Legacy Status</TableHeaderCell>
+                      <TableHeaderCell className={styles.tableHeaderCell}>Order Date</TableHeaderCell>
+                      <TableHeaderCell className={styles.tableHeaderCell}>Site</TableHeaderCell>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -224,24 +286,35 @@ export function OrderListPage() {
                         className={styles.clickableRow}
                         onClick={() => navigate(`/orders/${order.id}`)}
                       >
-                        <TableCell>
-                          {formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}
+                        <TableCell className={styles.dataCell}>
+                          <span className={styles.orderNo}>
+                            {formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}
+                          </span>
                         </TableCell>
-                        <TableCell>{order.customerName}</TableCell>
-                        <TableCell>{order.orderLifecycleStatus ?? "-"}</TableCell>
-                        <TableCell>{order.orderStatus}</TableCell>
-                        <TableCell>{formatDate(order.orderDate)}</TableCell>
-                        <TableCell>{order.siteName}</TableCell>
+                        <TableCell className={styles.dataCell}>{order.customerName}</TableCell>
+                        <TableCell className={styles.dataCell}>
+                          <span
+                            className={mergeClasses(
+                              styles.statusPill,
+                              getLifecyclePillClass(styles, order.orderLifecycleStatus)
+                            )}
+                          >
+                            {order.orderLifecycleStatus ?? "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className={styles.dataCell}>{order.orderStatus}</TableCell>
+                        <TableCell className={styles.dataCell}>{formatDate(order.orderDate)}</TableCell>
+                        <TableCell className={styles.dataCell}>{order.siteName}</TableCell>
                       </TableRow>
                     ))}
                     {!loading && orders.length === 0 ? (
                       <TableRow>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>No orders found.</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
+                        <TableCell className={styles.dataCell}>-</TableCell>
+                        <TableCell className={styles.dataCell}>-</TableCell>
+                        <TableCell className={styles.dataCell}>No orders found.</TableCell>
+                        <TableCell className={styles.dataCell}>-</TableCell>
+                        <TableCell className={styles.dataCell}>-</TableCell>
+                        <TableCell className={styles.dataCell}>-</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

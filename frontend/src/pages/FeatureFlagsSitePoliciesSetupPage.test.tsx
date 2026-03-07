@@ -87,7 +87,7 @@ describe("FeatureFlagsSitePoliciesSetupPage", () => {
       expect(listConfigAuditMock).toHaveBeenCalled();
     });
 
-    expect(screen.getByText("Setup - Feature Flags & Site Policies")).toBeInTheDocument();
+    expect(screen.getByText("Feature Flags & Site Policies Maintenance")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Feature Flags" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Site Policies" })).toBeInTheDocument();
     expect(screen.getByText("EnablePromiseDateGate")).toBeInTheDocument();

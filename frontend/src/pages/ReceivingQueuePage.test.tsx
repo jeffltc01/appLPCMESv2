@@ -89,6 +89,22 @@ describe("ReceivingQueuePage", () => {
     expect(navigateMock).toHaveBeenCalledWith("/receiving/11");
   });
 
+  it("filters queue rows by selected site", async () => {
+    render(
+      <MemoryRouter>
+        <ReceivingQueuePage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("SO-RCV-11");
+    fireEvent.change(screen.getByRole("combobox", { name: /Site/i }), {
+      target: { value: "Dallas" },
+    });
+
+    expect(screen.queryByText("SO-RCV-11")).not.toBeInTheDocument();
+    expect(screen.getByText("SO-RCV-12")).toBeInTheDocument();
+  });
+
   it("navigates back to dashboard from header action", async () => {
     render(
       <MemoryRouter>

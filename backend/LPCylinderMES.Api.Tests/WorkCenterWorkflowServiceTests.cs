@@ -62,8 +62,8 @@ public class WorkCenterWorkflowServiceTests
         await using var db = TestInfrastructure.CreateDbContext(nameof(RecordProgressAsync_WhenSingleUnitModeAndQuantityNotOne_ThrowsConflict));
         SeedRouteWithTwoSteps(db, orderId: 6061, lineId: 60611, routeId: 61610, firstStepState: "Completed", secondStepState: "InProgress");
         await db.SaveChangesAsync();
-        var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 61612);
-        step.ProcessingMode = "SingleUnit";
+        var workCenter = await db.WorkCenters.FirstAsync(wc => wc.Id == 10);
+        workCenter.DefaultProcessingMode = "SingleUnit";
         await db.SaveChangesAsync();
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
@@ -215,9 +215,9 @@ public class WorkCenterWorkflowServiceTests
     }
 
     [Fact]
-    public async Task CompleteStepAsync_WhenChecklistBlockPolicyFails_ThrowsConflict()
+    public async Task CompleteStepAsync_WhenChecklistFails_ThrowsConflict()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistBlockPolicyFails_ThrowsConflict));
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistFails_ThrowsConflict));
         SeedRouteWithTwoSteps(
             db,
             orderId: 601,
@@ -244,13 +244,13 @@ public class WorkCenterWorkflowServiceTests
             service.CompleteStepAsync(601, 6011, 6112, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
-        Assert.Contains("blocks completion", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Checklist failed required items", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task CompleteStepAsync_WhenChecklistOverridePolicyMissingOverride_ThrowsConflict()
+    public async Task CompleteStepAsync_WhenChecklistFailsWithoutOverride_ThrowsConflict()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistOverridePolicyMissingOverride_ThrowsConflict));
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistFailsWithoutOverride_ThrowsConflict));
         SeedRouteWithTwoSteps(
             db,
             orderId: 602,
@@ -277,13 +277,13 @@ public class WorkCenterWorkflowServiceTests
             service.CompleteStepAsync(602, 6021, 6122, new CompleteWorkCenterStepDto("EMP002", null, ActingRole: "Production")));
 
         Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
-        Assert.Contains("supervisor override", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Checklist failed required items", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task CompleteStepAsync_WhenChecklistOverridePolicyIncludesOverride_CompletesStep()
+    public async Task CompleteStepAsync_WhenChecklistFailsWithOverride_ThrowsConflict()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistOverridePolicyIncludesOverride_CompletesStep));
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CompleteStepAsync_WhenChecklistFailsWithOverride_ThrowsConflict));
         SeedRouteWithTwoSteps(
             db,
             orderId: 603,
@@ -306,21 +306,21 @@ public class WorkCenterWorkflowServiceTests
         await db.SaveChangesAsync();
 
         var service = new WorkCenterWorkflowService(db, new FakeOrderPolicyService());
-        var response = await service.CompleteStepAsync(
-            603,
-            6031,
-            6132,
-            new CompleteWorkCenterStepDto(
-                "EMP002",
-                null,
-                SupervisorOverrideEmpNo: "SUP001",
-                SupervisorOverrideReason: "Allowed with review",
-                SupervisorOverrideActingRole: "Supervisor",
-                ActingRole: "Production"));
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.CompleteStepAsync(
+                603,
+                6031,
+                6132,
+                new CompleteWorkCenterStepDto(
+                    "EMP002",
+                    null,
+                    SupervisorOverrideEmpNo: "SUP001",
+                    SupervisorOverrideReason: "Allowed with review",
+                    SupervisorOverrideActingRole: "Supervisor",
+                    ActingRole: "Production")));
 
-        Assert.Equal(603, response.OrderId);
-        var step = await db.OrderLineRouteStepInstances.FirstAsync(s => s.Id == 6132);
-        Assert.Equal("Completed", step.State);
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("Checklist failed required items", ex.PublicMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1371,6 +1371,7 @@ public class WorkCenterWorkflowServiceTests
         bool requiresPackingSlipForSecond = false,
         bool requiresBolForSecond = false,
         string secondStepTimeCaptureMode = "Automated",
+        string workCenterDefaultProcessingMode = "BatchQuantity",
         string dataCaptureModeForSecond = "ElectronicRequired",
         string? blockedReasonForSecond = null,
         IEnumerable<string>? withLineSerials = null,
@@ -1423,6 +1424,8 @@ public class WorkCenterWorkflowServiceTests
             WorkCenterCode = "WC-10",
             WorkCenterName = "Prep",
             SiteId = 1,
+            DefaultTimeCaptureMode = secondStepTimeCaptureMode,
+            DefaultProcessingMode = workCenterDefaultProcessingMode,
             CreatedUtc = DateTime.UtcNow,
             UpdatedUtc = DateTime.UtcNow,
         });

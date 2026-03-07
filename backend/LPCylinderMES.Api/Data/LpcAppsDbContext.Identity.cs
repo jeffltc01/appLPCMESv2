@@ -48,14 +48,12 @@ public partial class LpcAppsDbContext
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.UserId).HasColumnName("user_id");
             entity.Property(e => e.RoleId).HasColumnName("role_id");
-            entity.Property(e => e.SiteId).HasColumnName("site_id");
             entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
             entity.Property(e => e.CreatedBy).HasMaxLength(30).IsUnicode(false).HasColumnName("created_by");
-            entity.HasIndex(e => new { e.UserId, e.RoleId, e.SiteId }).IsUnique();
+            entity.HasIndex(e => new { e.UserId, e.RoleId }).IsUnique();
 
             entity.HasOne(e => e.User).WithMany(u => u.UserRoles).HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Role).WithMany(r => r.UserRoles).HasForeignKey(e => e.RoleId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Site).WithMany().HasForeignKey(e => e.SiteId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AppAuthSession>(entity =>

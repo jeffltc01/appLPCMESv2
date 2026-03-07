@@ -43,7 +43,8 @@ const ADMIN_MENU_ITEMS = [
   { key: "work-centers", label: "Work Centers", path: "/setup/work-centers", enabled: true },
   { key: "tablet-setup", label: "Tablet Setup", path: "/setup/tablet", enabled: true },
   { key: "route-templates", label: "Route Templates", path: "/setup/route-templates", enabled: true },
-  { key: "users-roles", label: "Users & Roles", path: "/setup/users-roles", enabled: true },
+  { key: "users", label: "Users", path: "/setup/users", enabled: true },
+  { key: "roles", label: "Roles", path: "/setup/roles", enabled: true },
   {
     key: "feature-flags-policies",
     label: "Feature Flags & Site Policies",
@@ -311,69 +312,8 @@ const useStyles = makeStyles({
     fontSize: "12px",
   },
   bucketChart: {
-    display: "grid",
-    gridTemplateColumns: "36px minmax(0, 1fr)",
-    gap: tokens.spacingHorizontalS,
-    alignItems: "end",
-  },
-  bucketYAxis: {
-    height: "130px",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  bucketYAxisTick: {
-    fontSize: "11px",
-    color: tokens.colorNeutralForeground2,
-    lineHeight: 1,
-  },
-  bucketBars: {
-    position: "relative",
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: tokens.spacingHorizontalS,
-    alignItems: "end",
-    height: "130px",
-    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-    paddingLeft: tokens.spacingHorizontalS,
-    paddingBottom: tokens.spacingVerticalXXS,
-  },
-  bucketGridlines: {
-    position: "absolute",
-    inset: 0,
-    pointerEvents: "none",
-    display: "grid",
-    gridTemplateRows: "repeat(4, 1fr)",
-  },
-  bucketGridline: {
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
-    opacity: 0.45,
-    ":last-child": {
-      borderTop: "none",
-    },
-  },
-  bucketColumnWrap: {
-    display: "grid",
-    gap: tokens.spacingVerticalXS,
-    justifyItems: "center",
-  },
-  bucketCount: {
-    fontSize: "12px",
-    color: "#123046",
-    fontWeight: 600,
-  },
-  bucketColumn: {
     width: "100%",
-    maxWidth: "86px",
-    background: "linear-gradient(180deg, #017CC5 0%, #123046 100%)",
-    borderRadius: "6px 6px 0 0",
-    minHeight: "8px",
-  },
-  bucketLabel: {
-    fontSize: "12px",
-    color: tokens.colorNeutralForeground2,
+    height: "220px",
   },
   lineChartWrap: {
     width: "100%",
@@ -478,6 +418,38 @@ function buildMonthlyAverage(
     }));
 }
 
+function buildNiceTicks(maxValue: number, targetTickCount = 5): number[] {
+  if (maxValue <= 0) {
+    return [0, 1];
+  }
+
+  const safeTargetCount = Math.max(2, targetTickCount);
+  const rawStep = maxValue / (safeTargetCount - 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const residual = rawStep / magnitude;
+
+  let niceStep: number;
+  if (residual <= 1) {
+    niceStep = 1 * magnitude;
+  } else if (residual <= 2) {
+    niceStep = 2 * magnitude;
+  } else if (residual <= 5) {
+    niceStep = 5 * magnitude;
+  } else {
+    niceStep = 10 * magnitude;
+  }
+
+  const niceMax = Math.ceil(maxValue / niceStep) * niceStep;
+  const ticks: number[] = [];
+  for (let value = 0; value <= niceMax; value += niceStep) {
+    ticks.push(value);
+  }
+  if (ticks[ticks.length - 1] !== niceMax) {
+    ticks.push(niceMax);
+  }
+  return ticks;
+}
+
 export function MenuPage() {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -555,17 +527,11 @@ export function MenuPage() {
     const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count));
     const chartMaxHeightPx = 130;
     const chartMinHeightPx = 10;
+    const countLabelOffsetPx = 4;
+    const countLabelReservePx = 16;
     return {
-      buckets: buckets.map((bucket) => ({
-        ...bucket,
-        heightPx:
-          bucket.count === 0
-            ? chartMinHeightPx
-            : Math.max(
-                chartMinHeightPx,
-                Math.round((bucket.count / maxCount) * chartMaxHeightPx)
-              ),
-      })),
+      buckets,
+      maxCount,
       ticks: [maxCount, Math.round((maxCount * 2) / 3), Math.round(maxCount / 3), 0],
     };
   }, [filteredOrders]);
@@ -595,7 +561,7 @@ export function MenuPage() {
     await logout();
     navigate("/login", { replace: true });
   };
-  const renderLineChart = (points: MonthlyAveragePoint[]) => {
+  const renderLineChart = (points: MonthlyAveragePoint[], goalDays?: number) => {
     if (points.length === 0) {
       return <span className={styles.noData}>No data available for this chart yet.</span>;
     }
@@ -608,7 +574,10 @@ export function MenuPage() {
     const bottomPad = 28;
     const plotWidth = width - leftPad - rightPad;
     const plotHeight = height - topPad - bottomPad;
-    const maxY = Math.max(1, ...points.map((point) => point.value));
+    const dataMax = Math.max(1, ...points.map((point) => point.value), goalDays ?? 0);
+    const yTicks = buildNiceTicks(dataMax);
+    const maxY = yTicks[yTicks.length - 1] ?? dataMax;
+    const avgYValue = points.reduce((sum, point) => sum + point.value, 0) / points.length;
     const coordinates = points.map((point, index) => {
       const x =
         leftPad +
@@ -617,11 +586,81 @@ export function MenuPage() {
       return { ...point, x, y };
     });
     const polylinePoints = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+    const avgLineY = topPad + (1 - avgYValue / maxY) * plotHeight;
+    const goalLineY =
+      goalDays !== undefined ? topPad + (1 - Math.min(goalDays, maxY) / maxY) * plotHeight : null;
 
     return (
       <svg viewBox={`0 0 ${width} ${height}`} className={styles.lineChartWrap} role="img" aria-label="Monthly average days chart">
+        {yTicks.map((tick) => {
+          if (tick === 0) {
+            return null;
+          }
+          const y = topPad + (1 - tick / maxY) * plotHeight;
+          return (
+            <g key={`line-y-tick-${tick}`}>
+              <line x1={leftPad} y1={y} x2={width - rightPad} y2={y} stroke="#D2D2D2" />
+              <text
+                x={leftPad - 6}
+                y={y + 4}
+                textAnchor="end"
+                className={styles.lineChartAxisLabel}
+                data-line-chart-y-tick="true"
+              >
+                {tick}
+              </text>
+            </g>
+          );
+        })}
         <line x1={leftPad} y1={topPad} x2={leftPad} y2={height - bottomPad} stroke="#D2D2D2" />
         <line x1={leftPad} y1={height - bottomPad} x2={width - rightPad} y2={height - bottomPad} stroke="#D2D2D2" />
+        <text
+          x={leftPad - 6}
+          y={height - bottomPad + 4}
+          textAnchor="end"
+          className={styles.lineChartAxisLabel}
+          data-line-chart-y-tick="true"
+        >
+          0
+        </text>
+        {goalLineY !== null ? (
+          <>
+            <line
+              x1={leftPad}
+              y1={goalLineY}
+              x2={width - rightPad}
+              y2={goalLineY}
+              stroke="#107C10"
+              strokeDasharray="4 4"
+              strokeWidth="1.5"
+            />
+            <text
+              x={leftPad + 4}
+              y={Math.max(topPad + 10, goalLineY - 4)}
+              textAnchor="start"
+              className={styles.lineChartAxisLabel}
+            >
+              Goal {Math.round(goalDays)}d
+            </text>
+          </>
+        ) : null}
+        <line
+          x1={leftPad}
+          y1={avgLineY}
+          x2={width - rightPad}
+          y2={avgLineY}
+          stroke="#6E6E6E"
+          strokeDasharray="6 4"
+          strokeWidth="1.5"
+        />
+        <text
+          x={width - rightPad}
+          y={Math.max(topPad + 10, avgLineY - 6)}
+          textAnchor="end"
+          className={styles.lineChartAxisLabel}
+        >
+          Avg {Math.round(avgYValue)}d
+        </text>
         <polyline fill="none" stroke="#123046" strokeWidth="2.5" points={polylinePoints} />
         {coordinates.map((point) => (
           <g key={point.month}>
@@ -631,9 +670,73 @@ export function MenuPage() {
             </text>
           </g>
         ))}
-        <text x={leftPad - 6} y={topPad + 2} textAnchor="end" className={styles.lineChartAxisLabel}>
-          {maxY.toFixed(0)}d
-        </text>
+      </svg>
+    );
+  };
+  const renderAgingBucketChart = () => {
+    const width = 560;
+    const height = 220;
+    const leftPad = 44;
+    const rightPad = 12;
+    const topPad = 12;
+    const bottomPad = 38;
+    const plotWidth = width - leftPad - rightPad;
+    const plotHeight = height - topPad - bottomPad;
+    const plotBottom = topPad + plotHeight;
+    const bucketBand = plotWidth / openOrderAgingChart.buckets.length;
+    const barWidth = Math.min(80, Math.max(44, bucketBand * 0.62));
+    const yFor = (value: number) => topPad + (1 - value / openOrderAgingChart.maxCount) * plotHeight;
+
+    return (
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className={styles.bucketChart}
+        role="img"
+        aria-label="Open order aging buckets chart"
+      >
+        {openOrderAgingChart.ticks.map((tick, index) => {
+          const y = yFor(tick);
+          return (
+            <g key={`aging-grid-${index}`}>
+              <line x1={leftPad} y1={y} x2={width - rightPad} y2={y} stroke="#B8B8B8" />
+              <text x={leftPad - 10} y={y + 4} textAnchor="end" className={styles.lineChartAxisLabel}>
+                {tick}
+              </text>
+            </g>
+          );
+        })}
+        <line x1={leftPad} y1={topPad} x2={leftPad} y2={plotBottom} stroke="#D2D2D2" />
+        <line x1={leftPad} y1={plotBottom} x2={width - rightPad} y2={plotBottom} stroke="#D2D2D2" />
+        {openOrderAgingChart.buckets.map((bucket, index) => {
+          const xCenter = leftPad + bucketBand * (index + 0.5);
+          const barHeight = (bucket.count / openOrderAgingChart.maxCount) * plotHeight;
+          const barY = plotBottom - barHeight;
+          const labelY = Math.max(topPad + 10, barY - 6);
+          return (
+            <g key={bucket.label}>
+              <rect
+                x={xCenter - barWidth / 2}
+                y={barY}
+                width={barWidth}
+                height={barHeight}
+                rx={6}
+                fill="url(#agingBarGradient)"
+              />
+              <text x={xCenter} y={labelY} textAnchor="middle" fontSize="12" fill="#123046" fontWeight="600">
+                {bucket.count}
+              </text>
+              <text x={xCenter} y={height - 10} textAnchor="middle" className={styles.lineChartAxisLabel}>
+                {bucket.label} days
+              </text>
+            </g>
+          );
+        })}
+        <defs>
+          <linearGradient id="agingBarGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#017CC5" />
+            <stop offset="100%" stopColor="#123046" />
+          </linearGradient>
+        </defs>
       </svg>
     );
   };
@@ -670,7 +773,7 @@ export function MenuPage() {
               <Button
                 key={item.key}
                 icon={item.icon}
-                appearance={item.key === "orderEntry" ? "primary" : "secondary"}
+                appearance="secondary"
                 className={styles.dashboardNavButton}
                 onClick={item.path ? () => navigate(item.path) : undefined}
               >
@@ -751,36 +854,13 @@ export function MenuPage() {
               <Card className={styles.chartCard}>
                 <span className={styles.chartTitle}>Open Order Aging Buckets</span>
                 <span className={styles.chartSubtitle}>From order date to today for non-invoiced orders</span>
-                <div className={styles.bucketChart}>
-                  <div className={styles.bucketYAxis}>
-                    {openOrderAgingChart.ticks.map((tick, index) => (
-                      <span key={`aging-tick-${index}`} className={styles.bucketYAxisTick}>
-                        {tick}
-                      </span>
-                    ))}
-                  </div>
-                  <div className={styles.bucketBars}>
-                    <div className={styles.bucketGridlines} aria-hidden="true">
-                      <div className={styles.bucketGridline} />
-                      <div className={styles.bucketGridline} />
-                      <div className={styles.bucketGridline} />
-                      <div className={styles.bucketGridline} />
-                    </div>
-                    {openOrderAgingChart.buckets.map((bucket) => (
-                      <div key={bucket.label} className={styles.bucketColumnWrap}>
-                        <span className={styles.bucketCount}>{bucket.count}</span>
-                        <div className={styles.bucketColumn} style={{ height: `${bucket.heightPx}px` }} />
-                        <span className={styles.bucketLabel}>{bucket.label} days</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {renderAgingBucketChart()}
               </Card>
 
               <Card className={styles.chartCard}>
                 <span className={styles.chartTitle}>Avg Total Days Order to Invoice (Monthly)</span>
                 <span className={styles.chartSubtitle}>Order date to invoiced date</span>
-                {renderLineChart(avgTotalOrderToInvoiceByMonth)}
+                {renderLineChart(avgTotalOrderToInvoiceByMonth, 14)}
               </Card>
             </div>
 

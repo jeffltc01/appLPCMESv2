@@ -14,13 +14,13 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
-  Title2,
   makeStyles,
   mergeClasses,
   tokens,
 } from "@fluentui/react-components";
 import { ArrowClockwise24Regular } from "@fluentui/react-icons";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
+import { PageHeader } from "../components/layout/PageHeader";
 import { LifecycleNavigator } from "../components/orders/LifecycleNavigator";
 import { ordersApi } from "../services/orders";
 import { formatOrderDisplayNo } from "../utils/orderNumber";
@@ -43,27 +43,26 @@ const useStyles = makeStyles({
     overflow: "hidden",
     boxSizing: "border-box",
     backgroundColor: "#f5f5f5",
+  },
+  main: {
+    display: "grid",
+    gridTemplateRows: "56px minmax(0, 1fr)",
+    height: "100%",
+    minHeight: 0,
+  },
+  content: {
     padding: tokens.spacingVerticalL,
+    minHeight: 0,
   },
   shell: {
     maxWidth: "1480px",
+    width: "100%",
     margin: "0 auto",
     display: "grid",
-    gridTemplateRows: "auto auto minmax(0, 1fr)",
+    gridTemplateRows: "auto minmax(0, 1fr)",
     height: "100%",
     minHeight: 0,
     gap: tokens.spacingVerticalM,
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalM,
-  },
-  headerActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
   },
   controls: {
     display: "grid",
@@ -86,7 +85,10 @@ const useStyles = makeStyles({
     position: "sticky",
     top: 0,
     zIndex: 1,
-    backgroundColor: tokens.colorNeutralBackground1,
+    backgroundColor: "#123046",
+    color: "#ffffff",
+    fontWeight: 700,
+    borderBottom: "1px solid #123046",
   },
   muted: {
     color: tokens.colorNeutralForeground2,
@@ -438,77 +440,72 @@ export function TransportationDispatchPage() {
     }
   };
 
-  const dirtyCountLabel =
-    dirtyOrderIds.size === 0
-      ? "No unsaved transportation updates"
-      : `${dirtyOrderIds.size} order(s) with unsaved transportation updates`;
-
   return (
     <div className={styles.page} data-testid="transport-dispatch-page">
-      <div className={styles.shell}>
-        <div className={styles.header}>
-          <div>
-            <Title2>Transportation Dispatch</Title2>
-            <Body1 className={styles.muted}>{dirtyCountLabel}</Body1>
-          </div>
-          <div className={styles.headerActions}>
-            <HelpEntryPoint route="/transportation" />
-            <Button appearance="secondary" onClick={() => navigate("/")}>
-              Back to Dashboard
-            </Button>
-            <Button appearance="secondary" icon={<ArrowClockwise24Regular />} onClick={() => void loadBoard()} disabled={loading || saving}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </Button>
-            <Button appearance="secondary" onClick={() => void discardChanges()} disabled={loading || saving || dirtyOrderIds.size === 0}>
-              Discard
-            </Button>
-            <Button appearance="primary" onClick={() => void saveAll()} disabled={loading || saving || dirtyOrderIds.size === 0}>
-              {saving ? "Saving..." : "Save All"}
-            </Button>
-          </div>
-        </div>
+      <main className={styles.main}>
+        <PageHeader
+          title="Transportation"
+          actions={
+            <>
+              <Button appearance="secondary" onClick={() => navigate("/")}>
+                Back to Dashboard
+              </Button>
+              <Button appearance="secondary" icon={<ArrowClockwise24Regular />} onClick={() => void loadBoard()} disabled={loading || saving}>
+                {loading ? "Refreshing..." : "Refresh"}
+              </Button>
+              <Button appearance="secondary" onClick={() => void discardChanges()} disabled={loading || saving || dirtyOrderIds.size === 0}>
+                Discard
+              </Button>
+              <Button appearance="primary" onClick={() => void saveAll()} disabled={loading || saving || dirtyOrderIds.size === 0}>
+                {saving ? "Saving..." : "Save All"}
+              </Button>
+              <HelpEntryPoint route="/transportation" />
+            </>
+          }
+        />
+        <section className={styles.content}>
+          <div className={styles.shell}>
+            {error ? (
+              <div className={styles.errorBanner}>
+                <span className={styles.errorTitle}>Error</span>
+                <span className={styles.errorMessage}>{error}</span>
+              </div>
+            ) : null}
 
-        {error ? (
-          <div className={styles.errorBanner}>
-            <span className={styles.errorTitle}>Error</span>
-            <span className={styles.errorMessage}>{error}</span>
-          </div>
-        ) : null}
+            <Card className={styles.tableCard}>
+              <div className={styles.controls}>
+                <Field label="Site">
+                  <Select value={siteIdFilter} onChange={(_, data) => setSiteIdFilter(data.value)}>
+                    <option value="All">All Sites</option>
+                    {siteOptions.map(([id, name]) => (
+                      <option key={id} value={String(id)}>
+                        {name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Carrier">
+                  <Input value={carrierFilter} onChange={(_, data) => setCarrierFilter(data.value)} placeholder="All carriers" />
+                </Field>
+                <Field label="Movement Type">
+                  <Select value={movementFilter} onChange={(_, data) => setMovementFilter(data.value as MovementFilter)}>
+                    <option value="All">All</option>
+                    <option value="Pickup">Pickup</option>
+                    <option value="Delivery">Delivery</option>
+                  </Select>
+                </Field>
+                <Field label="Search">
+                  <Input value={search} onChange={(_, data) => setSearch(data.value)} placeholder="Order no, customer..." />
+                </Field>
+                <div />
+                <Button appearance="secondary" onClick={() => void loadBoard()} disabled={loading || saving}>
+                  {loading ? "Loading..." : "Search"}
+                </Button>
+                <Body1 className={styles.muted}>{orders.length} order(s)</Body1>
+              </div>
 
-        <Card className={styles.tableCard}>
-          <div className={styles.controls}>
-            <Field label="Site">
-              <Select value={siteIdFilter} onChange={(_, data) => setSiteIdFilter(data.value)}>
-                <option value="All">All Sites</option>
-                {siteOptions.map(([id, name]) => (
-                  <option key={id} value={String(id)}>
-                    {name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Carrier">
-              <Input value={carrierFilter} onChange={(_, data) => setCarrierFilter(data.value)} placeholder="All carriers" />
-            </Field>
-            <Field label="Movement Type">
-              <Select value={movementFilter} onChange={(_, data) => setMovementFilter(data.value as MovementFilter)}>
-                <option value="All">All</option>
-                <option value="Pickup">Pickup</option>
-                <option value="Delivery">Delivery</option>
-              </Select>
-            </Field>
-            <Field label="Search">
-              <Input value={search} onChange={(_, data) => setSearch(data.value)} placeholder="Order no, customer..." />
-            </Field>
-            <div />
-            <Button appearance="secondary" onClick={() => void loadBoard()} disabled={loading || saving}>
-              {loading ? "Loading..." : "Search"}
-            </Button>
-            <Body1 className={styles.muted}>{orders.length} order(s)</Body1>
-          </div>
-
-          <div className={styles.tableWrap} data-testid="transport-dispatch-list-wrap">
-            <Table>
+              <div className={styles.tableWrap} data-testid="transport-dispatch-list-wrap">
+                <Table>
               <TableHeader data-testid="transport-dispatch-table-header">
                 <TableRow>
                   <TableHeaderCell className={styles.stickyHeaderCell}>Order No</TableHeaderCell>
@@ -737,10 +734,12 @@ export function TransportationDispatchPage() {
                   </TableRow>
                 ) : null}
               </TableBody>
-            </Table>
+                </Table>
+              </div>
+            </Card>
           </div>
-        </Card>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

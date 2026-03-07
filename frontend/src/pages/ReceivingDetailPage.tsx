@@ -20,6 +20,7 @@ import {
 } from "@fluentui/react-components";
 import { ArrowClockwise24Regular, Checkmark24Regular, Dismiss24Regular, Question24Regular } from "@fluentui/react-icons";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
+import { PageHeader } from "../components/layout/PageHeader";
 import { orderLookupsApi, ordersApi } from "../services/orders";
 import { ApiError } from "../services/api";
 import type { OrderItemLookup, ReceivingOrderDetail, ReceivingOrderLine } from "../types/order";
@@ -46,24 +47,21 @@ const useStyles = makeStyles({
   page: {
     minHeight: "100vh",
     backgroundColor: "#f5f5f5",
+  },
+  main: {
+    display: "grid",
+    gridTemplateRows: "56px minmax(0, 1fr)",
+    minHeight: "100vh",
+  },
+  content: {
     padding: tokens.spacingVerticalL,
   },
   shell: {
     maxWidth: "1400px",
+    width: "100%",
     margin: "0 auto",
     display: "grid",
     gap: tokens.spacingVerticalM,
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalM,
-  },
-  headerActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
   },
   errorBanner: {
     border: "1px solid #e8b3b3",
@@ -191,7 +189,18 @@ const useStyles = makeStyles({
   summaryFieldFullWidth: {
     display: "grid",
     gap: tokens.spacingVerticalXXS,
-    gridColumn: "1 / -1",
+    gridColumn: "1 / 4",
+  },
+  summaryActionField: {
+    display: "flex",
+    alignItems: "stretch",
+    gridColumn: "4 / 5",
+    alignSelf: "stretch",
+  },
+  completeReceivingButton: {
+    width: "100%",
+    height: "100%",
+    minHeight: "unset",
   },
   summaryLabel: {
     color: tokens.colorNeutralForeground2,
@@ -808,31 +817,30 @@ export function ReceivingDetailPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.shell}>
-        <div className={styles.header}>
-          <div>
-            <Title2>Receiving Detail</Title2>
-          </div>
-          <div className={styles.headerActions}>
-            <HelpEntryPoint route="/receiving" />
-            <Button appearance="secondary" onClick={() => navigate("/receiving")}>
-              Back to Queue
-            </Button>
-            <Button appearance="secondary" icon={<ArrowClockwise24Regular />} onClick={() => void loadDetail()} disabled={loading || saving}>
-              {loading ? "Refreshing..." : "Refresh"}
-            </Button>
-            <Button appearance="primary" onClick={() => void saveReceiving()} disabled={loading || saving || !detail}>
-              {saving ? "Saving..." : "Complete Receiving"}
-            </Button>
-          </div>
-        </div>
+      <main className={styles.main}>
+        <PageHeader
+          title="Receiving Detail"
+          actions={
+            <>
+              <Button appearance="secondary" onClick={() => navigate("/receiving")}>
+                Back to Queue
+              </Button>
+              <Button appearance="secondary" icon={<ArrowClockwise24Regular />} onClick={() => void loadDetail()} disabled={loading || saving}>
+                {loading ? "Refreshing..." : "Refresh"}
+              </Button>
+              <HelpEntryPoint route="/receiving" />
+            </>
+          }
+        />
+        <section className={styles.content}>
+          <div className={styles.shell}>
 
-        {error ? (
-          <div className={styles.errorBanner}>
-            <span className={styles.errorTitle}>Error</span>
-            <span className={styles.errorMessage}>{error}</span>
-          </div>
-        ) : null}
+            {error ? (
+              <div className={styles.errorBanner}>
+                <span className={styles.errorTitle}>Error</span>
+                <span className={styles.errorMessage}>{error}</span>
+              </div>
+            ) : null}
 
         <Card className={styles.card}>
           <div className={styles.panel}>
@@ -868,11 +876,21 @@ export function ReceivingDetailPage() {
                 <span className={styles.summaryLabel}>Order Notes</span>
                 <span className={styles.summaryValue}>{detail?.orderComments ?? "-"}</span>
               </div>
+              <div className={styles.summaryActionField}>
+                <Button
+                  appearance="primary"
+                  className={styles.completeReceivingButton}
+                  onClick={() => void saveReceiving()}
+                  disabled={loading || saving || !detail}
+                >
+                  {saving ? "Saving..." : "Complete Receiving"}
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
 
-        <div className={styles.twoColumn}>
+            <div className={styles.twoColumn}>
           <Card className={styles.card}>
             <div className={styles.panel}>
               <div className={styles.sectionHeader}>
@@ -1143,8 +1161,10 @@ export function ReceivingDetailPage() {
               )}
             </div>
           </Card>
-        </div>
-      </div>
+            </div>
+          </div>
+        </section>
+      </main>
       <div ref={keypadOverlayHostRef} className={styles.keypadOverlayHost} />
       <Dialog open={isItemDialogOpen} onOpenChange={(_, data) => setIsItemDialogOpen(data.open)}>
         <DialogSurface className={styles.itemDialogSurface}>

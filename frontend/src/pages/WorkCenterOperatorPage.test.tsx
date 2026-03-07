@@ -91,7 +91,20 @@ describe("WorkCenterOperatorPage", () => {
       recordedByEmpNo: string;
     }> = [];
     let nextUsageId = 1;
-    authSessionMock.mockReturnValue(null);
+    authSessionMock.mockReturnValue({
+      token: "token",
+      expiresUtc: "2026-01-01T12:00:00Z",
+      authMethod: "Operator",
+      userId: 10,
+      empNo: "EMP001",
+      displayName: "Operator One",
+      siteId: 10,
+      siteName: "Houston",
+      workCenterId: 101,
+      workCenterCode: "WC-FILL",
+      workCenterName: "Fill Station",
+      roles: ["Production"],
+    });
     window.localStorage.clear();
     workCenterQueueMock.mockResolvedValue([
       {
@@ -277,17 +290,34 @@ describe("WorkCenterOperatorPage", () => {
     ]);
   });
 
-  it("redirects to tablet setup if setup is missing", async () => {
+  it("shows error when login session has no work center", async () => {
+    authSessionMock.mockReturnValue({
+      token: "token",
+      expiresUtc: "2026-01-01T12:00:00Z",
+      authMethod: "Operator",
+      userId: 10,
+      empNo: "EMP001",
+      displayName: "Operator One",
+      siteId: 10,
+      siteName: "Houston",
+      workCenterId: null,
+      workCenterCode: null,
+      workCenterName: null,
+      roles: ["Production"],
+    });
     render(
       <MemoryRouter initialEntries={["/operator/work-center"]}>
         <Routes>
           <Route path="/operator/work-center" element={<WorkCenterOperatorPage />} />
-          <Route path="/setup/tablet" element={<div>Tablet Setup Placeholder</div>} />
         </Routes>
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("Tablet Setup Placeholder")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "No work center is assigned in your login session. Please sign in again and choose a work center."
+      )
+    ).toBeInTheDocument();
   });
 
   it("enforces required captures before complete step", async () => {
@@ -442,7 +472,7 @@ describe("WorkCenterOperatorPage", () => {
     expect(screen.queryByRole("button", { name: /COOLANT-A - Cutting Fluid/ })).not.toBeInTheDocument();
   });
 
-  it("hides quick-add duration section for automated time capture", async () => {
+  it("treats normalized automated mode as scan-based and hides quick-add duration", async () => {
     lineRouteExecutionMock.mockResolvedValue({
       orderId: 2001,
       lifecycleStatus: "InProduction",
@@ -468,7 +498,7 @@ describe("WorkCenterOperatorPage", () => {
               isRequired: true,
               requiresScan: true,
               dataCaptureMode: "ElectronicRequired",
-              timeCaptureMode: "Automated",
+              timeCaptureMode: " automated ",
               processingMode: "BatchQuantity",
               scanInUtc: null,
               scanOutUtc: null,
@@ -519,10 +549,92 @@ describe("WorkCenterOperatorPage", () => {
 
     expect(await screen.findByText("SO-2001")).toBeInTheDocument();
     expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "START" })).toBeInTheDocument();
     expect(screen.queryByText("Quick-add duration")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add 5 minutes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add 15 minutes" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add 30 minutes" })).not.toBeInTheDocument();
+  });
+
+  it("treats misspelled automated mode as scan-based", async () => {
+    lineRouteExecutionMock.mockResolvedValue({
+      orderId: 2001,
+      lifecycleStatus: "InProduction",
+      hasOpenRework: false,
+      routes: [
+        {
+          routeInstanceId: 9001,
+          lineId: 3001,
+          state: "Active",
+          quantityOrdered: 10,
+          quantityReceived: 10,
+          quantityCompleted: 0,
+          quantityScrapped: 0,
+          steps: [
+            {
+              stepInstanceId: 500,
+              stepSequence: 2,
+              stepCode: "FILL",
+              stepName: "Fill",
+              workCenterId: 101,
+              workCenterName: "Fill Station",
+              state: "InProgress",
+              isRequired: true,
+              requiresScan: true,
+              dataCaptureMode: "ElectronicRequired",
+              timeCaptureMode: "autmoated",
+              processingMode: "BatchQuantity",
+              scanInUtc: null,
+              scanOutUtc: null,
+              completedUtc: null,
+              durationMinutes: null,
+              manualDurationMinutes: null,
+              manualDurationReason: null,
+              timeCaptureSource: "Scan",
+              requiresUsageEntry: false,
+              requiresScrapEntry: false,
+              requiresSerialCapture: false,
+              requiresChecklistCompletion: false,
+              checklistTemplateId: 1,
+              checklistFailurePolicy: "BlockCompletion",
+              requireScrapReasonWhenBad: false,
+              requiresTrailerCapture: false,
+              requiresSerialLoadVerification: false,
+              generatePackingSlipOnComplete: false,
+              generateBolOnComplete: false,
+              requiresAttachment: false,
+              requiresSupervisorApproval: false,
+              blockedReason: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    window.localStorage.setItem(
+      TABLET_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        siteId: 10,
+        workCenterId: 101,
+        workCenterCode: "WC-FILL",
+        workCenterName: "Fill Station",
+        operatorEmpNo: "EMP500",
+        deviceId: "",
+        updatedAt: "2026-01-01T00:00:00Z",
+      })
+    );
+
+    render(
+      <MemoryRouter>
+        <WorkCenterOperatorPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("SO-2001")).toBeInTheDocument();
+    expect(await screen.findByText(/Route Step:/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "START" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("# of Minutes")).not.toBeInTheDocument();
   });
 
   it("shows manual duration input and hides timer controls for manual time capture", async () => {

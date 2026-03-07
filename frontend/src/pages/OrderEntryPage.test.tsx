@@ -121,8 +121,22 @@ describe("OrderEntryPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Back to Orders" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Back to Dashboard" }));
     expect(await screen.findByText("Dashboard Route")).toBeInTheDocument();
+  });
+
+  it("shows plant manager back label and returns to board when launched from plant manager", async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/orders/new", state: { backTo: "/plant-manager" } }]}>
+        <Routes>
+          <Route path="/orders/:orderId" element={<OrderEntryPage />} />
+          <Route path="/plant-manager" element={<div>Plant Manager Route</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Back to Plant Manager Board" }));
+    expect(await screen.findByText("Plant Manager Route")).toBeInTheDocument();
   });
 
   it("navigates back to invoice queue from invoice mode", async () => {
@@ -169,7 +183,7 @@ describe("OrderEntryPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "Back to Orders" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Back to Invoices" }));
     expect(await screen.findByText("Invoice Queue Route")).toBeInTheDocument();
   });
 

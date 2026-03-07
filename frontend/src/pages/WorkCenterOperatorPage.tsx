@@ -105,23 +105,28 @@ const useStyles = makeStyles({
     alignItems: "center",
     flexWrap: "wrap",
   },
-  chip: {
-    backgroundColor: "#FFFFFF",
-    color: "#123046",
-    borderRadius: "6px",
-    padding: "6px 10px",
+  metaItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    color: "rgba(255,255,255,0.9)",
     fontSize: "12px",
+    fontWeight: 500,
+    lineHeight: 1.2,
+  },
+  metaIcon: {
+    display: "inline-flex",
+    alignItems: "center",
+    fontSize: "13px",
+    color: "rgba(255,255,255,0.72)",
+  },
+  metaLabel: {
+    color: "rgba(255,255,255,0.68)",
+    fontWeight: 500,
+  },
+  metaValue: {
+    color: "rgba(255,255,255,0.92)",
     fontWeight: 600,
-  },
-  chipContent: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-  },
-  chipIcon: {
-    display: "inline-flex",
-    alignItems: "center",
-    fontSize: "14px",
   },
   tabletActions: {
     display: "flex",
@@ -1261,6 +1266,28 @@ function normalizeFilterValue(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
+type NormalizedTimeCaptureMode = "Automated" | "Manual" | "Hybrid";
+
+function normalizeTimeCaptureMode(mode: string | null | undefined): NormalizedTimeCaptureMode {
+  const normalized = (mode ?? "").trim().toLowerCase();
+  if (normalized.includes("manual")) {
+    return "Manual";
+  }
+  if (normalized.includes("hybrid")) {
+    return "Hybrid";
+  }
+  if (
+    normalized === "auto" ||
+    normalized === "automatic" ||
+    normalized === "automated" ||
+    normalized.includes("auto") ||
+    normalized.startsWith("aut")
+  ) {
+    return "Automated";
+  }
+  return "Automated";
+}
+
 function mapUsageRowsToMaterialCards(usageRows: StepMaterialUsage[]): MaterialCardItem[] {
   return usageRows.map((usage) => ({
     id: `db-${usage.id}`,
@@ -1347,6 +1374,8 @@ export function WorkCenterOperatorPage() {
   const [progressByStep, setProgressByStep] = useState<Record<number, CaptureProgress>>({});
   const sessionEmpNo = session?.empNo?.trim() ?? "";
   const sessionDisplayName = session?.displayName?.trim() ?? "";
+  const sessionWorkCenterId = session?.workCenterId ?? null;
+  const sessionWorkCenterName = session?.workCenterName?.trim() ?? "";
   const operatorDisplayName = formatCurrentUserDisplayName(
     sessionDisplayName,
     "Current User"
@@ -1364,8 +1393,12 @@ export function WorkCenterOperatorPage() {
   }, []);
 
   useEffect(() => {
-    if (!setup) {
-      navigate("/setup/tablet", { replace: true });
+    if (!sessionWorkCenterId) {
+      setQueue([]);
+      setSelectedQueueItem(null);
+      setExecution(null);
+      setError("No work center is assigned in your login session. Please sign in again and choose a work center.");
+      setLoading(false);
       return;
     }
 
@@ -1374,7 +1407,7 @@ export function WorkCenterOperatorPage() {
       setError(null);
       try {
         const [queueRows, scrapReasonRows, items, productLines, colorRows, sizeRows] = await Promise.all([
-          ordersApi.workCenterQueue(setup.workCenterId),
+          ordersApi.workCenterQueue(sessionWorkCenterId),
           orderLookupsApi.scrapReasons(),
           orderLookupsApi.items(),
           orderLookupsApi.productLines("JobMaterialUsed"),
@@ -1398,7 +1431,7 @@ export function WorkCenterOperatorPage() {
     };
 
     void load();
-  }, [navigate, setup]);
+  }, [sessionWorkCenterId]);
 
   useEffect(() => {
     if (!setup || !selectedQueueItem) {
@@ -1427,8 +1460,8 @@ export function WorkCenterOperatorPage() {
     [execution, selectedQueueItem]
   );
   const step = useMemo(
-    () => getSelectedStep(lineRoute, selectedQueueItem, setup?.workCenterId ?? -1),
-    [lineRoute, selectedQueueItem, setup?.workCenterId]
+    () => getSelectedStep(lineRoute, selectedQueueItem, sessionWorkCenterId ?? -1),
+    [lineRoute, selectedQueueItem, sessionWorkCenterId]
   );
 
   useEffect(() => {
@@ -1549,9 +1582,10 @@ export function WorkCenterOperatorPage() {
   const isSingleUnitReadyToCompleteStep = isSingleUnitMode && qtyReceived > 0 && displayQtyCompleted >= qtyReceived;
   const showBatchSerialSection = !isSingleUnitMode && stepRequiresSerialCapture;
   const showSingleUnitSerialFields = isSingleUnitMode && stepRequiresSerialCapture;
-  const isManualTimeCapture = step?.timeCaptureMode === "Manual";
-  const isAutomatedTimeCapture = step?.timeCaptureMode === "Automated";
-  const showQuickAddDuration = step?.timeCaptureMode !== "Automated";
+  const timeCaptureMode = normalizeTimeCaptureMode(step?.timeCaptureMode);
+  const isManualTimeCapture = timeCaptureMode === "Manual";
+  const isAutomatedTimeCapture = timeCaptureMode === "Automated";
+  const showQuickAddDuration = timeCaptureMode !== "Automated";
   const jobMaterialItems = useMemo(() => {
     if (productLineOptions.length === 0) {
       return orderItems;
@@ -1645,14 +1679,14 @@ export function WorkCenterOperatorPage() {
   };
 
   const scanIn = async () => {
-    if (!step || !selectedQueueItem || !setup || !hasEmpNo) {
+    if (!step || !selectedQueueItem || !hasEmpNo || !sessionWorkCenterId) {
       return;
     }
     await runAction("scanIn", async () => {
       await ordersApi.scanIn(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
         empNo: empNo.trim(),
         deviceId: deviceId.trim() || null,
-        workCenterId: setup.workCenterId,
+        workCenterId: sessionWorkCenterId,
         actingRole: DEFAULT_ROLE,
       });
       setInfo("Scan in recorded.");
@@ -1660,14 +1694,14 @@ export function WorkCenterOperatorPage() {
   };
 
   const scanOut = async () => {
-    if (!step || !selectedQueueItem || !setup || !hasEmpNo) {
+    if (!step || !selectedQueueItem || !hasEmpNo || !sessionWorkCenterId) {
       return;
     }
     await runAction("scanOut", async () => {
       await ordersApi.scanOut(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
         empNo: empNo.trim(),
         deviceId: deviceId.trim() || null,
-        workCenterId: setup.workCenterId,
+        workCenterId: sessionWorkCenterId,
         actingRole: DEFAULT_ROLE,
       });
       setInfo("Scan out recorded.");
@@ -1846,7 +1880,7 @@ export function WorkCenterOperatorPage() {
   };
 
   const recordProgress = async (singleUnit = false) => {
-    if (!step || !selectedQueueItem || !setup || !hasEmpNo) {
+    if (!step || !selectedQueueItem || !hasEmpNo || !sessionWorkCenterId) {
       return;
     }
 
@@ -1872,7 +1906,7 @@ export function WorkCenterOperatorPage() {
         await ordersApi.scanIn(selectedQueueItem.orderId, selectedQueueItem.lineId, step.stepInstanceId, {
           empNo: empNo.trim(),
           deviceId: deviceId.trim() || null,
-          workCenterId: setup.workCenterId,
+          workCenterId: sessionWorkCenterId,
           actingRole: DEFAULT_ROLE,
         });
       }
@@ -2008,7 +2042,7 @@ export function WorkCenterOperatorPage() {
   };
 
   const completeStep = async () => {
-    if (!step || !selectedQueueItem || !hasEmpNo || !canComplete) {
+    if (!step || !selectedQueueItem || !hasEmpNo || !canComplete || !sessionWorkCenterId) {
       return;
     }
 
@@ -2021,17 +2055,13 @@ export function WorkCenterOperatorPage() {
         manualDurationReason: null,
       });
 
-      const queueRows = await ordersApi.workCenterQueue(setup?.workCenterId ?? -1);
+      const queueRows = await ordersApi.workCenterQueue(sessionWorkCenterId ?? -1);
       setQueue(queueRows);
       setSelectedQueueItem(queueRows[0] ?? null);
       setExecution(null);
       setInfo("Step completed.");
     });
   };
-
-  if (!setup) {
-    return null;
-  }
 
   return (
     <main className={styles.page}>
@@ -2128,29 +2158,24 @@ export function WorkCenterOperatorPage() {
           </div>
         </div>
         <div className={styles.topBarMeta}>
-          <span className={styles.chip}>
-            <span className={styles.chipContent}>
-              <span className={styles.chipIcon}>
-                <Building24Regular />
-              </span>
-              Workstation: {setup.workCenterName}
+          <span className={styles.metaItem}>
+            <span className={styles.metaIcon}>
+              <Building24Regular />
             </span>
+            <span className={styles.metaLabel}>Workstation:</span>
+            <span className={styles.metaValue}>{sessionWorkCenterName || "Unassigned"}</span>
           </span>
-          <span className={styles.chip}>
-            <span className={styles.chipContent}>
-              <span className={styles.chipIcon}>
-                <Person24Regular />
-              </span>
-              {operatorDisplayName}
+          <span className={styles.metaItem}>
+            <span className={styles.metaIcon}>
+              <Person24Regular />
             </span>
+            <span className={styles.metaValue}>{operatorDisplayName}</span>
           </span>
-          <span className={styles.chip}>
-            <span className={styles.chipContent}>
-              <span className={styles.chipIcon}>
-                <Clock24Regular />
-              </span>
-              {nowText}
+          <span className={styles.metaItem}>
+            <span className={styles.metaIcon}>
+              <Clock24Regular />
             </span>
+            <span className={styles.metaValue}>{nowText}</span>
           </span>
         </div>
         <div className={styles.tabletActions}>

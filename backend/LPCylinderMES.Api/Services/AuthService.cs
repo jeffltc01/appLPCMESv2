@@ -34,12 +34,18 @@ public sealed class AuthService(
         var normalizedEmpNo = NormalizeEmpNo(dto.EmpNo);
         var user = await LoadOperatorUserByEmpNoAsync(normalizedEmpNo, cancellationToken);
         var assignments = await BuildAssignmentsAsync(user, cancellationToken);
+        var roles = user.UserRoles
+            .Select(ur => ur.Role.RoleName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(role => role)
+            .ToList();
 
         return new OperatorPreLoginResponseDto(
             user.EmpNo!,
             user.DisplayName,
             !string.IsNullOrWhiteSpace(user.OperatorPasswordHash),
-            assignments);
+            assignments,
+            roles);
     }
 
     public async Task<AuthSessionDto> LoginOperatorAsync(OperatorLoginRequestDto dto, CancellationToken cancellationToken = default)
@@ -219,17 +225,7 @@ public sealed class AuthService(
 
     private async Task<List<OperatorAssignmentDto>> BuildAssignmentsAsync(AppUser user, CancellationToken cancellationToken)
     {
-        var siteIds = user.UserRoles
-            .Where(ur => ur.SiteId.HasValue)
-            .Select(ur => ur.SiteId!.Value)
-            .Distinct()
-            .ToList();
-
-        if (siteIds.Count == 0 && user.DefaultSiteId.HasValue)
-        {
-            siteIds.Add(user.DefaultSiteId.Value);
-        }
-        if (siteIds.Count == 0)
+        if (!user.DefaultSiteId.HasValue)
         {
             return [];
         }
@@ -237,7 +233,7 @@ public sealed class AuthService(
         var workCenters = await db.WorkCenters
             .AsNoTracking()
             .Include(w => w.Site)
-            .Where(w => w.IsActive && siteIds.Contains(w.SiteId))
+            .Where(w => w.IsActive && w.SiteId == user.DefaultSiteId.Value)
             .OrderBy(w => w.SiteId)
             .ThenBy(w => w.WorkCenterCode)
             .ToListAsync(cancellationToken);

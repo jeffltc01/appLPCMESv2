@@ -41,12 +41,10 @@ public record AppRoleUpsertDto(
 
 public record AppUserRoleAssignmentDto(
     int RoleId,
-    string RoleName,
-    int? SiteId);
+    string RoleName);
 
 public record AppUserRoleAssignmentUpsertDto(
-    int RoleId,
-    int? SiteId);
+    int RoleId);
 
 public record AppUserDto(
     int Id,

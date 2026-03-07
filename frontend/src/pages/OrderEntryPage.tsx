@@ -41,6 +41,7 @@ import { LifecycleNavigator } from "../components/orders/LifecycleNavigator";
 import { OrderLineDialog } from "../components/orders/OrderLineDialog";
 import { AttachmentManager } from "../components/orders/AttachmentManager";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
+import { PageHeader } from "../components/layout/PageHeader";
 import { orderLinesApi, orderLookupsApi, ordersApi } from "../services/orders";
 import { orderPoliciesApi } from "../services/orderPolicies";
 import { getWorkspaceCurrentStatus } from "../services/orders";
@@ -162,35 +163,8 @@ const useStyles = makeStyles({
   },
   main: {
     display: "grid",
-    gridTemplateRows: "44px 56px minmax(0, 1fr) 52px",
+    gridTemplateRows: "56px minmax(0, 1fr) 52px",
     minWidth: 0,
-  },
-  utilityBar: {
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalM,
-    padding: "0 24px",
-    backgroundColor: "#ffffff",
-    borderBottom: "1px solid #e8e8e8",
-    fontSize: "12px",
-    color: tokens.colorNeutralForeground2,
-  },
-  headerBar: {
-    backgroundColor: "#123046",
-    color: "#ffffff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 20px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
-  headerTitle: {
-    color: "#ffffff",
-  },
-  headerActions: {
-    display: "flex",
-    gap: "8px",
   },
   content: {
     padding: "16px 20px",
@@ -593,6 +567,18 @@ const useStyles = makeStyles({
     display: "flex",
     gap: "8px",
   },
+  auditTableWrap: {
+    maxHeight: "320px",
+    overflowY: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+  },
+  auditHeaderCell: {
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
 });
 
 export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
@@ -692,6 +678,13 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       : typeof (location.state as { backTo?: unknown } | null)?.backTo === "string"
       ? (location.state as { backTo: string }).backTo
       : "/orders";
+  const backButtonLabel = invoiceMode
+    ? "Back to Invoices"
+    : backTarget === "/plant-manager"
+    ? "Back to Plant Manager Board"
+    : backTarget === "/"
+    ? "Back to Dashboard"
+    : "Back to Orders";
 
   const lineTotals = useMemo(() => {
     const lines = order?.lines ?? [];
@@ -1302,41 +1295,39 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <div className={styles.utilityBar}>
-          <Button
-            appearance="subtle"
-            icon={<ArrowLeft24Regular />}
-            onClick={() => navigate(backTarget)}
-          >
-            Back to Orders
-          </Button>
-          <HelpEntryPoint route="/orders/:orderId" context={currentStatus} />
-          <span>{ACTING_EMP_NO}</span>
-          <span>Role: {ACTING_ROLE}</span>
-        </div>
-
-        <header className={styles.headerBar}>
-          <Title2 className={styles.headerTitle}>
-            {order
+        <PageHeader
+          title={
+            order
               ? `Sales Order ${formatOrderDisplayNo(order.salesOrderNo, order.ipadOrderNo)}`
-              : "Create New Sales Order"}
-          </Title2>
-          <div className={styles.headerActions}>
-            {invoiceMode ? (
+              : "Create New Sales Order"
+          }
+          subtitle={`${ACTING_EMP_NO} · Role: ${ACTING_ROLE}`}
+          actions={
+            <>
               <Button
-                appearance="primary"
-                icon={<Play24Regular />}
-                onClick={openInvoiceSubmissionWizard}
-                disabled={!order || isLoading}
+                appearance="secondary"
+                icon={<ArrowLeft24Regular />}
+                onClick={() => navigate(backTarget)}
               >
-                Start Invoice Submission
+                {backButtonLabel}
               </Button>
-            ) : null}
-            <Button appearance="secondary" onClick={saveOrder} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Draft"}
-            </Button>
-          </div>
-        </header>
+              {invoiceMode ? (
+                <Button
+                  appearance="primary"
+                  icon={<Play24Regular />}
+                  onClick={openInvoiceSubmissionWizard}
+                  disabled={!order || isLoading}
+                >
+                  Start Invoice Submission
+                </Button>
+              ) : null}
+              <Button appearance="secondary" onClick={saveOrder} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Draft"}
+              </Button>
+              <HelpEntryPoint route="/orders/:orderId" context={currentStatus} />
+            </>
+          }
+        />
 
         <section className={styles.content}>
           {isLoading ? <Body1>Loading order...</Body1> : null}
@@ -1847,40 +1838,42 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                 {orderAuditError ? <Body1>{orderAuditError}</Body1> : null}
                 {!isLoadingOrderAudit && !orderAuditError ? (
                   <>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHeaderCell>UTC</TableHeaderCell>
-                          <TableHeaderCell>Entity</TableHeaderCell>
-                          <TableHeaderCell>Field</TableHeaderCell>
-                          <TableHeaderCell>Old</TableHeaderCell>
-                          <TableHeaderCell>New</TableHeaderCell>
-                          <TableHeaderCell>Actor</TableHeaderCell>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {orderAuditRows.map((row) => (
-                          <TableRow key={row.id}>
-                            <TableCell>{row.occurredUtc}</TableCell>
-                            <TableCell>{row.entityName}</TableCell>
-                            <TableCell>{row.fieldName}</TableCell>
-                            <TableCell>{row.oldValue ?? "-"}</TableCell>
-                            <TableCell>{row.newValue ?? "-"}</TableCell>
-                            <TableCell>{row.actorEmpNo ?? "-"}</TableCell>
-                          </TableRow>
-                        ))}
-                        {orderAuditRows.length === 0 ? (
+                    <div className={styles.auditTableWrap}>
+                      <Table>
+                        <TableHeader>
                           <TableRow>
-                            <TableCell>-</TableCell>
-                            <TableCell>-</TableCell>
-                            <TableCell>No changes captured yet.</TableCell>
-                            <TableCell>-</TableCell>
-                            <TableCell>-</TableCell>
-                            <TableCell>-</TableCell>
+                            <TableHeaderCell className={styles.auditHeaderCell}>UTC</TableHeaderCell>
+                            <TableHeaderCell className={styles.auditHeaderCell}>Entity</TableHeaderCell>
+                            <TableHeaderCell className={styles.auditHeaderCell}>Field</TableHeaderCell>
+                            <TableHeaderCell className={styles.auditHeaderCell}>Old</TableHeaderCell>
+                            <TableHeaderCell className={styles.auditHeaderCell}>New</TableHeaderCell>
+                            <TableHeaderCell className={styles.auditHeaderCell}>Actor</TableHeaderCell>
                           </TableRow>
-                        ) : null}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {orderAuditRows.map((row) => (
+                            <TableRow key={row.id}>
+                              <TableCell>{row.occurredUtc}</TableCell>
+                              <TableCell>{row.entityName}</TableCell>
+                              <TableCell>{row.fieldName}</TableCell>
+                              <TableCell>{row.oldValue ?? "-"}</TableCell>
+                              <TableCell>{row.newValue ?? "-"}</TableCell>
+                              <TableCell>{row.actorEmpNo ?? "-"}</TableCell>
+                            </TableRow>
+                          ))}
+                          {orderAuditRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell>-</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>No changes captured yet.</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell>-</TableCell>
+                            </TableRow>
+                          ) : null}
+                        </TableBody>
+                      </Table>
+                    </div>
                     <div className={styles.auditPagerRow}>
                       <Body1>
                         Page {orderAuditPage} of{" "}

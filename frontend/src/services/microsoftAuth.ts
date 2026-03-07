@@ -1,6 +1,7 @@
 import { PublicClientApplication } from "@azure/msal-browser";
 
 let pca: PublicClientApplication | null = null;
+let authOperationQueue: Promise<void> = Promise.resolve();
 
 function getClient() {
   if (pca) {
@@ -20,7 +21,9 @@ function getClient() {
     auth: {
       clientId,
       authority,
-      redirectUri: `${window.location.origin}/auth/popup-complete`,
+      redirectUri: `${window.location.origin}/login`,
+      // Recommended by MSAL when login is initiated on the same route as redirectUri.
+      navigateToLoginRequestUrl: false,
     },
     cache: {
       cacheLocation: "sessionStorage",
@@ -38,18 +41,39 @@ function getScopes(): string[] {
     .filter(Boolean);
 }
 
-export async function loginWithMicrosoftPopup(): Promise<string> {
-  const client = getClient();
-  await client.initialize();
+function serializeMsalOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const run = authOperationQueue.then(operation, operation);
+  authOperationQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
 
-  const result = await client.loginPopup({
-    scopes: getScopes(),
-    prompt: "select_account",
+export async function completeMicrosoftRedirectIfPresent(): Promise<string | null> {
+  return serializeMsalOperation(async () => {
+    const client = getClient();
+    await client.initialize();
+
+    const result = await client.handleRedirectPromise();
+    if (!result) {
+      return null;
+    }
+    if (!result.idToken) {
+      throw new Error("Microsoft redirect sign-in did not return an ID token.");
+    }
+
+    return result.idToken;
   });
+}
 
-  if (!result.idToken) {
-    throw new Error("Microsoft login did not return an ID token.");
-  }
-
-  return result.idToken;
+export async function startMicrosoftLoginRedirect(): Promise<void> {
+  return serializeMsalOperation(async () => {
+    const client = getClient();
+    await client.initialize();
+    await client.loginRedirect({
+      scopes: getScopes(),
+      prompt: "select_account",
+    });
+  });
 }

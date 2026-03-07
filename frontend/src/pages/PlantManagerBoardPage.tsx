@@ -148,7 +148,11 @@ export function PlantManagerBoardPage() {
             <Card
               key={order.id}
               className={styles.card}
-              onClick={() => navigate(`/orders/${order.id}`)}
+              onClick={() =>
+                navigate(`/orders/${order.id}`, {
+                  state: { backTo: "/plant-manager" },
+                })
+              }
             >
               <div className={styles.row}>
                 <span className={styles.label}>Order</span>

@@ -11,6 +11,7 @@ export interface OperatorPreLoginResponse {
   displayName: string;
   passwordRequired: boolean;
   assignments: OperatorAssignment[];
+  roles: string[];
 }
 
 export interface AuthSession {

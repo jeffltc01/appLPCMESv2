@@ -1,4 +1,18 @@
-const API_BASE = "/api";
+function resolveApiBase(): string {
+  const configuredBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!configuredBase) {
+    return "/api";
+  }
+
+  const normalized = configuredBase.replace(/\/+$/, "");
+  if (/\/api$/i.test(normalized)) {
+    return normalized;
+  }
+
+  return `${normalized}/api`;
+}
+
+const API_BASE = resolveApiBase();
 let authToken: string | null = null;
 let auditActorEmpNo = "EMP001";
 let auditActorRole = "Office";

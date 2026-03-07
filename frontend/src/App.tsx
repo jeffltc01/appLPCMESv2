@@ -14,7 +14,8 @@ import { ReceivingDetailPage } from "./pages/ReceivingDetailPage";
 import { ProductionLinesSetupPage } from "./pages/ProductionLinesSetupPage";
 import { ItemsSetupPage } from "./pages/ItemsSetupPage";
 import { WorkCentersSetupPage } from "./pages/WorkCentersSetupPage";
-import { UsersRolesSetupPage } from "./pages/UsersRolesSetupPage";
+import { UsersSetupPage } from "./pages/UsersSetupPage";
+import { RolesSetupPage } from "./pages/RolesSetupPage";
 import { RouteTemplatesSetupPage } from "./pages/RouteTemplatesSetupPage";
 import { RouteTemplateDetailPage } from "./pages/RouteTemplateDetailPage";
 import { TabletSetupPage } from "./pages/TabletSetupPage";
@@ -131,10 +132,26 @@ export default function App() {
               }
             />
             <Route
+              path="/setup/users"
+              element={
+                <RequireAuth>
+                  <UsersSetupPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/setup/roles"
+              element={
+                <RequireAuth>
+                  <RolesSetupPage />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/setup/users-roles"
               element={
                 <RequireAuth>
-                  <UsersRolesSetupPage />
+                  <Navigate to="/setup/users" replace />
                 </RequireAuth>
               }
             />

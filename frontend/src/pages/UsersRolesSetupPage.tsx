@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
-  Title2,
+  Title1,
   Title3,
   makeStyles,
   tokens,
@@ -41,18 +41,46 @@ import type { Lookup } from "../types/customer";
 
 const useStyles = makeStyles({
   page: {
-    padding: tokens.spacingHorizontalL,
-    display: "grid",
-    gap: tokens.spacingVerticalL,
+    minHeight: "100vh",
+    backgroundColor: "#f5f5f5",
   },
-  header: {
+  main: {
+    display: "grid",
+    gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    minWidth: 0,
+  },
+  utilityBar: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalM,
+    padding: "0 24px",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e8e8e8",
+    fontSize: "12px",
+    color: tokens.colorNeutralForeground2,
+  },
+  headerBar: {
+    backgroundColor: "#123046",
+    color: "#ffffff",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: "0 20px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  nav: {
+  headerActions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+    flexWrap: "wrap",
+  },
+  content: {
+    padding: "16px 20px",
+    overflow: "auto",
+  },
+  contentStack: {
+    display: "grid",
+    gap: tokens.spacingVerticalL,
   },
   section: {
     display: "grid",
@@ -82,13 +110,14 @@ const useStyles = makeStyles({
   },
   roleAssignmentRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr auto",
+    gridTemplateColumns: "1fr auto",
     gap: tokens.spacingHorizontalS,
     alignItems: "end",
   },
 });
 
 type UserState = "Active" | "Inactive" | "Locked";
+type SetupPageMode = "both" | "users" | "roles";
 
 interface RoleFormState {
   roleName: string;
@@ -98,7 +127,6 @@ interface RoleFormState {
 
 interface UserRoleFormState {
   roleId: string;
-  siteId: string;
 }
 
 interface UserFormState {
@@ -135,10 +163,13 @@ const EMPTY_USER_FORM: UserFormState = {
 
 const EMPTY_ROLE_ASSIGNMENT: UserRoleFormState = {
   roleId: "",
-  siteId: "",
 };
 
-export function UsersRolesSetupPage() {
+interface UsersRolesSetupPageProps {
+  mode?: SetupPageMode;
+}
+
+export function UsersRolesSetupPage({ mode = "both" }: UsersRolesSetupPageProps) {
   const styles = useStyles();
   const navigate = useNavigate();
   const [roles, setRoles] = useState<AppRole[]>([]);
@@ -170,10 +201,12 @@ export function UsersRolesSetupPage() {
     setLoading(true);
     setError(null);
     try {
+      const shouldLoadUsers = mode !== "roles";
+      const shouldLoadSites = mode !== "roles";
       const [roleRows, userRows, siteLookups] = await Promise.all([
         setupApi.listRoles(),
-        setupApi.listUsers(),
-        orderLookupsApi.sites(),
+        shouldLoadUsers ? setupApi.listUsers() : Promise.resolve([]),
+        shouldLoadSites ? orderLookupsApi.sites() : Promise.resolve([]),
       ]);
       setRoles(roleRows);
       setUsers(userRows);
@@ -268,7 +301,6 @@ export function UsersRolesSetupPage() {
       isActive: user.isActive,
       roles: user.roles.map((role) => ({
         roleId: String(role.roleId),
-        siteId: role.siteId ? String(role.siteId) : "",
       })),
     });
     setUserDialogOpen(true);
@@ -306,7 +338,7 @@ export function UsersRolesSetupPage() {
       return;
     }
 
-    const roleAssignmentKeys = userForm.roles.map((entry) => `${entry.roleId}:${entry.siteId || "global"}`);
+    const roleAssignmentKeys = userForm.roles.map((entry) => entry.roleId);
     const hasDuplicates = new Set(roleAssignmentKeys).size !== roleAssignmentKeys.length;
     if (hasDuplicates) {
       setError("Role assignments must be unique.");
@@ -318,7 +350,6 @@ export function UsersRolesSetupPage() {
     try {
       const roleAssignments: AppUserRoleAssignmentUpsert[] = userForm.roles.map((entry) => ({
         roleId: Number(entry.roleId),
-        siteId: entry.siteId ? Number(entry.siteId) : null,
       }));
 
       const payload: AppUserUpsert = {
@@ -362,122 +393,152 @@ export function UsersRolesSetupPage() {
     }
   };
 
+  const showRolesSection = mode !== "users";
+  const showUsersSection = mode !== "roles";
+  const pageTitle =
+    mode === "users"
+      ? "Setup - Users"
+      : mode === "roles"
+      ? "Setup - Roles"
+      : "Setup - Users & Roles";
+
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <Title2>Setup - Users & Roles</Title2>
-        <div className={styles.nav}>
-          <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
-            Work Centers Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/setup/items")}>
-            Items Setup
-          </Button>
-          <Button appearance="secondary" onClick={() => navigate("/")}>
-            Home
-          </Button>
+      <main className={styles.main}>
+        <div className={styles.utilityBar}>
+          <span>Order Analyst</span>
+          <span>Site: Houston</span>
         </div>
-      </div>
 
-      {error && (
-        <MessageBar intent="error">
-          <MessageBarBody>{error}</MessageBarBody>
-        </MessageBar>
-      )}
+        <header className={styles.headerBar}>
+          <Title1 style={{ color: "#ffffff" }}>{pageTitle}</Title1>
+          <div className={styles.headerActions}>
+            {mode !== "users" ? (
+              <Button appearance="secondary" onClick={() => navigate("/setup/users")}>
+                Users Setup
+              </Button>
+            ) : null}
+            {mode !== "roles" ? (
+              <Button appearance="secondary" onClick={() => navigate("/setup/roles")}>
+                Roles Setup
+              </Button>
+            ) : null}
+            <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
+              Work Centers Setup
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/setup/items")}>
+              Items Setup
+            </Button>
+            <Button appearance="secondary" onClick={() => navigate("/")}>
+              Home
+            </Button>
+          </div>
+        </header>
 
-      <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <Title3>Roles</Title3>
-          <Button appearance="primary" onClick={openCreateRole}>
-            Add Role
-          </Button>
-        </div>
-        {loading ? (
-          <Body1>Loading...</Body1>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Role Name</TableHeaderCell>
-                <TableHeaderCell>Description</TableHeaderCell>
-                <TableHeaderCell>Active</TableHeaderCell>
-                <TableHeaderCell>Actions</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {roles.map((role) => (
-                <TableRow key={role.id}>
-                  <TableCell>{role.roleName}</TableCell>
-                  <TableCell>{role.description ?? "-"}</TableCell>
-                  <TableCell>{role.isActive ? "Yes" : "No"}</TableCell>
-                  <TableCell>
-                    <div className={styles.actions}>
-                      <Button appearance="secondary" onClick={() => openEditRole(role)}>
-                        Edit
-                      </Button>
-                      <Button appearance="secondary" onClick={() => void removeRole(role)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </section>
+        <section className={styles.content}>
+          <div className={styles.contentStack}>
+            {error && (
+              <MessageBar intent="error">
+                <MessageBarBody>{error}</MessageBarBody>
+              </MessageBar>
+            )}
 
-      <section className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <Title3>Users</Title3>
-          <Button appearance="primary" onClick={openCreateUser}>
-            Add User
-          </Button>
-        </div>
-        {loading ? (
-          <Body1>Loading...</Body1>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Emp No</TableHeaderCell>
-                <TableHeaderCell>Display Name</TableHeaderCell>
-                <TableHeaderCell>Email</TableHeaderCell>
-                <TableHeaderCell>State</TableHeaderCell>
-                <TableHeaderCell>Roles</TableHeaderCell>
-                <TableHeaderCell>Actions</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.empNo ?? "-"}</TableCell>
-                  <TableCell>{user.displayName}</TableCell>
-                  <TableCell>{user.email ?? "-"}</TableCell>
-                  <TableCell>{user.state}</TableCell>
-                  <TableCell>
-                    {user.roles.map((role) =>
-                      role.siteId
-                        ? `${role.roleName} (${siteNameById.get(role.siteId) ?? `Site ${role.siteId}`})`
-                        : role.roleName
-                    ).join(", ") || "-"}
-                  </TableCell>
-                  <TableCell>
-                    <div className={styles.actions}>
-                      <Button appearance="secondary" onClick={() => openEditUser(user)}>
-                        Edit
-                      </Button>
-                      <Button appearance="secondary" onClick={() => void removeUser(user)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </section>
+            {showRolesSection ? (
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <Title3>Roles</Title3>
+                  <Button appearance="primary" onClick={openCreateRole}>
+                    Add Role
+                  </Button>
+                </div>
+                {loading ? (
+                  <Body1>Loading...</Body1>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHeaderCell>Role Name</TableHeaderCell>
+                        <TableHeaderCell>Description</TableHeaderCell>
+                        <TableHeaderCell>Active</TableHeaderCell>
+                        <TableHeaderCell>Actions</TableHeaderCell>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {roles.map((role) => (
+                        <TableRow key={role.id}>
+                          <TableCell>{role.roleName}</TableCell>
+                          <TableCell>{role.description ?? "-"}</TableCell>
+                          <TableCell>{role.isActive ? "Yes" : "No"}</TableCell>
+                          <TableCell>
+                            <div className={styles.actions}>
+                              <Button appearance="secondary" onClick={() => openEditRole(role)}>
+                                Edit
+                              </Button>
+                              <Button appearance="secondary" onClick={() => void removeRole(role)}>
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </section>
+            ) : null}
+
+            {showUsersSection ? (
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <Title3>Users</Title3>
+                  <Button appearance="primary" onClick={openCreateUser}>
+                    Add User
+                  </Button>
+                </div>
+                {loading ? (
+                  <Body1>Loading...</Body1>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHeaderCell>Emp No</TableHeaderCell>
+                        <TableHeaderCell>Display Name</TableHeaderCell>
+                        <TableHeaderCell>Email</TableHeaderCell>
+                        <TableHeaderCell>State</TableHeaderCell>
+                        <TableHeaderCell>Roles</TableHeaderCell>
+                        <TableHeaderCell>Actions</TableHeaderCell>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>{user.empNo ?? "-"}</TableCell>
+                          <TableCell>{user.displayName}</TableCell>
+                          <TableCell>{user.email ?? "-"}</TableCell>
+                          <TableCell>{user.state}</TableCell>
+                          <TableCell>
+                            {user.roles.map((role) => role.roleName).join(", ") || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div className={styles.actions}>
+                              <Button appearance="secondary" onClick={() => openEditUser(user)}>
+                                Edit
+                              </Button>
+                              <Button appearance="secondary" onClick={() => void removeUser(user)}>
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </section>
+            ) : null}
+          </div>
+        </section>
+      </main>
 
       <Dialog open={roleDialogOpen} onOpenChange={(_, data) => setRoleDialogOpen(data.open)}>
         <DialogSurface>
@@ -630,20 +691,6 @@ export function UsersRolesSetupPage() {
                           {roles.map((role) => (
                             <Option key={role.id} value={String(role.id)}>
                               {role.roleName}
-                            </Option>
-                          ))}
-                        </Dropdown>
-                        <Dropdown
-                          value={entry.siteId ? (siteNameById.get(Number(entry.siteId)) ?? "") : "Global"}
-                          selectedOptions={entry.siteId ? [entry.siteId] : [""]}
-                          onOptionSelect={(_, data) =>
-                            updateRoleAssignment(index, { siteId: data.optionValue ?? "" })
-                          }
-                        >
-                          <Option value="">Global</Option>
-                          {sites.map((site) => (
-                            <Option key={site.id} value={String(site.id)}>
-                              {site.name}
                             </Option>
                           ))}
                         </Dropdown>

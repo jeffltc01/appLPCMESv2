@@ -1,4 +1,4 @@
-import { Button, makeStyles } from "@fluentui/react-components";
+import { Button } from "@fluentui/react-components";
 import { QuestionCircle24Regular } from "@fluentui/react-icons";
 import { useState } from "react";
 import { helpApi } from "../../services/help";
@@ -11,21 +11,7 @@ interface HelpEntryPointProps {
   role?: string;
 }
 
-const useStyles = makeStyles({
-  trigger: {
-    border: "1px solid #123046",
-    color: "#123046",
-    fontWeight: 600,
-    ":hover": {
-      backgroundColor: "#e0eff8",
-      border: "1px solid #123046",
-      color: "#123046",
-    },
-  },
-});
-
 export function HelpEntryPoint({ route, context, role = "Office" }: HelpEntryPointProps) {
-  const styles = useStyles();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [topics, setTopics] = useState<HelpTopic[]>([]);
@@ -53,8 +39,7 @@ export function HelpEntryPoint({ route, context, role = "Office" }: HelpEntryPoi
     <>
       <Button
         icon={<QuestionCircle24Regular />}
-        appearance="outline"
-        className={styles.trigger}
+        appearance="secondary"
         onClick={() => void openHelp()}
       >
         Help

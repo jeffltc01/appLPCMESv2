@@ -310,7 +310,7 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/tablet");
   });
 
-  it("opens admin maintenance menu and navigates to users and roles setup", async () => {
+  it("opens admin maintenance menu and navigates to users setup", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <MenuPage />
@@ -322,9 +322,26 @@ describe("MenuPage", () => {
       expect(listMock).toHaveBeenCalled();
     });
     fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /^Users & Roles$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Users$/i }));
 
-    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/users-roles");
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/users");
+  });
+
+  it("opens admin maintenance menu and navigates to roles setup", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /^Roles$/i }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/roles");
   });
 
   it("opens admin maintenance menu and navigates to order audit log", async () => {
@@ -377,6 +394,199 @@ describe("MenuPage", () => {
     expect(screen.getByText("Total Awaiting Invoicing").parentElement?.parentElement).toHaveTextContent("1");
   });
 
+  it("renders a dashed average line on each monthly line chart", async () => {
+    listMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: 501,
+          salesOrderNo: "SO-501",
+          orderDate: "2026-01-02",
+          receivedDate: "2026-01-05",
+          readyToInvoiceDate: "2026-01-12",
+          invoiceDate: "2026-01-20",
+          orderStatus: "Invoiced",
+          customerId: 2,
+          customerName: "Acme Industrial",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 1,
+          orderLifecycleStatus: "Invoiced",
+          holdOverlay: null,
+        },
+        {
+          id: 502,
+          salesOrderNo: "SO-502",
+          orderDate: "2026-02-03",
+          receivedDate: "2026-02-06",
+          readyToInvoiceDate: "2026-02-14",
+          invoiceDate: "2026-02-21",
+          orderStatus: "Invoiced",
+          customerId: 2,
+          customerName: "BlueLine Supply",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 1,
+          orderLifecycleStatus: "Invoiced",
+          holdOverlay: null,
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    const charts = screen.getAllByRole("img", { name: /monthly average days chart/i });
+    expect(charts).toHaveLength(4);
+
+    charts.forEach((chart) => {
+      const avgLine = chart.querySelector('line[stroke-dasharray="6 4"]');
+      expect(avgLine).not.toBeNull();
+    });
+  });
+
+  it("renders a 14-day goal line on total order-to-invoice chart", async () => {
+    listMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: 601,
+          salesOrderNo: "SO-601",
+          orderDate: "2026-01-02",
+          receivedDate: "2026-01-05",
+          readyToInvoiceDate: "2026-01-12",
+          invoiceDate: "2026-01-20",
+          orderStatus: "Invoiced",
+          customerId: 2,
+          customerName: "Acme Industrial",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 1,
+          orderLifecycleStatus: "Invoiced",
+          holdOverlay: null,
+        },
+        {
+          id: 602,
+          salesOrderNo: "SO-602",
+          orderDate: "2026-02-03",
+          receivedDate: "2026-02-06",
+          readyToInvoiceDate: "2026-02-14",
+          invoiceDate: "2026-02-21",
+          orderStatus: "Invoiced",
+          customerId: 2,
+          customerName: "BlueLine Supply",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 1,
+          orderLifecycleStatus: "Invoiced",
+          holdOverlay: null,
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    expect(screen.getByText("Goal 14d")).toBeInTheDocument();
+    const goalLines = document.querySelectorAll('line[stroke="#107C10"][stroke-dasharray="4 4"]');
+    expect(goalLines).toHaveLength(1);
+  });
+
+  it("renders multiple y-axis ticks on each monthly line chart", async () => {
+    listMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: 701,
+          salesOrderNo: "SO-701",
+          orderDate: "2026-01-02",
+          receivedDate: "2026-01-05",
+          readyToInvoiceDate: "2026-01-12",
+          invoiceDate: "2026-01-20",
+          orderStatus: "Invoiced",
+          customerId: 2,
+          customerName: "Acme Industrial",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 1,
+          orderLifecycleStatus: "Invoiced",
+          holdOverlay: null,
+        },
+        {
+          id: 702,
+          salesOrderNo: "SO-702",
+          orderDate: "2026-02-03",
+          receivedDate: "2026-02-06",
+          readyToInvoiceDate: "2026-02-14",
+          invoiceDate: "2026-02-21",
+          orderStatus: "Invoiced",
+          customerId: 2,
+          customerName: "BlueLine Supply",
+          siteId: 10,
+          siteName: "Houston",
+          customerPoNo: null,
+          contact: null,
+          lineCount: 1,
+          totalOrderedQuantity: 1,
+          orderLifecycleStatus: "Invoiced",
+          holdOverlay: null,
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    const charts = screen.getAllByRole("img", { name: /monthly average days chart/i });
+    expect(charts).toHaveLength(4);
+    charts.forEach((chart) => {
+      const yTicks = chart.querySelectorAll('text[data-line-chart-y-tick="true"]');
+      expect(yTicks.length).toBeGreaterThan(2);
+    });
+  });
+
   it("maps legacy workflow statuses into lifecycle metrics when lifecycle is missing", async () => {
     listMock.mockResolvedValueOnce({
       items: [
@@ -427,6 +637,68 @@ describe("MenuPage", () => {
     });
     expect(screen.getByText("Total Awaiting Receipt").parentElement?.parentElement).toHaveTextContent("1");
     expect(screen.getByText("Total In Production").parentElement?.parentElement).toHaveTextContent("1");
+  });
+
+  it("keeps aging bucket bars centered with their x-axis labels", async () => {
+    const toIsoDate = (daysAgo: number) => {
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().slice(0, 10);
+    };
+
+    const createOrder = (id: number, orderDate: string) => ({
+      id,
+      salesOrderNo: `SO-${id}`,
+      orderDate,
+      orderStatus: "New",
+      customerId: 2,
+      customerName: "Acme Industrial",
+      siteId: 10,
+      siteName: "Houston",
+      customerPoNo: null,
+      contact: null,
+      lineCount: 1,
+      totalOrderedQuantity: 1,
+      orderLifecycleStatus: "Draft",
+      holdOverlay: null,
+    });
+
+    const items = [
+      ...Array.from({ length: 2 }, (_, i) => createOrder(300 + i, toIsoDate(5))),
+      ...Array.from({ length: 4 }, (_, i) => createOrder(320 + i, toIsoDate(20))),
+      ...Array.from({ length: 6 }, (_, i) => createOrder(340 + i, toIsoDate(40))),
+      ...Array.from({ length: 8 }, (_, i) => createOrder(360 + i, toIsoDate(90))),
+    ];
+
+    listMock.mockResolvedValueOnce({
+      items,
+      totalCount: items.length,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    const chart = await screen.findByRole("img", { name: /open order aging buckets chart/i });
+    const bars = Array.from(chart.querySelectorAll("rect"));
+    const labels = Array.from(chart.querySelectorAll("text")).filter((node) =>
+      node.textContent?.endsWith(" days")
+    );
+
+    expect(bars).toHaveLength(4);
+    expect(labels).toHaveLength(4);
+
+    bars.forEach((bar, index) => {
+      const barX = Number(bar.getAttribute("x"));
+      const barWidth = Number(bar.getAttribute("width"));
+      const barCenterX = barX + barWidth / 2;
+      const labelX = Number(labels[index].getAttribute("x"));
+      expect(barCenterX).toBeCloseTo(labelX, 3);
+    });
   });
 
   it("logs out and redirects to login", async () => {
