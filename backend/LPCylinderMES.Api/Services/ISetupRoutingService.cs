@@ -41,4 +41,14 @@ public interface ISetupRoutingService
     Task DeleteAssignmentAsync(int id, CancellationToken cancellationToken = default);
 
     Task<RouteRuleSimulationResponseDto> SimulateRouteAsync(RouteRuleSimulationRequestDto dto, CancellationToken cancellationToken = default);
+
+    Task<List<LookupOptionAdminDto>> GetValveTypeLookupsAsync(CancellationToken cancellationToken = default);
+    Task<LookupOptionAdminDto> CreateValveTypeLookupAsync(LookupOptionUpsertDto dto, CancellationToken cancellationToken = default);
+    Task<LookupOptionAdminDto> UpdateValveTypeLookupAsync(int id, LookupOptionUpsertDto dto, CancellationToken cancellationToken = default);
+    Task DeleteValveTypeLookupAsync(int id, CancellationToken cancellationToken = default);
+
+    Task<List<LookupOptionAdminDto>> GetGaugeLookupsAsync(CancellationToken cancellationToken = default);
+    Task<LookupOptionAdminDto> CreateGaugeLookupAsync(LookupOptionUpsertDto dto, CancellationToken cancellationToken = default);
+    Task<LookupOptionAdminDto> UpdateGaugeLookupAsync(int id, LookupOptionUpsertDto dto, CancellationToken cancellationToken = default);
+    Task DeleteGaugeLookupAsync(int id, CancellationToken cancellationToken = default);
 }

@@ -20,7 +20,12 @@ import {
 } from "@fluentui/react-components";
 import { ApiError } from "../../services/api";
 import { orderLinesApi, orderLookupsApi } from "../../services/orders";
-import type { OrderLine, OrderLineCreate, OrderLineUpdate } from "../../types/order";
+import type {
+  OrderLine,
+  OrderLineCreate,
+  OrderLineLookupOption,
+  OrderLineUpdate,
+} from "../../types/order";
 import type { Lookup } from "../../types/customer";
 
 const useStyles = makeStyles({
@@ -87,6 +92,8 @@ export function OrderLineDialog({
   const [colors, setColors] = useState<Lookup[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [valveTypes, setValveTypes] = useState<OrderLineLookupOption[]>([]);
+  const [gauges, setGauges] = useState<OrderLineLookupOption[]>([]);
 
   const [itemId, setItemId] = useState<string>("");
   const [quantityAsOrdered, setQuantityAsOrdered] = useState("");
@@ -98,17 +105,23 @@ export function OrderLineDialog({
   const [needFillers, setNeedFillers] = useState(false);
   const [needFootRings, setNeedFootRings] = useState(false);
   const [needDecals, setNeedDecals] = useState(false);
-  const [valveType, setValveType] = useState("");
-  const [gauges, setGauges] = useState("");
+  const [valveTypeId, setValveTypeId] = useState<string>("");
+  const [gaugeId, setGaugeId] = useState<string>("");
   const [itemQuery, setItemQuery] = useState("");
 
   useEffect(() => {
     if (!open) return;
 
-    Promise.all([orderLookupsApi.items(), orderLookupsApi.colors()]).then(
-      ([orderItems, lookupColors]) => {
+    Promise.all([
+      orderLookupsApi.items(),
+      orderLookupsApi.colors(),
+      orderLookupsApi.orderLine(),
+    ]).then(
+      ([orderItems, lookupColors, lookupBundle]) => {
         setItems(orderItems);
         setColors(lookupColors);
+        setValveTypes(lookupBundle.valveTypes);
+        setGauges(lookupBundle.gauges);
       }
     );
 
@@ -129,10 +142,63 @@ export function OrderLineDialog({
     setNeedFillers(line?.needFillers === true);
     setNeedFootRings(line?.needFootRings === true);
     setNeedDecals(line?.needDecals === true);
-    setValveType(line?.valveType ?? "");
-    setGauges(line?.gauges ?? "");
+    setValveTypeId(line?.valveTypeId != null ? String(line.valveTypeId) : "");
+    setGaugeId(line?.gaugeId != null ? String(line.gaugeId) : "");
     setError(null);
   }, [open, line]);
+
+  const effectiveValveTypes = useMemo(() => {
+    if (
+      line?.valveTypeId != null &&
+      line.valveType &&
+      !valveTypes.some((entry) => entry.id === line.valveTypeId)
+    ) {
+      return [
+        ...valveTypes,
+        {
+          id: line.valveTypeId,
+          code: "LEGACY",
+          displayName: `${line.valveType} (inactive)`,
+          isActive: false,
+          sortOrder: Number.MAX_SAFE_INTEGER,
+        },
+      ];
+    }
+    return valveTypes;
+  }, [line, valveTypes]);
+
+  const effectiveGauges = useMemo(() => {
+    if (
+      line?.gaugeId != null &&
+      line.gauges &&
+      !gauges.some((entry) => entry.id === line.gaugeId)
+    ) {
+      return [
+        ...gauges,
+        {
+          id: line.gaugeId,
+          code: "LEGACY",
+          displayName: `${line.gauges} (inactive)`,
+          isActive: false,
+          sortOrder: Number.MAX_SAFE_INTEGER,
+        },
+      ];
+    }
+    return gauges;
+  }, [line, gauges]);
+
+  const valveTypeLabel = useMemo(() => {
+    if (!valveTypeId) return "";
+    return (
+      effectiveValveTypes.find((entry) => String(entry.id) === valveTypeId)?.displayName ??
+      ""
+    );
+  }, [effectiveValveTypes, valveTypeId]);
+
+  const gaugeLabel = useMemo(() => {
+    if (!gaugeId) return "";
+    return effectiveGauges.find((entry) => String(entry.id) === gaugeId)?.displayName ?? "";
+  }, [effectiveGauges, gaugeId]);
 
   const filteredItems = useMemo(() => {
     const query = itemQuery.trim().toLowerCase();
@@ -181,8 +247,8 @@ export function OrderLineDialog({
       needFillers: needFillers || null,
       needFootRings: needFootRings || null,
       needDecals: needDecals || null,
-      valveType: valveType.trim() || null,
-      gauges: gauges.trim() || null,
+      valveTypeId: valveTypeId ? Number(valveTypeId) : null,
+      gaugeId: gaugeId ? Number(gaugeId) : null,
     };
 
     setSaving(true);
@@ -315,16 +381,40 @@ export function OrderLineDialog({
 
               <div className={styles.row}>
                 <Field label="Valve Type">
-                  <Input
-                    value={valveType}
-                    onChange={(_, data) => setValveType(data.value)}
-                  />
+                  <Dropdown
+                    value={valveTypeLabel}
+                    selectedOptions={valveTypeId ? [valveTypeId] : []}
+                    onOptionSelect={(_, data) => setValveTypeId(data.optionValue ?? "")}
+                    clearable
+                  >
+                    {effectiveValveTypes.map((option) => (
+                      <Option
+                        key={option.id}
+                        value={String(option.id)}
+                        disabled={!option.isActive}
+                      >
+                        {option.displayName}
+                      </Option>
+                    ))}
+                  </Dropdown>
                 </Field>
                 <Field label="Gauges">
-                  <Input
-                    value={gauges}
-                    onChange={(_, data) => setGauges(data.value)}
-                  />
+                  <Dropdown
+                    value={gaugeLabel}
+                    selectedOptions={gaugeId ? [gaugeId] : []}
+                    onOptionSelect={(_, data) => setGaugeId(data.optionValue ?? "")}
+                    clearable
+                  >
+                    {effectiveGauges.map((option) => (
+                      <Option
+                        key={option.id}
+                        value={String(option.id)}
+                        disabled={!option.isActive}
+                      >
+                        {option.displayName}
+                      </Option>
+                    ))}
+                  </Dropdown>
                 </Field>
               </div>
 

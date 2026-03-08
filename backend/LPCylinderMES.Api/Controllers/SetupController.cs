@@ -387,4 +387,100 @@ public class SetupController(ISetupRoutingService setupRoutingService) : Control
         }
     }
 
+    [HttpGet("valve-types")]
+    public async Task<ActionResult<List<LookupOptionAdminDto>>> GetValveTypes(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetValveTypeLookupsAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpPost("valve-types")]
+    public async Task<ActionResult<LookupOptionAdminDto>> CreateValveType(LookupOptionUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await setupRoutingService.CreateValveTypeLookupAsync(dto, cancellationToken);
+            return Ok(created);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPut("valve-types/{id:int}")]
+    public async Task<ActionResult<LookupOptionAdminDto>> UpdateValveType(int id, LookupOptionUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateValveTypeLookupAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("valve-types/{id:int}")]
+    public async Task<ActionResult> DeleteValveType(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await setupRoutingService.DeleteValveTypeLookupAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpGet("gauges")]
+    public async Task<ActionResult<List<LookupOptionAdminDto>>> GetGauges(CancellationToken cancellationToken)
+    {
+        var items = await setupRoutingService.GetGaugeLookupsAsync(cancellationToken);
+        return Ok(items);
+    }
+
+    [HttpPost("gauges")]
+    public async Task<ActionResult<LookupOptionAdminDto>> CreateGauge(LookupOptionUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var created = await setupRoutingService.CreateGaugeLookupAsync(dto, cancellationToken);
+            return Ok(created);
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpPut("gauges/{id:int}")]
+    public async Task<ActionResult<LookupOptionAdminDto>> UpdateGauge(int id, LookupOptionUpsertDto dto, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await setupRoutingService.UpdateGaugeLookupAsync(id, dto, cancellationToken));
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
+    [HttpDelete("gauges/{id:int}")]
+    public async Task<ActionResult> DeleteGauge(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await setupRoutingService.DeleteGaugeLookupAsync(id, cancellationToken);
+            return NoContent();
+        }
+        catch (ServiceException ex)
+        {
+            return this.ToActionResult(ex);
+        }
+    }
+
 }

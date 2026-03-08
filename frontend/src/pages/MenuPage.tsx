@@ -40,6 +40,8 @@ const NAV_ITEMS = [
 const ADMIN_MENU_ITEMS = [
   { key: "product-lines", label: "Product Lines", path: "/setup/production-lines", enabled: true },
   { key: "items", label: "Items", path: "/setup/items", enabled: true },
+  { key: "valve-types", label: "Valve Types", path: "/setup/valve-types", enabled: true },
+  { key: "gauges", label: "Gauges", path: "/setup/gauges", enabled: true },
   { key: "work-centers", label: "Work Centers", path: "/setup/work-centers", enabled: true },
   { key: "tablet-setup", label: "Tablet Setup", path: "/setup/tablet", enabled: true },
   { key: "route-templates", label: "Route Templates", path: "/setup/route-templates", enabled: true },

@@ -13,6 +13,10 @@ vi.mock("../../services/orders", () => ({
       { id: 11, itemNo: "ITM-11", itemDescription: "Cylinder" },
     ]),
     colors: vi.fn().mockResolvedValue([]),
+    orderLine: vi.fn().mockResolvedValue({
+      valveTypes: [{ id: 1, code: "STD", displayName: "Standard", isActive: true, sortOrder: 10 }],
+      gauges: [{ id: 1, code: "YES", displayName: "Yes", isActive: true, sortOrder: 10 }],
+    }),
     defaultItemPrice: vi.fn().mockResolvedValue(12.5),
   },
 }));
@@ -51,8 +55,12 @@ describe("OrderLineDialog", () => {
           needFillers: null,
           needFootRings: null,
           needDecals: null,
+          valveTypeId: null,
           valveType: null,
+          valveTypeIsActive: null,
+          gaugeId: null,
           gauges: null,
+          gaugeIsActive: null,
         }}
         onClose={vi.fn()}
         onSaved={vi.fn()}

@@ -163,5 +163,98 @@ public class OrderLineServiceTests
         Assert.Equal(1m, created.LineNo);
         Assert.Equal(20m, created.Extension);
     }
+
+    [Fact]
+    public async Task CreateAsync_InactiveLookupSelection_ThrowsBadRequest()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(CreateAsync_InactiveLookupSelection_ThrowsBadRequest));
+
+        db.Items.Add(new Item
+        {
+            Id = 51,
+            ItemNo = "TNK-51",
+            ItemType = "Tank",
+            RequiresSerialNumbers = 0,
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 50,
+            SalesOrderNo = "SO-50",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        db.ValveTypeLookups.Add(new ValveTypeLookup
+        {
+            Id = 1,
+            Code = "OLD",
+            DisplayName = "Old Valve",
+            IsActive = false,
+            SortOrder = 10,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderLineService(db);
+        var dto = new OrderLineCreateDto(51, 1, null, null, null, null, null, null, null, null, 1, null);
+        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.CreateAsync(50, dto));
+        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ExistingInactiveLookupValue_AllowsRetainSameSelection()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateAsync_ExistingInactiveLookupValue_AllowsRetainSameSelection));
+
+        db.Items.Add(new Item
+        {
+            Id = 61,
+            ItemNo = "TNK-61",
+            ItemType = "Tank",
+            RequiresSerialNumbers = 0,
+            ItemDescription = "Tank 61",
+        });
+        db.ValveTypeLookups.Add(new ValveTypeLookup
+        {
+            Id = 6,
+            Code = "LEGACY",
+            DisplayName = "Legacy Valve",
+            IsActive = false,
+            SortOrder = 99,
+            CreatedUtc = DateTime.UtcNow,
+            UpdatedUtc = DateTime.UtcNow,
+        });
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 60,
+            SalesOrderNo = "SO-60",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        db.SalesOrderDetails.Add(new SalesOrderDetail
+        {
+            Id = 6001,
+            SalesOrderId = 60,
+            ItemId = 61,
+            LineNo = 1,
+            QuantityAsOrdered = 1,
+            SiteId = 1,
+            ValveTypeId = 6,
+            ValveType = "Legacy Valve",
+        });
+        await db.SaveChangesAsync();
+
+        var service = new OrderLineService(db);
+        var dto = new OrderLineUpdateDto(61, 2, null, null, null, null, null, null, null, null, 6, null);
+        var updated = await service.UpdateAsync(60, 6001, dto);
+
+        Assert.Equal(6, updated.ValveTypeId);
+        Assert.Equal("Legacy Valve", updated.ValveType);
+        Assert.False(updated.ValveTypeIsActive);
+    }
 }
 

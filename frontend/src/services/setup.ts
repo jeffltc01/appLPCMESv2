@@ -6,6 +6,8 @@ import type {
   AppUserUpsert,
   ProductionLine,
   ProductionLineUpsert,
+  LookupOptionAdmin,
+  LookupOptionUpsert,
   RouteRuleSimulationRequest,
   RouteRuleSimulationResponse,
   RouteTemplateAssignment,
@@ -62,5 +64,19 @@ export const setupApi = {
 
   simulateRoute: (data: RouteRuleSimulationRequest) =>
     api.post<RouteRuleSimulationResponse>("/setup/rules/simulate", data),
+
+  listValveTypes: () => api.get<LookupOptionAdmin[]>("/setup/valve-types"),
+  createValveType: (data: LookupOptionUpsert) =>
+    api.post<LookupOptionAdmin>("/setup/valve-types", data),
+  updateValveType: (id: number, data: LookupOptionUpsert) =>
+    api.put<LookupOptionAdmin>(`/setup/valve-types/${id}`, data),
+  deleteValveType: (id: number) => api.delete<void>(`/setup/valve-types/${id}`),
+
+  listGauges: () => api.get<LookupOptionAdmin[]>("/setup/gauges"),
+  createGauge: (data: LookupOptionUpsert) =>
+    api.post<LookupOptionAdmin>("/setup/gauges", data),
+  updateGauge: (id: number, data: LookupOptionUpsert) =>
+    api.put<LookupOptionAdmin>(`/setup/gauges/${id}`, data),
+  deleteGauge: (id: number) => api.delete<void>(`/setup/gauges/${id}`),
 
 };

@@ -75,6 +75,10 @@ public partial class LpcAppsDbContext : DbContext
 
     public virtual DbSet<ScrapReason> ScrapReasons { get; set; }
 
+    public virtual DbSet<ValveTypeLookup> ValveTypeLookups { get; set; }
+
+    public virtual DbSet<GaugeLookup> GaugeLookups { get; set; }
+
     public virtual DbSet<RouteTemplate> RouteTemplates { get; set; }
 
     public virtual DbSet<RouteTemplateAssignment> RouteTemplateAssignments { get; set; }
@@ -1194,6 +1198,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.Extension)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("extension");
+            entity.Property(e => e.GaugeId).HasColumnName("gauge_id");
             entity.Property(e => e.Gauges)
                 .IsUnicode(false)
                 .HasColumnName("gauges");
@@ -1240,6 +1245,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.UnitPrice)
                 .HasColumnType("numeric(18, 6)")
                 .HasColumnName("unit_price");
+            entity.Property(e => e.ValveTypeId).HasColumnName("valve_type_id");
             entity.Property(e => e.ValveType)
                 .IsUnicode(false)
                 .HasColumnName("valve_type");
@@ -1253,6 +1259,11 @@ public partial class LpcAppsDbContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK__sales_ord__item___5555A4F4");
 
+            entity.HasOne(d => d.Gauge).WithMany(p => p.SalesOrderDetails)
+                .HasForeignKey(d => d.GaugeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_sales_order_details_gauge_lookup");
+
             entity.HasOne(d => d.LidColor).WithMany(p => p.SalesOrderDetailLidColors)
                 .HasForeignKey(d => d.LidColorId)
                 .HasConstraintName("FK__sales_ord__lid_c__2A363CC5");
@@ -1265,6 +1276,11 @@ public partial class LpcAppsDbContext : DbContext
             entity.HasOne(d => d.Site).WithMany(p => p.SalesOrderDetails)
                 .HasForeignKey(d => d.SiteId)
                 .HasConstraintName("FK__sales_ord__site___573DED66");
+
+            entity.HasOne(d => d.ValveTypeNavigation).WithMany(p => p.SalesOrderDetails)
+                .HasForeignKey(d => d.ValveTypeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_sales_order_details_valve_type_lookup");
         });
 
         modelBuilder.Entity<SalesOrderDetailCharge>(entity =>
@@ -1396,6 +1412,38 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(255)
                 .IsUnicode(false)
                 .HasColumnName("name");
+        });
+
+        modelBuilder.Entity<ValveTypeLookup>(entity =>
+        {
+            entity.ToTable("valve_type_lookups");
+            entity.HasKey(e => e.Id).HasName("PK_valve_type_lookups");
+            entity.HasIndex(e => e.Code).IsUnique().HasDatabaseName("UX_valve_type_lookups_code");
+            entity.HasIndex(e => e.DisplayName).IsUnique().HasDatabaseName("UX_valve_type_lookups_display_name");
+            entity.HasIndex(e => e.SortOrder).HasDatabaseName("IX_valve_type_lookups_sort_order");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(80).IsUnicode(false).HasColumnName("code");
+            entity.Property(e => e.DisplayName).HasMaxLength(120).IsUnicode(false).HasColumnName("display_name");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
+        });
+
+        modelBuilder.Entity<GaugeLookup>(entity =>
+        {
+            entity.ToTable("gauge_lookups");
+            entity.HasKey(e => e.Id).HasName("PK_gauge_lookups");
+            entity.HasIndex(e => e.Code).IsUnique().HasDatabaseName("UX_gauge_lookups_code");
+            entity.HasIndex(e => e.DisplayName).IsUnique().HasDatabaseName("UX_gauge_lookups_display_name");
+            entity.HasIndex(e => e.SortOrder).HasDatabaseName("IX_gauge_lookups_sort_order");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(80).IsUnicode(false).HasColumnName("code");
+            entity.Property(e => e.DisplayName).HasMaxLength(120).IsUnicode(false).HasColumnName("display_name");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.CreatedUtc).HasColumnType("datetime").HasColumnName("created_utc");
+            entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
         });
 
         modelBuilder.Entity<ShipVia>(entity =>

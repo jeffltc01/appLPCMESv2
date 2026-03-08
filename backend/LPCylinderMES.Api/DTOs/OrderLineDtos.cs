@@ -20,8 +20,12 @@ public record OrderLineDto(
     bool? NeedFillers,
     bool? NeedFootRings,
     bool? NeedDecals,
+    int? ValveTypeId,
     string? ValveType,
-    string? Gauges);
+    bool? ValveTypeIsActive,
+    int? GaugeId,
+    string? Gauges,
+    bool? GaugeIsActive);
 
 public record OrderLineCreateDto(
     int ItemId,
@@ -34,8 +38,8 @@ public record OrderLineCreateDto(
     bool? NeedFillers,
     bool? NeedFootRings,
     bool? NeedDecals,
-    string? ValveType,
-    string? Gauges);
+    int? ValveTypeId,
+    int? GaugeId);
 
 public record OrderLineUpdateDto(
     int ItemId,
@@ -48,5 +52,5 @@ public record OrderLineUpdateDto(
     bool? NeedFillers,
     bool? NeedFootRings,
     bool? NeedDecals,
-    string? ValveType,
-    string? Gauges);
+    int? ValveTypeId,
+    int? GaugeId);

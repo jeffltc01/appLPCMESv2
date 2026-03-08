@@ -396,8 +396,12 @@ export interface OrderLine {
   needFillers: boolean | null;
   needFootRings: boolean | null;
   needDecals: boolean | null;
+  valveTypeId: number | null;
   valveType: string | null;
+  valveTypeIsActive?: boolean | null;
+  gaugeId: number | null;
   gauges: string | null;
+  gaugeIsActive?: boolean | null;
   requiresSerialNumbers?: boolean;
   serialNumbers?: ProductionSerialNumber[];
 }
@@ -536,8 +540,8 @@ export interface OrderLineCreate {
   needFillers?: boolean | null;
   needFootRings?: boolean | null;
   needDecals?: boolean | null;
-  valveType?: string | null;
-  gauges?: string | null;
+  valveTypeId?: number | null;
+  gaugeId?: number | null;
 }
 
 export interface OrderLineUpdate {
@@ -551,8 +555,21 @@ export interface OrderLineUpdate {
   needFillers?: boolean | null;
   needFootRings?: boolean | null;
   needDecals?: boolean | null;
-  valveType?: string | null;
-  gauges?: string | null;
+  valveTypeId?: number | null;
+  gaugeId?: number | null;
+}
+
+export interface OrderLineLookupOption {
+  id: number;
+  code: string;
+  displayName: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface OrderLineLookupBundle {
+  valveTypes: OrderLineLookupOption[];
+  gauges: OrderLineLookupOption[];
 }
 
 export interface OrderListParams {

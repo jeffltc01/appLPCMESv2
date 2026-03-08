@@ -646,6 +646,158 @@ public sealed class SetupRoutingService(
             ToRouteTemplateDetailDto(selectedTemplate));
     }
 
+    public async Task<List<LookupOptionAdminDto>> GetValveTypeLookupsAsync(CancellationToken cancellationToken = default)
+    {
+        var items = await db.ValveTypeLookups
+            .AsNoTracking()
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.DisplayName)
+            .Select(x => new
+            {
+                Entity = x,
+                IsInUse = db.SalesOrderDetails.Any(d => d.ValveTypeId == x.Id),
+            })
+            .ToListAsync(cancellationToken);
+
+        return items
+            .Select(x => ToLookupOptionAdminDto(x.Entity, x.IsInUse))
+            .ToList();
+    }
+
+    public async Task<LookupOptionAdminDto> CreateValveTypeLookupAsync(LookupOptionUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        await ValidateLookupOptionUpsertAsync(
+            dto,
+            isDuplicateCode: code => db.ValveTypeLookups.AnyAsync(v => v.Code == code, cancellationToken),
+            isDuplicateDisplayName: displayName => db.ValveTypeLookups.AnyAsync(v => v.DisplayName == displayName, cancellationToken));
+
+        var now = DateTime.UtcNow;
+        var entity = new ValveTypeLookup
+        {
+            Code = dto.Code.Trim(),
+            DisplayName = dto.DisplayName.Trim(),
+            IsActive = dto.IsActive,
+            SortOrder = dto.SortOrder,
+            CreatedUtc = now,
+            UpdatedUtc = now,
+        };
+        db.ValveTypeLookups.Add(entity);
+        await db.SaveChangesAsync(cancellationToken);
+        return ToLookupOptionAdminDto(entity, false);
+    }
+
+    public async Task<LookupOptionAdminDto> UpdateValveTypeLookupAsync(int id, LookupOptionUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.ValveTypeLookups.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+        if (entity is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Valve type '{id}' was not found.");
+
+        await ValidateLookupOptionUpsertAsync(
+            dto,
+            isDuplicateCode: code => db.ValveTypeLookups.AnyAsync(v => v.Code == code && v.Id != id, cancellationToken),
+            isDuplicateDisplayName: displayName => db.ValveTypeLookups.AnyAsync(v => v.DisplayName == displayName && v.Id != id, cancellationToken));
+
+        entity.Code = dto.Code.Trim();
+        entity.DisplayName = dto.DisplayName.Trim();
+        entity.IsActive = dto.IsActive;
+        entity.SortOrder = dto.SortOrder;
+        entity.UpdatedUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        var isInUse = await db.SalesOrderDetails.AnyAsync(d => d.ValveTypeId == id, cancellationToken);
+        return ToLookupOptionAdminDto(entity, isInUse);
+    }
+
+    public async Task DeleteValveTypeLookupAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.ValveTypeLookups.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+        if (entity is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Valve type '{id}' was not found.");
+
+        var isInUse = await db.SalesOrderDetails.AnyAsync(d => d.ValveTypeId == id, cancellationToken);
+        if (isInUse)
+            throw new ServiceException(StatusCodes.Status409Conflict, "Cannot delete valve type because it is used by order lines.");
+
+        db.ValveTypeLookups.Remove(entity);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<List<LookupOptionAdminDto>> GetGaugeLookupsAsync(CancellationToken cancellationToken = default)
+    {
+        var items = await db.GaugeLookups
+            .AsNoTracking()
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.DisplayName)
+            .Select(x => new
+            {
+                Entity = x,
+                IsInUse = db.SalesOrderDetails.Any(d => d.GaugeId == x.Id),
+            })
+            .ToListAsync(cancellationToken);
+
+        return items
+            .Select(x => ToLookupOptionAdminDto(x.Entity, x.IsInUse))
+            .ToList();
+    }
+
+    public async Task<LookupOptionAdminDto> CreateGaugeLookupAsync(LookupOptionUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        await ValidateLookupOptionUpsertAsync(
+            dto,
+            isDuplicateCode: code => db.GaugeLookups.AnyAsync(v => v.Code == code, cancellationToken),
+            isDuplicateDisplayName: displayName => db.GaugeLookups.AnyAsync(v => v.DisplayName == displayName, cancellationToken));
+
+        var now = DateTime.UtcNow;
+        var entity = new GaugeLookup
+        {
+            Code = dto.Code.Trim(),
+            DisplayName = dto.DisplayName.Trim(),
+            IsActive = dto.IsActive,
+            SortOrder = dto.SortOrder,
+            CreatedUtc = now,
+            UpdatedUtc = now,
+        };
+        db.GaugeLookups.Add(entity);
+        await db.SaveChangesAsync(cancellationToken);
+        return ToLookupOptionAdminDto(entity, false);
+    }
+
+    public async Task<LookupOptionAdminDto> UpdateGaugeLookupAsync(int id, LookupOptionUpsertDto dto, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.GaugeLookups.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+        if (entity is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Gauge '{id}' was not found.");
+
+        await ValidateLookupOptionUpsertAsync(
+            dto,
+            isDuplicateCode: code => db.GaugeLookups.AnyAsync(v => v.Code == code && v.Id != id, cancellationToken),
+            isDuplicateDisplayName: displayName => db.GaugeLookups.AnyAsync(v => v.DisplayName == displayName && v.Id != id, cancellationToken));
+
+        entity.Code = dto.Code.Trim();
+        entity.DisplayName = dto.DisplayName.Trim();
+        entity.IsActive = dto.IsActive;
+        entity.SortOrder = dto.SortOrder;
+        entity.UpdatedUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        var isInUse = await db.SalesOrderDetails.AnyAsync(d => d.GaugeId == id, cancellationToken);
+        return ToLookupOptionAdminDto(entity, isInUse);
+    }
+
+    public async Task DeleteGaugeLookupAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var entity = await db.GaugeLookups.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+        if (entity is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Gauge '{id}' was not found.");
+
+        var isInUse = await db.SalesOrderDetails.AnyAsync(d => d.GaugeId == id, cancellationToken);
+        if (isInUse)
+            throw new ServiceException(StatusCodes.Status409Conflict, "Cannot delete gauge because it is used by order lines.");
+
+        db.GaugeLookups.Remove(entity);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task ValidateRoleAsync(AppRoleUpsertDto dto, int? existingId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(dto.RoleName))
@@ -892,6 +1044,30 @@ public sealed class SetupRoutingService(
 
     private static string? NormalizeNullable(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static LookupOptionAdminDto ToLookupOptionAdminDto(ValveTypeLookup entity, bool isInUse) =>
+        new(entity.Id, entity.Code, entity.DisplayName, entity.IsActive, entity.SortOrder, isInUse, entity.CreatedUtc, entity.UpdatedUtc);
+
+    private static LookupOptionAdminDto ToLookupOptionAdminDto(GaugeLookup entity, bool isInUse) =>
+        new(entity.Id, entity.Code, entity.DisplayName, entity.IsActive, entity.SortOrder, isInUse, entity.CreatedUtc, entity.UpdatedUtc);
+
+    private static async Task ValidateLookupOptionUpsertAsync(
+        LookupOptionUpsertDto dto,
+        Func<string, Task<bool>> isDuplicateCode,
+        Func<string, Task<bool>> isDuplicateDisplayName)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Code))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "Code is required.");
+        if (string.IsNullOrWhiteSpace(dto.DisplayName))
+            throw new ServiceException(StatusCodes.Status400BadRequest, "DisplayName is required.");
+
+        var code = dto.Code.Trim();
+        var displayName = dto.DisplayName.Trim();
+        if (await isDuplicateCode(code))
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Lookup code '{code}' already exists.");
+        if (await isDuplicateDisplayName(displayName))
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Lookup display name '{displayName}' already exists.");
+    }
 
     private static int BuildShowWhereMask(IEnumerable<string> showWhereValues)
     {

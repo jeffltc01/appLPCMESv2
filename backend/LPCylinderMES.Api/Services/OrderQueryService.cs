@@ -156,6 +156,10 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
                 .ThenInclude(d => d.Color)
             .Include(o => o.SalesOrderDetails)
                 .ThenInclude(d => d.LidColor)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.ValveTypeNavigation)
+            .Include(o => o.SalesOrderDetails)
+                .ThenInclude(d => d.Gauge)
             .Include(o => o.OrderAttachments)
             .Where(o => o.Id == id)
             .FirstOrDefaultAsync(cancellationToken);
@@ -509,8 +513,12 @@ public class OrderQueryService(LpcAppsDbContext db) : IOrderQueryService
             detail.NeedFillers,
             detail.NeedFootRings,
             detail.NeedDecals,
-            detail.ValveType,
-            detail.Gauges);
+            detail.ValveTypeId,
+            detail.ValveTypeNavigation?.DisplayName ?? detail.ValveType,
+            detail.ValveTypeNavigation?.IsActive,
+            detail.GaugeId,
+            detail.Gauge?.DisplayName ?? detail.Gauges,
+            detail.Gauge?.IsActive);
     }
 
     private static TransportBoardItemDto ToTransportBoardItemDto(SalesOrder order)

@@ -214,3 +214,19 @@ public record RouteRuleSimulationResponseDto(
     string? MatchTierLabel,
     RouteTemplateAssignmentDto? Assignment,
     RouteTemplateDetailDto? RouteTemplate);
+
+public record LookupOptionAdminDto(
+    int Id,
+    string Code,
+    string DisplayName,
+    bool IsActive,
+    int SortOrder,
+    bool IsInUse,
+    DateTime CreatedUtc,
+    DateTime UpdatedUtc);
+
+public record LookupOptionUpsertDto(
+    string Code,
+    string DisplayName,
+    bool IsActive,
+    int SortOrder);

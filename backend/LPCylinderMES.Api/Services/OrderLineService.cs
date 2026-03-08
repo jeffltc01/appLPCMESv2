@@ -58,11 +58,18 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
             NeedFillers = dto.NeedFillers,
             NeedFootRings = dto.NeedFootRings,
             NeedDecals = dto.NeedDecals,
-            ValveType = dto.ValveType,
-            Gauges = dto.Gauges,
+            ValveTypeId = dto.ValveTypeId,
+            GaugeId = dto.GaugeId,
             SiteId = order.SiteId,
             ReceiptStatus = ReceiptStatusCatalog.Unknown,
         };
+
+        await ValidateLookupSelectionAsync(
+            dto.ValveTypeId,
+            dto.GaugeId,
+            currentValveTypeId: null,
+            currentGaugeId: null,
+            cancellationToken);
 
         db.SalesOrderDetails.Add(detail);
         await db.SaveChangesAsync(cancellationToken);
@@ -71,6 +78,8 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
             .Include(d => d.Item)
             .Include(d => d.Color)
             .Include(d => d.LidColor)
+            .Include(d => d.ValveTypeNavigation)
+            .Include(d => d.Gauge)
             .FirstAsync(d => d.Id == detail.Id, cancellationToken);
 
         return ToOrderLineDto(created);
@@ -108,8 +117,14 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
         detail.NeedFillers = dto.NeedFillers;
         detail.NeedFootRings = dto.NeedFootRings;
         detail.NeedDecals = dto.NeedDecals;
-        detail.ValveType = dto.ValveType;
-        detail.Gauges = dto.Gauges;
+        await ValidateLookupSelectionAsync(
+            dto.ValveTypeId,
+            dto.GaugeId,
+            currentValveTypeId: detail.ValveTypeId,
+            currentGaugeId: detail.GaugeId,
+            cancellationToken);
+        detail.ValveTypeId = dto.ValveTypeId;
+        detail.GaugeId = dto.GaugeId;
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -117,6 +132,8 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
             .Include(d => d.Item)
             .Include(d => d.Color)
             .Include(d => d.LidColor)
+            .Include(d => d.ValveTypeNavigation)
+            .Include(d => d.Gauge)
             .FirstAsync(d => d.Id == detail.Id, cancellationToken);
 
         return ToOrderLineDto(updated);
@@ -173,6 +190,36 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
         return baseUnitPrice.HasValue ? (decimal?)baseUnitPrice.Value : null;
     }
 
+    private async Task ValidateLookupSelectionAsync(
+        int? valveTypeId,
+        int? gaugeId,
+        int? currentValveTypeId,
+        int? currentGaugeId,
+        CancellationToken cancellationToken)
+    {
+        if (valveTypeId.HasValue)
+        {
+            var selectedValveType = await db.ValveTypeLookups
+                .AsNoTracking()
+                .FirstOrDefaultAsync(v => v.Id == valveTypeId.Value, cancellationToken);
+            if (selectedValveType is null)
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Invalid Valve Type selection.");
+            if (!selectedValveType.IsActive && valveTypeId != currentValveTypeId)
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Selected Valve Type is inactive.");
+        }
+
+        if (gaugeId.HasValue)
+        {
+            var selectedGauge = await db.GaugeLookups
+                .AsNoTracking()
+                .FirstOrDefaultAsync(g => g.Id == gaugeId.Value, cancellationToken);
+            if (selectedGauge is null)
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Invalid Gauge selection.");
+            if (!selectedGauge.IsActive && gaugeId != currentGaugeId)
+                throw new ServiceException(StatusCodes.Status400BadRequest, "Selected Gauge is inactive.");
+        }
+    }
+
     private static OrderLineDto ToOrderLineDto(SalesOrderDetail detail)
     {
         return new OrderLineDto(
@@ -195,8 +242,12 @@ public class OrderLineService(LpcAppsDbContext db) : IOrderLineService
             detail.NeedFillers,
             detail.NeedFootRings,
             detail.NeedDecals,
-            detail.ValveType,
-            detail.Gauges);
+            detail.ValveTypeId,
+            detail.ValveTypeNavigation?.DisplayName ?? detail.ValveType,
+            detail.ValveTypeNavigation?.IsActive,
+            detail.GaugeId,
+            detail.Gauge?.DisplayName ?? detail.Gauges,
+            detail.Gauge?.IsActive);
     }
 }
 

@@ -237,3 +237,21 @@ export interface RouteRuleSimulationResponse {
   assignment: RouteTemplateAssignment | null;
   routeTemplate: RouteTemplateDetail | null;
 }
+
+export interface LookupOptionAdmin {
+  id: number;
+  code: string;
+  displayName: string;
+  isActive: boolean;
+  sortOrder: number;
+  isInUse: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+}
+
+export interface LookupOptionUpsert {
+  code: string;
+  displayName: string;
+  isActive: boolean;
+  sortOrder: number;
+}

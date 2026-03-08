@@ -39,6 +39,10 @@ public partial class SalesOrderDetail
 
     public string? Gauges { get; set; }
 
+    public int? ValveTypeId { get; set; }
+
+    public int? GaugeId { get; set; }
+
     public int SalesOrderId { get; set; }
 
     public int ItemId { get; set; }
@@ -63,6 +67,8 @@ public partial class SalesOrderDetail
 
     public virtual Item Item { get; set; } = null!;
 
+    public virtual GaugeLookup? Gauge { get; set; }
+
     public virtual Color? LidColor { get; set; }
 
     public virtual SalesOrder SalesOrder { get; set; } = null!;
@@ -72,4 +78,6 @@ public partial class SalesOrderDetail
     public virtual ICollection<SalesOrderDetailSn> SalesOrderDetailSns { get; set; } = new List<SalesOrderDetailSn>();
 
     public virtual Site? Site { get; set; }
+
+    public virtual ValveTypeLookup? ValveTypeNavigation { get; set; }
 }

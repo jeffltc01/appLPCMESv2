@@ -1,5 +1,6 @@
 using LPCylinderMES.Api.Data;
 using LPCylinderMES.Api.DTOs;
+using LPCylinderMES.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +8,9 @@ namespace LPCylinderMES.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class LookupsController(LpcAppsDbContext db) : ControllerBase
+public class LookupsController(
+    LpcAppsDbContext db,
+    IOrderLineLookupService orderLineLookupService) : ControllerBase
 {
     private static readonly Dictionary<string, int> ProductLineShowWhereFlags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -178,6 +181,13 @@ public class LookupsController(LpcAppsDbContext db) : ControllerBase
                 i.ProductLine))
             .ToListAsync();
         return Ok(items);
+    }
+
+    [HttpGet("order-line")]
+    public async Task<ActionResult<OrderLineLookupBundleDto>> GetOrderLineLookups(CancellationToken cancellationToken)
+    {
+        var response = await orderLineLookupService.GetOrderLineLookupsAsync(cancellationToken);
+        return Ok(response);
     }
 
     private static string FormatAddressLabel(

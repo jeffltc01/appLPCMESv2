@@ -3,6 +3,7 @@ import { FluentProvider } from "@fluentui/react-components";
 import { lpCylinderLightTheme } from "./theme";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
+import { RequireRole } from "./auth/RequireRole";
 import { OrderEntryPage } from "./pages/OrderEntryPage";
 import { OrderListPage } from "./pages/OrderListPage";
 import { InvoicePage } from "./pages/InvoicePage";
@@ -24,6 +25,8 @@ import { OrderAuditLogPage } from "./pages/OrderAuditLogPage";
 import { PlantManagerBoardPage } from "./pages/PlantManagerBoardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MicrosoftPopupCompletePage } from "./pages/MicrosoftPopupCompletePage";
+import { ValveTypesSetupPage } from "./pages/ValveTypesSetupPage";
+import { GaugesSetupPage } from "./pages/GaugesSetupPage";
 
 export default function App() {
   return (
@@ -184,6 +187,22 @@ export default function App() {
                 <RequireAuth>
                   <TabletSetupPage />
                 </RequireAuth>
+              }
+            />
+            <Route
+              path="/setup/valve-types"
+              element={
+                <RequireRole roles={["Admin"]}>
+                  <ValveTypesSetupPage />
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/setup/gauges"
+              element={
+                <RequireRole roles={["Admin"]}>
+                  <GaugesSetupPage />
+                </RequireRole>
               }
             />
             <Route

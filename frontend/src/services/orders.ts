@@ -34,6 +34,7 @@ import type {
   OrderLifecycleMigrationResult,
   OrderKpiSummary,
   OrderKpiDiagnostics,
+  OrderLineLookupBundle,
   WorkCenterKpiSummary,
   WorkCenterQueueItem,
   OrderRouteExecution,
@@ -655,6 +656,7 @@ export const orderLookupsApi = {
   salesPeople: () => api.get<SalesPersonLookup[]>("/lookups/sales-people"),
   colors: () => api.get<Lookup[]>("/lookups/colors"),
   scrapReasons: () => api.get<Lookup[]>("/lookups/scrap-reasons"),
+  orderLine: () => api.get<OrderLineLookupBundle>("/lookups/order-line"),
   defaultItemPrice: (orderId: number, itemId: number) =>
     api.get<number | null>(
       `/orders/${orderId}/lines/default-price?itemId=${itemId}`
