@@ -55,6 +55,7 @@ describe("RouteTemplatesSetupPage", () => {
     });
 
     expect(screen.getByText("Route Template Maintenance")).toBeInTheDocument();
+    expect(screen.getByText("Step Count")).toBeInTheDocument();
     expect(screen.getByText("RT-FILL-STD")).toBeInTheDocument();
     expect(screen.getByText("Legacy Refurb Route")).toBeInTheDocument();
   });

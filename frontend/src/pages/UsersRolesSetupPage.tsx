@@ -114,6 +114,104 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalS,
     alignItems: "end",
   },
+  rolesTableContainer: {
+    overflow: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  rolesGridHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "28% 42% 10% 20%",
+    width: "100%",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    alignItems: "center",
+    borderBottom: "1px solid #123046",
+    fontWeight: 700,
+    color: "#ffffff",
+    backgroundColor: "#123046",
+    minWidth: "900px",
+  },
+  rolesGridBody: {
+    minWidth: "900px",
+  },
+  rolesGridBodyRow: {
+    display: "grid",
+    gridTemplateColumns: "28% 42% 10% 20%",
+    width: "100%",
+    alignItems: "start",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  rolesGridCell: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    minWidth: 0,
+  },
+  roleNameColumn: {
+    width: "100%",
+  },
+  roleDescriptionColumn: {
+    width: "100%",
+  },
+  roleActiveColumn: {
+    width: "100%",
+  },
+  roleActionsColumn: {
+    width: "100%",
+  },
+  usersTableContainer: {
+    overflow: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+  },
+  usersGridHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "12% 18% 20% 12% 23% 15%",
+    width: "100%",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    alignItems: "center",
+    borderBottom: "1px solid #123046",
+    fontWeight: 700,
+    color: "#ffffff",
+    backgroundColor: "#123046",
+    minWidth: "1100px",
+  },
+  usersGridBody: {
+    minWidth: "1100px",
+  },
+  usersGridBodyRow: {
+    display: "grid",
+    gridTemplateColumns: "12% 18% 20% 12% 23% 15%",
+    width: "100%",
+    alignItems: "start",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  usersGridCell: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    minWidth: 0,
+  },
+  empNoColumn: {
+    width: "100%",
+  },
+  displayNameColumn: {
+    width: "100%",
+  },
+  emailColumn: {
+    width: "100%",
+  },
+  stateColumn: {
+    width: "100%",
+  },
+  rolesColumn: {
+    width: "100%",
+  },
+  userActionsColumn: {
+    width: "100%",
+  },
 });
 
 type UserState = "Active" | "Inactive" | "Locked";
@@ -413,25 +511,19 @@ export function UsersRolesSetupPage({ mode = "both" }: UsersRolesSetupPageProps)
         <header className={styles.headerBar}>
           <Title1 style={{ color: "#ffffff" }}>{pageTitle}</Title1>
           <div className={styles.headerActions}>
-            {mode !== "users" ? (
-              <Button appearance="secondary" onClick={() => navigate("/setup/users")}>
-                Users Setup
-              </Button>
-            ) : null}
-            {mode !== "roles" ? (
-              <Button appearance="secondary" onClick={() => navigate("/setup/roles")}>
-                Roles Setup
-              </Button>
-            ) : null}
-            <Button appearance="secondary" onClick={() => navigate("/setup/work-centers")}>
-              Work Centers Setup
-            </Button>
-            <Button appearance="secondary" onClick={() => navigate("/setup/items")}>
-              Items Setup
-            </Button>
             <Button appearance="secondary" onClick={() => navigate("/")}>
               Home
             </Button>
+            {mode === "roles" ? (
+              <Button appearance="primary" onClick={openCreateRole}>
+                Add Role
+              </Button>
+            ) : null}
+            {mode === "users" ? (
+              <Button appearance="primary" onClick={openCreateUser}>
+                Add User
+              </Button>
+            ) : null}
           </div>
         </header>
 
@@ -447,29 +539,33 @@ export function UsersRolesSetupPage({ mode = "both" }: UsersRolesSetupPageProps)
               <section className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <Title3>Roles</Title3>
-                  <Button appearance="primary" onClick={openCreateRole}>
-                    Add Role
-                  </Button>
+                  {mode !== "roles" ? (
+                    <Button appearance="primary" onClick={openCreateRole}>
+                      Add Role
+                    </Button>
+                  ) : null}
                 </div>
                 {loading ? (
                   <Body1>Loading...</Body1>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHeaderCell>Role Name</TableHeaderCell>
-                        <TableHeaderCell>Description</TableHeaderCell>
-                        <TableHeaderCell>Active</TableHeaderCell>
-                        <TableHeaderCell>Actions</TableHeaderCell>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <div className={styles.rolesTableContainer}>
+                    <div className={styles.rolesGridHeaderRow}>
+                      <div className={`${styles.rolesGridCell} ${styles.roleNameColumn}`}>Role Name</div>
+                      <div className={`${styles.rolesGridCell} ${styles.roleDescriptionColumn}`}>Description</div>
+                      <div className={`${styles.rolesGridCell} ${styles.roleActiveColumn}`}>Active</div>
+                      <div className={`${styles.rolesGridCell} ${styles.roleActionsColumn}`}>Actions</div>
+                    </div>
+                    <div className={styles.rolesGridBody}>
                       {roles.map((role) => (
-                        <TableRow key={role.id}>
-                          <TableCell>{role.roleName}</TableCell>
-                          <TableCell>{role.description ?? "-"}</TableCell>
-                          <TableCell>{role.isActive ? "Yes" : "No"}</TableCell>
-                          <TableCell>
+                        <div key={role.id} className={styles.rolesGridBodyRow}>
+                          <div className={`${styles.rolesGridCell} ${styles.roleNameColumn}`}>{role.roleName}</div>
+                          <div className={`${styles.rolesGridCell} ${styles.roleDescriptionColumn}`}>
+                            {role.description ?? "-"}
+                          </div>
+                          <div className={`${styles.rolesGridCell} ${styles.roleActiveColumn}`}>
+                            {role.isActive ? "Yes" : "No"}
+                          </div>
+                          <div className={`${styles.rolesGridCell} ${styles.roleActionsColumn}`}>
                             <div className={styles.actions}>
                               <Button appearance="secondary" onClick={() => openEditRole(role)}>
                                 Edit
@@ -478,11 +574,21 @@ export function UsersRolesSetupPage({ mode = "both" }: UsersRolesSetupPageProps)
                                 Delete
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                      {roles.length === 0 ? (
+                        <div className={styles.rolesGridBodyRow}>
+                          <div className={`${styles.rolesGridCell} ${styles.roleNameColumn}`}>-</div>
+                          <div className={`${styles.rolesGridCell} ${styles.roleDescriptionColumn}`}>
+                            No roles found.
+                          </div>
+                          <div className={`${styles.rolesGridCell} ${styles.roleActiveColumn}`}>-</div>
+                          <div className={`${styles.rolesGridCell} ${styles.roleActionsColumn}`}>-</div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 )}
               </section>
             ) : null}
@@ -491,35 +597,32 @@ export function UsersRolesSetupPage({ mode = "both" }: UsersRolesSetupPageProps)
               <section className={styles.section}>
                 <div className={styles.sectionHeader}>
                   <Title3>Users</Title3>
-                  <Button appearance="primary" onClick={openCreateUser}>
-                    Add User
-                  </Button>
                 </div>
                 {loading ? (
                   <Body1>Loading...</Body1>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHeaderCell>Emp No</TableHeaderCell>
-                        <TableHeaderCell>Display Name</TableHeaderCell>
-                        <TableHeaderCell>Email</TableHeaderCell>
-                        <TableHeaderCell>State</TableHeaderCell>
-                        <TableHeaderCell>Roles</TableHeaderCell>
-                        <TableHeaderCell>Actions</TableHeaderCell>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                  <div className={styles.usersTableContainer}>
+                    <div className={styles.usersGridHeaderRow}>
+                      <div className={`${styles.usersGridCell} ${styles.empNoColumn}`}>Emp No</div>
+                      <div className={`${styles.usersGridCell} ${styles.displayNameColumn}`}>Display Name</div>
+                      <div className={`${styles.usersGridCell} ${styles.emailColumn}`}>Email</div>
+                      <div className={`${styles.usersGridCell} ${styles.stateColumn}`}>State</div>
+                      <div className={`${styles.usersGridCell} ${styles.rolesColumn}`}>Roles</div>
+                      <div className={`${styles.usersGridCell} ${styles.userActionsColumn}`}>Actions</div>
+                    </div>
+                    <div className={styles.usersGridBody}>
                       {users.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell>{user.empNo ?? "-"}</TableCell>
-                          <TableCell>{user.displayName}</TableCell>
-                          <TableCell>{user.email ?? "-"}</TableCell>
-                          <TableCell>{user.state}</TableCell>
-                          <TableCell>
+                        <div key={user.id} className={styles.usersGridBodyRow}>
+                          <div className={`${styles.usersGridCell} ${styles.empNoColumn}`}>{user.empNo ?? "-"}</div>
+                          <div className={`${styles.usersGridCell} ${styles.displayNameColumn}`}>
+                            {user.displayName}
+                          </div>
+                          <div className={`${styles.usersGridCell} ${styles.emailColumn}`}>{user.email ?? "-"}</div>
+                          <div className={`${styles.usersGridCell} ${styles.stateColumn}`}>{user.state}</div>
+                          <div className={`${styles.usersGridCell} ${styles.rolesColumn}`}>
                             {user.roles.map((role) => role.roleName).join(", ") || "-"}
-                          </TableCell>
-                          <TableCell>
+                          </div>
+                          <div className={`${styles.usersGridCell} ${styles.userActionsColumn}`}>
                             <div className={styles.actions}>
                               <Button appearance="secondary" onClick={() => openEditUser(user)}>
                                 Edit
@@ -528,11 +631,23 @@ export function UsersRolesSetupPage({ mode = "both" }: UsersRolesSetupPageProps)
                                 Delete
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
+                      {users.length === 0 ? (
+                        <div className={styles.usersGridBodyRow}>
+                          <div className={`${styles.usersGridCell} ${styles.empNoColumn}`}>-</div>
+                          <div className={`${styles.usersGridCell} ${styles.displayNameColumn}`}>
+                            No users found.
+                          </div>
+                          <div className={`${styles.usersGridCell} ${styles.emailColumn}`}>-</div>
+                          <div className={`${styles.usersGridCell} ${styles.stateColumn}`}>-</div>
+                          <div className={`${styles.usersGridCell} ${styles.rolesColumn}`}>-</div>
+                          <div className={`${styles.usersGridCell} ${styles.userActionsColumn}`}>-</div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 )}
               </section>
             ) : null}

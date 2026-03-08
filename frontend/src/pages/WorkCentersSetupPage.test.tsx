@@ -53,6 +53,7 @@ describe("WorkCentersSetupPage", () => {
     });
 
     expect(screen.getByText("Work Center Maintenance")).toBeInTheDocument();
+    expect(screen.getByText("Time Capture Mode")).toBeInTheDocument();
     expect(screen.getByText("WC-BLAST")).toBeInTheDocument();
     expect(screen.getByText("Blast Prep")).toBeInTheDocument();
     expect(screen.getByText("Houston")).toBeInTheDocument();

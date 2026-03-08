@@ -94,4 +94,33 @@ describe("ItemsSetupPage", () => {
       expect(screen.queryByText("ITEM-CYL-1")).not.toBeInTheDocument();
     });
   });
+
+  it("filters rows by search term in item no or description", async () => {
+    render(
+      <MemoryRouter>
+        <ItemsSetupPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("ITEM-BR-1")).toBeInTheDocument();
+    expect(screen.getByText("ITEM-CYL-1")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "cyl" },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("ITEM-BR-1")).not.toBeInTheDocument();
+      expect(screen.getByText("ITEM-CYL-1")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "BR item" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("ITEM-BR-1")).toBeInTheDocument();
+      expect(screen.queryByText("ITEM-CYL-1")).not.toBeInTheDocument();
+    });
+  });
 });

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Body1,
   Button,
@@ -17,7 +17,7 @@ import {
   tokens,
 } from "@fluentui/react-components";
 import { Add24Regular } from "@fluentui/react-icons";
-import { ordersApi } from "../services/orders";
+import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
 import type { OrderDraftListItem } from "../types/order";
 import { HelpEntryPoint } from "../components/help/HelpEntryPoint";
 import { PageHeader } from "../components/layout/PageHeader";
@@ -188,24 +188,102 @@ function getLifecyclePillClass(
   return styles.statusPillDefault;
 }
 
+type AgingBucketFilter = "0-15" | "16-30" | "31-60" | "60-plus";
+
+function toDate(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function diffDays(start: Date, end: Date): number {
+  const msPerDay = 1000 * 60 * 60 * 24;
+  return (end.getTime() - start.getTime()) / msPerDay;
+}
+
+function isOpenOrder(order: OrderDraftListItem): boolean {
+  const rawStatus = order.orderLifecycleStatus ?? order.orderStatus;
+  return getWorkspaceCurrentStatus(rawStatus) !== "Invoiced";
+}
+
+function matchesAgingBucket(order: OrderDraftListItem, bucket: AgingBucketFilter): boolean {
+  if (!isOpenOrder(order)) {
+    return false;
+  }
+  const orderDate = toDate(order.orderDate);
+  if (!orderDate) {
+    return false;
+  }
+  const ageDays = Math.floor(diffDays(orderDate, new Date()));
+  if (bucket === "0-15") {
+    return ageDays <= 15;
+  }
+  if (bucket === "16-30") {
+    return ageDays >= 16 && ageDays <= 30;
+  }
+  if (bucket === "31-60") {
+    return ageDays >= 31 && ageDays <= 60;
+  }
+  return ageDays > 60;
+}
+
+function getAgingBucketLabel(bucket: AgingBucketFilter): string {
+  if (bucket === "0-15") {
+    return "0-15 days";
+  }
+  if (bucket === "16-30") {
+    return "16-30 days";
+  }
+  if (bucket === "31-60") {
+    return "31-60 days";
+  }
+  return ">60 days";
+}
+
 export function OrderListPage() {
   const styles = useStyles();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<OrderDraftListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const agingBucketParam = searchParams.get("agingBucket");
+  const agingBucketFilter =
+    agingBucketParam === "0-15" ||
+    agingBucketParam === "16-30" ||
+    agingBucketParam === "31-60" ||
+    agingBucketParam === "60-plus"
+      ? agingBucketParam
+      : null;
 
   const loadOrders = async (query?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await ordersApi.list({
-        page: 1,
-        pageSize: 100,
-        search: (query ?? "").trim() || undefined,
-      });
-      setOrders(result.items);
+      const allOrders: OrderDraftListItem[] = [];
+      const normalizedSearch = (query ?? "").trim() || undefined;
+      let page = 1;
+      let totalCount = Number.POSITIVE_INFINITY;
+
+      while (allOrders.length < totalCount) {
+        const result = await ordersApi.list({
+          page,
+          search: normalizedSearch,
+        });
+
+        allOrders.push(...result.items);
+        totalCount = result.totalCount;
+
+        if (result.items.length === 0) {
+          break;
+        }
+        page += 1;
+      }
+
+      setOrders(allOrders);
     } catch {
       setError("Unable to load orders.");
     } finally {
@@ -216,6 +294,13 @@ export function OrderListPage() {
   useEffect(() => {
     void loadOrders("");
   }, []);
+
+  const visibleOrders = useMemo(() => {
+    if (!agingBucketFilter) {
+      return orders;
+    }
+    return orders.filter((order) => matchesAgingBucket(order, agingBucketFilter));
+  }, [agingBucketFilter, orders]);
 
   return (
     <div className={styles.page}>
@@ -257,9 +342,23 @@ export function OrderListPage() {
                 >
                   {loading ? "Loading..." : "Search"}
                 </Button>
+                {agingBucketFilter ? (
+                  <Button
+                    appearance="subtle"
+                    onClick={() => {
+                      setSearchParams((current) => {
+                        const next = new URLSearchParams(current);
+                        next.delete("agingBucket");
+                        return next;
+                      });
+                    }}
+                  >
+                    Clear Aging Filter ({getAgingBucketLabel(agingBucketFilter)})
+                  </Button>
+                ) : null}
               </div>
               <Body1 className={styles.tableMeta}>
-                {loading ? "Loading sales orders..." : `${orders.length} sales order(s)`}
+                {loading ? "Loading sales orders..." : `${visibleOrders.length} sales order(s)`}
               </Body1>
               {error ? (
                 <div className={styles.errorBanner}>
@@ -280,7 +379,7 @@ export function OrderListPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders.map((order) => (
+                    {visibleOrders.map((order) => (
                       <TableRow
                         key={order.id}
                         className={styles.clickableRow}
@@ -307,7 +406,7 @@ export function OrderListPage() {
                         <TableCell className={styles.dataCell}>{order.siteName}</TableCell>
                       </TableRow>
                     ))}
-                    {!loading && orders.length === 0 ? (
+                    {!loading && visibleOrders.length === 0 ? (
                       <TableRow>
                         <TableCell className={styles.dataCell}>-</TableCell>
                         <TableCell className={styles.dataCell}>-</TableCell>

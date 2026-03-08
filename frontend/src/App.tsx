@@ -21,7 +21,6 @@ import { RouteTemplateDetailPage } from "./pages/RouteTemplateDetailPage";
 import { TabletSetupPage } from "./pages/TabletSetupPage";
 import { WorkCenterOperatorPage } from "./pages/WorkCenterOperatorPage";
 import { OrderAuditLogPage } from "./pages/OrderAuditLogPage";
-import { FeatureFlagsSitePoliciesSetupPage } from "./pages/FeatureFlagsSitePoliciesSetupPage";
 import { PlantManagerBoardPage } from "./pages/PlantManagerBoardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MicrosoftPopupCompletePage } from "./pages/MicrosoftPopupCompletePage";
@@ -160,14 +159,6 @@ export default function App() {
               element={
                 <RequireAuth>
                   <OrderAuditLogPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/setup/feature-flags-policies"
-              element={
-                <RequireAuth>
-                  <FeatureFlagsSitePoliciesSetupPage />
                 </RequireAuth>
               }
             />

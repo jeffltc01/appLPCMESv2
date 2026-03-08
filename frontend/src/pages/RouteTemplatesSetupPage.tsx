@@ -9,14 +9,9 @@ import {
   MessageBar,
   MessageBarBody,
   Option,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
   Title1,
   makeStyles,
+  mergeClasses,
   tokens,
 } from "@fluentui/react-components";
 import { useNavigate } from "react-router-dom";
@@ -36,6 +31,7 @@ const useStyles = makeStyles({
   main: {
     display: "grid",
     gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    height: "100vh",
     minWidth: 0,
   },
   utilityBar: {
@@ -65,11 +61,15 @@ const useStyles = makeStyles({
   },
   content: {
     padding: "16px 20px",
-    overflow: "auto",
+    overflow: "hidden",
+    minHeight: 0,
   },
   contentStack: {
     display: "grid",
+    gridTemplateRows: "auto auto auto minmax(0, 1fr)",
     gap: tokens.spacingVerticalM,
+    height: "100%",
+    minHeight: 0,
   },
   card: {
     border: "1px solid #d8d8d8",
@@ -106,6 +106,63 @@ const useStyles = makeStyles({
   actions: {
     display: "flex",
     gap: tokens.spacingHorizontalS,
+  },
+  tableCard: {
+    minHeight: 0,
+    display: "grid",
+  },
+  tableContainer: {
+    overflow: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+    minHeight: 0,
+  },
+  gridHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "20% 28% 10% 12% 10% 20%",
+    width: "100%",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    alignItems: "center",
+    borderBottom: "1px solid #123046",
+    fontWeight: 700,
+    color: "#ffffff",
+    backgroundColor: "#123046",
+    minWidth: "980px",
+  },
+  gridBody: {
+    minWidth: "980px",
+  },
+  gridBodyRow: {
+    display: "grid",
+    gridTemplateColumns: "20% 28% 10% 12% 10% 20%",
+    width: "100%",
+    alignItems: "start",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  gridCell: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    minWidth: 0,
+  },
+  codeColumn: {
+    width: "100%",
+  },
+  nameColumn: {
+    width: "100%",
+  },
+  versionColumn: {
+    width: "100%",
+  },
+  stepCountColumn: {
+    width: "100%",
+  },
+  activeColumn: {
+    width: "100%",
+  },
+  actionsColumn: {
+    width: "100%",
   },
 });
 
@@ -218,30 +275,30 @@ export function RouteTemplatesSetupPage() {
               </div>
             </Card>
 
-            <Card className={styles.card}>
+            <Card className={mergeClasses(styles.card, styles.tableCard)}>
               {loading ? (
                 <Body1>Loading...</Body1>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHeaderCell>Code</TableHeaderCell>
-                      <TableHeaderCell>Name</TableHeaderCell>
-                      <TableHeaderCell>Version</TableHeaderCell>
-                      <TableHeaderCell>Step Count</TableHeaderCell>
-                      <TableHeaderCell>Active</TableHeaderCell>
-                      <TableHeaderCell>Actions</TableHeaderCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <div className={styles.tableContainer}>
+                  <div className={styles.gridHeaderRow}>
+                    <div className={mergeClasses(styles.gridCell, styles.codeColumn)}>Code</div>
+                    <div className={mergeClasses(styles.gridCell, styles.nameColumn)}>Name</div>
+                    <div className={mergeClasses(styles.gridCell, styles.versionColumn)}>Version</div>
+                    <div className={mergeClasses(styles.gridCell, styles.stepCountColumn)}>Step Count</div>
+                    <div className={mergeClasses(styles.gridCell, styles.activeColumn)}>Active</div>
+                    <div className={mergeClasses(styles.gridCell, styles.actionsColumn)}>Actions</div>
+                  </div>
+                  <div className={styles.gridBody}>
                     {filteredRows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.routeTemplateCode}</TableCell>
-                        <TableCell>{row.routeTemplateName}</TableCell>
-                        <TableCell>{row.versionNo}</TableCell>
-                        <TableCell>{row.stepCount}</TableCell>
-                        <TableCell>{row.isActive ? "Yes" : "No"}</TableCell>
-                        <TableCell>
+                      <div key={row.id} className={styles.gridBodyRow}>
+                        <div className={mergeClasses(styles.gridCell, styles.codeColumn)}>{row.routeTemplateCode}</div>
+                        <div className={mergeClasses(styles.gridCell, styles.nameColumn)}>{row.routeTemplateName}</div>
+                        <div className={mergeClasses(styles.gridCell, styles.versionColumn)}>{row.versionNo}</div>
+                        <div className={mergeClasses(styles.gridCell, styles.stepCountColumn)}>{row.stepCount}</div>
+                        <div className={mergeClasses(styles.gridCell, styles.activeColumn)}>
+                          {row.isActive ? "Yes" : "No"}
+                        </div>
+                        <div className={mergeClasses(styles.gridCell, styles.actionsColumn)}>
                           <div className={styles.actions}>
                             <Button
                               appearance="secondary"
@@ -250,21 +307,23 @@ export function RouteTemplatesSetupPage() {
                               Edit
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                      </div>
                     ))}
                     {filteredRows.length === 0 ? (
-                      <TableRow>
-                        <TableCell>-</TableCell>
-                        <TableCell>No matching route templates.</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
-                        <TableCell>-</TableCell>
-                      </TableRow>
+                      <div className={styles.gridBodyRow}>
+                        <div className={mergeClasses(styles.gridCell, styles.codeColumn)}>-</div>
+                        <div className={mergeClasses(styles.gridCell, styles.nameColumn)}>
+                          No matching route templates.
+                        </div>
+                        <div className={mergeClasses(styles.gridCell, styles.versionColumn)}>-</div>
+                        <div className={mergeClasses(styles.gridCell, styles.stepCountColumn)}>-</div>
+                        <div className={mergeClasses(styles.gridCell, styles.activeColumn)}>-</div>
+                        <div className={mergeClasses(styles.gridCell, styles.actionsColumn)}>-</div>
+                      </div>
                     ) : null}
-                  </TableBody>
-                </Table>
+                  </div>
+                </div>
               )}
             </Card>
           </div>

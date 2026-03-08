@@ -71,7 +71,7 @@ describe("UsersRolesSetupPage", () => {
 
     expect(screen.getByText("Setup - Users & Roles")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add Role" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add User" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add User" })).not.toBeInTheDocument();
     expect(screen.getAllByText("Admin").length).toBeGreaterThan(0);
     expect(screen.getByText("Alice Operator")).toBeInTheDocument();
   });

@@ -15,12 +15,6 @@ import {
   MessageBarBody,
   Option,
   Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
   Title1,
   makeStyles,
   tokens,
@@ -39,6 +33,7 @@ const useStyles = makeStyles({
   main: {
     display: "grid",
     gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    height: "100vh",
     minWidth: 0,
   },
   utilityBar: {
@@ -68,11 +63,14 @@ const useStyles = makeStyles({
   },
   content: {
     padding: "16px 20px",
-    overflow: "auto",
+    overflow: "hidden",
+    minHeight: 0,
   },
   contentStack: {
     display: "grid",
     gap: tokens.spacingVerticalM,
+    height: "100%",
+    minHeight: 0,
   },
   actions: {
     display: "flex",
@@ -89,7 +87,9 @@ const useStyles = makeStyles({
   },
   itemsScrollRegion: {
     display: "grid",
+    gridTemplateRows: "auto auto minmax(0, 1fr)",
     gap: tokens.spacingVerticalM,
+    minHeight: 0,
   },
   filterBar: {
     display: "flex",
@@ -99,6 +99,59 @@ const useStyles = makeStyles({
   },
   filterField: {
     minWidth: "220px",
+  },
+  tableContainer: {
+    overflow: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+    minHeight: 0,
+  },
+  gridHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "14% 28% 15% 15% 14% 14%",
+    width: "100%",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    alignItems: "center",
+    borderBottom: "1px solid #123046",
+    fontWeight: 700,
+    color: "#ffffff",
+    backgroundColor: "#123046",
+    minWidth: "980px",
+  },
+  gridBody: {
+    minWidth: "980px",
+  },
+  gridBodyRow: {
+    display: "grid",
+    gridTemplateColumns: "14% 28% 15% 15% 14% 14%",
+    width: "100%",
+    alignItems: "start",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  gridCell: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    minWidth: 0,
+  },
+  itemNoColumn: {
+    width: "100%",
+  },
+  descriptionColumn: {
+    width: "100%",
+  },
+  itemTypeColumn: {
+    width: "100%",
+  },
+  productLineColumn: {
+    width: "100%",
+  },
+  sizeColumn: {
+    width: "100%",
+  },
+  actionsColumn: {
+    width: "100%",
   },
 });
 
@@ -120,6 +173,7 @@ export function ItemsSetupPage() {
   const [itemSizes, setItemSizes] = useState<ItemSizeLookup[]>([]);
   const [productLines, setProductLines] = useState<string[]>([]);
   const [productLineFilter, setProductLineFilter] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -149,11 +203,22 @@ export function ItemsSetupPage() {
     return ["All", ...valuesFromRows];
   }, [productLines, rows]);
   const filteredRows = useMemo(() => {
-    if (productLineFilter === "All") {
-      return rows;
-    }
-    return rows.filter((row) => (row.productLine ?? "").trim() === productLineFilter);
-  }, [productLineFilter, rows]);
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesProductLine =
+        productLineFilter === "All" || (row.productLine ?? "").trim() === productLineFilter;
+      if (!matchesProductLine) {
+        return false;
+      }
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const itemNo = row.itemNo.toLowerCase();
+      const description = (row.itemDescription ?? "").toLowerCase();
+      return itemNo.includes(normalizedSearch) || description.includes(normalizedSearch);
+    });
+  }, [productLineFilter, rows, searchTerm]);
 
   const load = async () => {
     setLoading(true);
@@ -284,6 +349,14 @@ export function ItemsSetupPage() {
                     ))}
                   </Select>
                 </Field>
+                <Field className={styles.filterField} label="Search">
+                  <Input
+                    value={searchTerm}
+                    onChange={(_, data) => setSearchTerm(data.value)}
+                    placeholder="Item no or description"
+                    aria-label="Search"
+                  />
+                </Field>
               </div>
 
               {error && (
@@ -295,26 +368,26 @@ export function ItemsSetupPage() {
               {loading ? (
                 <Body1>Loading...</Body1>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHeaderCell>Item No</TableHeaderCell>
-                      <TableHeaderCell>Description</TableHeaderCell>
-                      <TableHeaderCell>Item Type</TableHeaderCell>
-                      <TableHeaderCell>Product Line</TableHeaderCell>
-                      <TableHeaderCell>Size</TableHeaderCell>
-                      <TableHeaderCell>Actions</TableHeaderCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <div className={styles.tableContainer}>
+                  <div className={styles.gridHeaderRow}>
+                    <div className={`${styles.gridCell} ${styles.itemNoColumn}`}>Item No</div>
+                    <div className={`${styles.gridCell} ${styles.descriptionColumn}`}>Description</div>
+                    <div className={`${styles.gridCell} ${styles.itemTypeColumn}`}>Item Type</div>
+                    <div className={`${styles.gridCell} ${styles.productLineColumn}`}>Product Line</div>
+                    <div className={`${styles.gridCell} ${styles.sizeColumn}`}>Size</div>
+                    <div className={`${styles.gridCell} ${styles.actionsColumn}`}>Actions</div>
+                  </div>
+                  <div className={styles.gridBody}>
                     {filteredRows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.itemNo}</TableCell>
-                        <TableCell>{row.itemDescription ?? "-"}</TableCell>
-                        <TableCell>{row.itemType}</TableCell>
-                        <TableCell>{row.productLine ?? "-"}</TableCell>
-                        <TableCell>{row.sizeName ?? "-"}</TableCell>
-                        <TableCell>
+                      <div key={row.id} className={styles.gridBodyRow}>
+                        <div className={`${styles.gridCell} ${styles.itemNoColumn}`}>{row.itemNo}</div>
+                        <div className={`${styles.gridCell} ${styles.descriptionColumn}`}>
+                          {row.itemDescription ?? "-"}
+                        </div>
+                        <div className={`${styles.gridCell} ${styles.itemTypeColumn}`}>{row.itemType}</div>
+                        <div className={`${styles.gridCell} ${styles.productLineColumn}`}>{row.productLine ?? "-"}</div>
+                        <div className={`${styles.gridCell} ${styles.sizeColumn}`}>{row.sizeName ?? "-"}</div>
+                        <div className={`${styles.gridCell} ${styles.actionsColumn}`}>
                           <div className={styles.actions}>
                             <Button appearance="secondary" onClick={() => void startEdit(row.id)}>
                               Edit
@@ -323,11 +396,21 @@ export function ItemsSetupPage() {
                               Delete
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                    {filteredRows.length === 0 ? (
+                      <div className={styles.gridBodyRow}>
+                        <div className={`${styles.gridCell} ${styles.itemNoColumn}`}>-</div>
+                        <div className={`${styles.gridCell} ${styles.descriptionColumn}`}>No items found.</div>
+                        <div className={`${styles.gridCell} ${styles.itemTypeColumn}`}>-</div>
+                        <div className={`${styles.gridCell} ${styles.productLineColumn}`}>-</div>
+                        <div className={`${styles.gridCell} ${styles.sizeColumn}`}>-</div>
+                        <div className={`${styles.gridCell} ${styles.actionsColumn}`}>-</div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               )}
             </div>
           </div>

@@ -45,12 +45,6 @@ const ADMIN_MENU_ITEMS = [
   { key: "route-templates", label: "Route Templates", path: "/setup/route-templates", enabled: true },
   { key: "users", label: "Users", path: "/setup/users", enabled: true },
   { key: "roles", label: "Roles", path: "/setup/roles", enabled: true },
-  {
-    key: "feature-flags-policies",
-    label: "Feature Flags & Site Policies",
-    path: "/setup/feature-flags-policies",
-    enabled: true,
-  },
   { key: "order-audit-log", label: "Order Audit Log", path: "/setup/order-audit-log", enabled: true },
 ];
 
@@ -415,7 +409,8 @@ function buildMonthlyAverage(
     .map(([month, aggregate]) => ({
       month,
       value: Math.round((aggregate.total / aggregate.count) * 10) / 10,
-    }));
+    }))
+    .slice(-12);
 }
 
 function buildNiceTicks(maxValue: number, targetTickCount = 5): number[] {
@@ -463,8 +458,22 @@ export function MenuPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await ordersApi.list({ page: 1, pageSize: 200 });
-        setOrders(response.items);
+        const allOrders: OrderDraftListItem[] = [];
+        let page = 1;
+        let totalCount = Number.POSITIVE_INFINITY;
+
+        while (allOrders.length < totalCount) {
+          const response = await ordersApi.list({ page });
+          allOrders.push(...response.items);
+          totalCount = response.totalCount;
+
+          if (response.items.length === 0) {
+            break;
+          }
+          page += 1;
+        }
+
+        setOrders(allOrders);
       } catch {
         setError("Unable to load order metrics.");
       } finally {
@@ -498,10 +507,10 @@ export function MenuPage() {
   const openOrderAgingChart = useMemo(() => {
     const now = new Date();
     const buckets = [
-      { label: "0-15", count: 0 },
-      { label: "16-30", count: 0 },
-      { label: "31-60", count: 0 },
-      { label: ">60", count: 0 },
+      { key: "0-15", label: "0-15", count: 0 },
+      { key: "16-30", label: "16-30", count: 0 },
+      { key: "31-60", label: "31-60", count: 0 },
+      { key: "60-plus", label: ">60", count: 0 },
     ];
 
     for (const order of filteredOrders) {
@@ -525,14 +534,13 @@ export function MenuPage() {
     }
 
     const maxCount = Math.max(1, ...buckets.map((bucket) => bucket.count));
-    const chartMaxHeightPx = 130;
-    const chartMinHeightPx = 10;
-    const countLabelOffsetPx = 4;
-    const countLabelReservePx = 16;
+    const ticks = buildNiceTicks(maxCount);
+    const yAxisMax = ticks[ticks.length - 1] ?? maxCount;
     return {
       buckets,
       maxCount,
-      ticks: [maxCount, Math.round((maxCount * 2) / 3), Math.round(maxCount / 3), 0],
+      yAxisMax,
+      ticks,
     };
   }, [filteredOrders]);
   const avgDaysToPickupByMonth = useMemo(
@@ -685,7 +693,7 @@ export function MenuPage() {
     const plotBottom = topPad + plotHeight;
     const bucketBand = plotWidth / openOrderAgingChart.buckets.length;
     const barWidth = Math.min(80, Math.max(44, bucketBand * 0.62));
-    const yFor = (value: number) => topPad + (1 - value / openOrderAgingChart.maxCount) * plotHeight;
+    const yFor = (value: number) => topPad + (1 - value / openOrderAgingChart.yAxisMax) * plotHeight;
 
     return (
       <svg
@@ -699,7 +707,13 @@ export function MenuPage() {
           return (
             <g key={`aging-grid-${index}`}>
               <line x1={leftPad} y1={y} x2={width - rightPad} y2={y} stroke="#B8B8B8" />
-              <text x={leftPad - 10} y={y + 4} textAnchor="end" className={styles.lineChartAxisLabel}>
+              <text
+                x={leftPad - 10}
+                y={y + 4}
+                textAnchor="end"
+                className={styles.lineChartAxisLabel}
+                data-aging-chart-y-tick="true"
+              >
                 {tick}
               </text>
             </g>
@@ -709,11 +723,31 @@ export function MenuPage() {
         <line x1={leftPad} y1={plotBottom} x2={width - rightPad} y2={plotBottom} stroke="#D2D2D2" />
         {openOrderAgingChart.buckets.map((bucket, index) => {
           const xCenter = leftPad + bucketBand * (index + 0.5);
-          const barHeight = (bucket.count / openOrderAgingChart.maxCount) * plotHeight;
+          const barHeight = (bucket.count / openOrderAgingChart.yAxisMax) * plotHeight;
           const barY = plotBottom - barHeight;
           const labelY = Math.max(topPad + 10, barY - 6);
           return (
-            <g key={bucket.label}>
+            <g
+              key={bucket.key}
+              role="button"
+              tabIndex={0}
+              style={{ cursor: "pointer" }}
+              onClick={() =>
+                navigate({
+                  pathname: "/orders",
+                  search: `?agingBucket=${encodeURIComponent(bucket.key)}`,
+                })
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  navigate({
+                    pathname: "/orders",
+                    search: `?agingBucket=${encodeURIComponent(bucket.key)}`,
+                  });
+                }
+              }}
+            >
               <rect
                 x={xCenter - barWidth / 2}
                 y={barY}

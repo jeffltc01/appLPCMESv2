@@ -15,12 +15,6 @@ import {
   MessageBar,
   MessageBarBody,
   Option,
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
   Title1,
   makeStyles,
   tokens,
@@ -40,6 +34,7 @@ const useStyles = makeStyles({
   main: {
     display: "grid",
     gridTemplateRows: "44px 56px minmax(0, 1fr)",
+    height: "100vh",
     minWidth: 0,
   },
   utilityBar: {
@@ -69,11 +64,71 @@ const useStyles = makeStyles({
   },
   content: {
     padding: "16px 20px",
-    overflow: "auto",
+    overflow: "hidden",
+    minHeight: 0,
   },
   contentStack: {
     display: "grid",
+    gridTemplateRows: "auto minmax(0, 1fr)",
     gap: tokens.spacingVerticalM,
+    height: "100%",
+    minHeight: 0,
+  },
+  tableContainer: {
+    overflow: "auto",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground1,
+    minHeight: 0,
+  },
+  gridHeaderRow: {
+    display: "grid",
+    gridTemplateColumns: "12% 20% 14% 16% 16% 8% 14%",
+    width: "100%",
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+    alignItems: "center",
+    borderBottom: "1px solid #123046",
+    fontWeight: 700,
+    color: "#ffffff",
+    backgroundColor: "#123046",
+    minWidth: "1100px",
+  },
+  gridBody: {
+    minWidth: "1100px",
+  },
+  gridBodyRow: {
+    display: "grid",
+    gridTemplateColumns: "12% 20% 14% 16% 16% 8% 14%",
+    width: "100%",
+    alignItems: "start",
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  gridCell: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    minWidth: 0,
+  },
+  codeColumn: {
+    width: "100%",
+  },
+  nameColumn: {
+    width: "100%",
+  },
+  siteColumn: {
+    width: "100%",
+  },
+  timeCaptureModeColumn: {
+    width: "100%",
+  },
+  processingModeColumn: {
+    width: "100%",
+  },
+  activeColumn: {
+    width: "100%",
+  },
+  actionsColumn: {
+    width: "100%",
   },
   form: {
     display: "grid",
@@ -256,28 +311,32 @@ export function WorkCentersSetupPage() {
             {loading ? (
               <Body1>Loading...</Body1>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHeaderCell>Code</TableHeaderCell>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Site</TableHeaderCell>
-                    <TableHeaderCell>Time Capture Mode</TableHeaderCell>
-                    <TableHeaderCell>Processing Mode</TableHeaderCell>
-                    <TableHeaderCell>Active</TableHeaderCell>
-                    <TableHeaderCell>Actions</TableHeaderCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <div className={styles.tableContainer}>
+                <div className={styles.gridHeaderRow}>
+                  <div className={`${styles.gridCell} ${styles.codeColumn}`}>Code</div>
+                  <div className={`${styles.gridCell} ${styles.nameColumn}`}>Name</div>
+                  <div className={`${styles.gridCell} ${styles.siteColumn}`}>Site</div>
+                  <div className={`${styles.gridCell} ${styles.timeCaptureModeColumn}`}>Time Capture Mode</div>
+                  <div className={`${styles.gridCell} ${styles.processingModeColumn}`}>Processing Mode</div>
+                  <div className={`${styles.gridCell} ${styles.activeColumn}`}>Active</div>
+                  <div className={`${styles.gridCell} ${styles.actionsColumn}`}>Actions</div>
+                </div>
+                <div className={styles.gridBody}>
                   {rows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.workCenterCode}</TableCell>
-                      <TableCell>{row.workCenterName}</TableCell>
-                      <TableCell>{siteNameById.get(row.siteId) ?? `Site ${row.siteId}`}</TableCell>
-                      <TableCell>{row.defaultTimeCaptureMode}</TableCell>
-                      <TableCell>{row.defaultProcessingMode}</TableCell>
-                      <TableCell>{row.isActive ? "Yes" : "No"}</TableCell>
-                      <TableCell>
+                    <div key={row.id} className={styles.gridBodyRow}>
+                      <div className={`${styles.gridCell} ${styles.codeColumn}`}>{row.workCenterCode}</div>
+                      <div className={`${styles.gridCell} ${styles.nameColumn}`}>{row.workCenterName}</div>
+                      <div className={`${styles.gridCell} ${styles.siteColumn}`}>
+                        {siteNameById.get(row.siteId) ?? `Site ${row.siteId}`}
+                      </div>
+                      <div className={`${styles.gridCell} ${styles.timeCaptureModeColumn}`}>
+                        {row.defaultTimeCaptureMode}
+                      </div>
+                      <div className={`${styles.gridCell} ${styles.processingModeColumn}`}>
+                        {row.defaultProcessingMode}
+                      </div>
+                      <div className={`${styles.gridCell} ${styles.activeColumn}`}>{row.isActive ? "Yes" : "No"}</div>
+                      <div className={`${styles.gridCell} ${styles.actionsColumn}`}>
                         <div className={styles.actions}>
                           <Button appearance="secondary" onClick={() => openEdit(row)}>
                             Edit
@@ -286,11 +345,22 @@ export function WorkCentersSetupPage() {
                             Delete
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                  {rows.length === 0 ? (
+                    <div className={styles.gridBodyRow}>
+                      <div className={`${styles.gridCell} ${styles.codeColumn}`}>-</div>
+                      <div className={`${styles.gridCell} ${styles.nameColumn}`}>No work centers found.</div>
+                      <div className={`${styles.gridCell} ${styles.siteColumn}`}>-</div>
+                      <div className={`${styles.gridCell} ${styles.timeCaptureModeColumn}`}>-</div>
+                      <div className={`${styles.gridCell} ${styles.processingModeColumn}`}>-</div>
+                      <div className={`${styles.gridCell} ${styles.activeColumn}`}>-</div>
+                      <div className={`${styles.gridCell} ${styles.actionsColumn}`}>-</div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             )}
           </div>
         </section>

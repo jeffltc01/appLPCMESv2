@@ -43,7 +43,7 @@ vi.mock("../auth/AuthContext", () => ({
 
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="current-path">{location.pathname}</span>;
+  return <span data-testid="current-path">{`${location.pathname}${location.search}`}</span>;
 }
 
 describe("MenuPage", () => {
@@ -361,23 +361,6 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/order-audit-log");
   });
 
-  it("opens admin maintenance menu and navigates to feature flags and site policies setup", async () => {
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <MenuPage />
-        <LocationProbe />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(listMock).toHaveBeenCalled();
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^Admin$/i }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /^Feature Flags & Site Policies$/i }));
-
-    expect(screen.getByTestId("current-path")).toHaveTextContent("/setup/feature-flags-policies");
-  });
-
   it("calculates and renders metrics from loaded orders", async () => {
     render(
       <MemoryRouter>
@@ -587,6 +570,61 @@ describe("MenuPage", () => {
     });
   });
 
+  it("limits monthly line charts to rolling 12 months", async () => {
+    const buildOrderForMonth = (id: number, monthOffset: number) => {
+      const base = new Date();
+      const start = new Date(base.getFullYear(), base.getMonth() - monthOffset, 2);
+      const received = new Date(base.getFullYear(), base.getMonth() - monthOffset, 5);
+      const ready = new Date(base.getFullYear(), base.getMonth() - monthOffset, 12);
+      const invoice = new Date(base.getFullYear(), base.getMonth() - monthOffset, 20);
+      return {
+        id,
+        salesOrderNo: `SO-${id}`,
+        orderDate: start.toISOString().slice(0, 10),
+        receivedDate: received.toISOString().slice(0, 10),
+        readyToInvoiceDate: ready.toISOString().slice(0, 10),
+        invoiceDate: invoice.toISOString().slice(0, 10),
+        orderStatus: "Invoiced",
+        customerId: 2,
+        customerName: "Acme Industrial",
+        siteId: 10,
+        siteName: "Houston",
+        customerPoNo: null,
+        contact: null,
+        lineCount: 1,
+        totalOrderedQuantity: 1,
+        orderLifecycleStatus: "Invoiced",
+        holdOverlay: null,
+      };
+    };
+
+    const items = Array.from({ length: 13 }, (_, index) => buildOrderForMonth(800 + index, 12 - index));
+
+    listMock.mockResolvedValueOnce({
+      items,
+      totalCount: items.length,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    const charts = screen.getAllByRole("img", { name: /monthly average days chart/i });
+    expect(charts).toHaveLength(4);
+    charts.forEach((chart) => {
+      const dataPointMarkers = chart.querySelectorAll("circle");
+      expect(dataPointMarkers).toHaveLength(12);
+    });
+  });
+
   it("maps legacy workflow statuses into lifecycle metrics when lifecycle is missing", async () => {
     listMock.mockResolvedValueOnce({
       items: [
@@ -699,6 +737,111 @@ describe("MenuPage", () => {
       const labelX = Number(labels[index].getAttribute("x"));
       expect(barCenterX).toBeCloseTo(labelX, 3);
     });
+  });
+
+  it("navigates to orders list with selected aging bucket filter", async () => {
+    const toIsoDate = (daysAgo: number) => {
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().slice(0, 10);
+    };
+
+    const createOrder = (id: number, orderDate: string) => ({
+      id,
+      salesOrderNo: `SO-${id}`,
+      orderDate,
+      orderStatus: "New",
+      customerId: 2,
+      customerName: "Acme Industrial",
+      siteId: 10,
+      siteName: "Houston",
+      customerPoNo: null,
+      contact: null,
+      lineCount: 1,
+      totalOrderedQuantity: 1,
+      orderLifecycleStatus: "Draft",
+      holdOverlay: null,
+    });
+
+    const items = [
+      ...Array.from({ length: 1 }, (_, i) => createOrder(510 + i, toIsoDate(5))),
+      ...Array.from({ length: 2 }, (_, i) => createOrder(520 + i, toIsoDate(20))),
+      ...Array.from({ length: 3 }, (_, i) => createOrder(530 + i, toIsoDate(40))),
+      ...Array.from({ length: 4 }, (_, i) => createOrder(540 + i, toIsoDate(90))),
+    ];
+
+    listMock.mockResolvedValueOnce({
+      items,
+      totalCount: items.length,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByText("16-30 days"));
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/orders?agingBucket=16-30");
+  });
+
+  it("uses rounded y-axis intervals for open order aging buckets", async () => {
+    const toIsoDate = (daysAgo: number) => {
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().slice(0, 10);
+    };
+
+    const createOrder = (id: number, orderDate: string) => ({
+      id,
+      salesOrderNo: `SO-${id}`,
+      orderDate,
+      orderStatus: "New",
+      customerId: 2,
+      customerName: "Acme Industrial",
+      siteId: 10,
+      siteName: "Houston",
+      customerPoNo: null,
+      contact: null,
+      lineCount: 1,
+      totalOrderedQuantity: 1,
+      orderLifecycleStatus: "Draft",
+      holdOverlay: null,
+    });
+
+    const items = [
+      ...Array.from({ length: 1 }, (_, i) => createOrder(410 + i, toIsoDate(5))),
+      ...Array.from({ length: 3 }, (_, i) => createOrder(420 + i, toIsoDate(20))),
+      ...Array.from({ length: 5 }, (_, i) => createOrder(430 + i, toIsoDate(40))),
+      ...Array.from({ length: 17 }, (_, i) => createOrder(440 + i, toIsoDate(90))),
+    ];
+
+    listMock.mockResolvedValueOnce({
+      items,
+      totalCount: items.length,
+      page: 1,
+      pageSize: 200,
+    });
+
+    render(
+      <MemoryRouter>
+        <MenuPage />
+      </MemoryRouter>,
+    );
+
+    const chart = await screen.findByRole("img", { name: /open order aging buckets chart/i });
+    const yTicks = Array.from(chart.querySelectorAll('text[data-aging-chart-y-tick="true"]')).map((node) =>
+      Number(node.textContent)
+    );
+
+    expect(yTicks).toEqual([0, 5, 10, 15, 20]);
   });
 
   it("logs out and redirects to login", async () => {

@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import App from "./App";
-import { TABLET_SETUP_STORAGE_KEY } from "./features/tabletSetupStorage";
 
 const getSessionMock = vi.fn();
 
@@ -33,11 +32,6 @@ vi.mock("./services/orders", () => ({
 vi.mock("./services/setup", () => ({
   setupApi: {
     listWorkCenters: vi.fn().mockResolvedValue([]),
-    listFeatureFlags: vi.fn().mockResolvedValue([]),
-    listSitePolicies: vi.fn().mockResolvedValue([]),
-    listConfigAudit: vi.fn().mockResolvedValue([]),
-    updateFeatureFlag: vi.fn(),
-    updateSitePolicy: vi.fn(),
   },
 }));
 
@@ -73,7 +67,7 @@ describe("App routing", () => {
   it("opens menu at root", async () => {
     window.history.pushState({}, "", "/");
     render(<App />);
-    expect(await screen.findByText("LPC Order Ops")).toBeInTheDocument();
+    expect(await screen.findByText("LP Cylinder")).toBeInTheDocument();
   });
 
   it("opens new-order workspace route", async () => {
@@ -119,16 +113,9 @@ describe("App routing", () => {
     expect(await screen.findByText("Order Audit Log")).toBeInTheDocument();
   });
 
-  it("opens feature flags and site policies setup route", async () => {
-    window.history.pushState({}, "", "/setup/feature-flags-policies");
-    render(<App />);
-    expect(await screen.findByText("Setup - Feature Flags & Site Policies")).toBeInTheDocument();
-  });
-
-  it("redirects operator route to tablet setup when no setup cache exists", async () => {
+  it("opens operator work center route", async () => {
     window.history.pushState({}, "", "/operator/work-center");
-    window.localStorage.removeItem(TABLET_SETUP_STORAGE_KEY);
     render(<App />);
-    expect(await screen.findByText("Tablet Setup")).toBeInTheDocument();
+    expect(await screen.findByText("LPC Operator")).toBeInTheDocument();
   });
 });

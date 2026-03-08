@@ -686,92 +686,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.ToTable("customer_items", (string)null);
                 });
 
-            modelBuilder.Entity("LPCylinderMES.Api.Models.FeatureFlagConfig", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(80)")
-                        .HasColumnName("category");
-
-                    b.Property<bool>("CurrentValue")
-                        .HasColumnType("bit")
-                        .HasColumnName("current_value");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(240)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(240)")
-                        .HasColumnName("display_name");
-
-                    b.Property<DateTime?>("EffectiveFromUtc")
-                        .HasColumnType("datetime")
-                        .HasColumnName("effective_from_utc");
-
-                    b.Property<string>("FlagKey")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(120)")
-                        .HasColumnName("flag_key");
-
-                    b.Property<string>("LastChangeNote")
-                        .HasMaxLength(500)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("last_change_note");
-
-                    b.Property<string>("LastChangedByEmpNo")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(30)")
-                        .HasColumnName("last_changed_by_emp_no");
-
-                    b.Property<DateTime>("LastChangedUtc")
-                        .HasColumnType("datetime")
-                        .HasColumnName("last_changed_utc");
-
-                    b.Property<string>("LastReasonCode")
-                        .HasMaxLength(80)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(80)")
-                        .HasColumnName("last_reason_code");
-
-                    b.Property<string>("RollbackPlan")
-                        .HasMaxLength(1000)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(1000)")
-                        .HasColumnName("rollback_plan");
-
-                    b.Property<int?>("SiteId")
-                        .HasColumnType("int")
-                        .HasColumnName("site_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FlagKey")
-                        .IsUnique()
-                        .HasFilter("[site_id] IS NULL");
-
-                    b.HasIndex("FlagKey", "SiteId")
-                        .IsUnique()
-                        .HasFilter("[site_id] IS NOT NULL");
-
-                    b.HasIndex("SiteId", "Category");
-
-                    b.ToTable("feature_flag_configs", (string)null);
-                });
-
             modelBuilder.Entity("LPCylinderMES.Api.Models.Item", b =>
                 {
                     b.Property<int>("Id")
@@ -3219,94 +3133,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.ToTable("scrap_reasons", (string)null);
                 });
 
-            modelBuilder.Entity("LPCylinderMES.Api.Models.SetupConfigAudit", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(30)")
-                        .HasColumnName("action");
-
-                    b.Property<string>("ChangeNote")
-                        .HasMaxLength(500)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("change_note");
-
-                    b.Property<string>("ChangedByEmpNo")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(30)")
-                        .HasColumnName("changed_by_emp_no");
-
-                    b.Property<DateTime>("ChangedUtc")
-                        .HasColumnType("datetime")
-                        .HasColumnName("changed_utc");
-
-                    b.Property<string>("ConfigKey")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(120)")
-                        .HasColumnName("config_key");
-
-                    b.Property<string>("ConfigType")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(30)")
-                        .HasColumnName("config_type");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(120)")
-                        .HasColumnName("correlation_id");
-
-                    b.Property<string>("NewValue")
-                        .HasMaxLength(500)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("new_value");
-
-                    b.Property<string>("PreviousValue")
-                        .HasMaxLength(500)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("previous_value");
-
-                    b.Property<string>("ReasonCode")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(80)")
-                        .HasColumnName("reason_code");
-
-                    b.Property<int?>("SiteId")
-                        .HasColumnType("int")
-                        .HasColumnName("site_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChangedUtc");
-
-                    b.HasIndex("SiteId");
-
-                    b.HasIndex("ConfigType", "ConfigKey", "ChangedUtc");
-
-                    b.ToTable("setup_config_audits", (string)null);
-                });
-
             modelBuilder.Entity("LPCylinderMES.Api.Models.ShipVia", b =>
                 {
                     b.Property<int>("Id")
@@ -3376,95 +3202,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.HasIndex(new[] { "Id" }, "ix_sites_id");
 
                     b.ToTable("sites", (string)null);
-                });
-
-            modelBuilder.Entity("LPCylinderMES.Api.Models.SitePolicyConfig", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(80)")
-                        .HasColumnName("category");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(240)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(240)")
-                        .HasColumnName("display_name");
-
-                    b.Property<DateTime?>("EffectiveFromUtc")
-                        .HasColumnType("datetime")
-                        .HasColumnName("effective_from_utc");
-
-                    b.Property<string>("LastChangeNote")
-                        .HasMaxLength(500)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(500)")
-                        .HasColumnName("last_change_note");
-
-                    b.Property<string>("LastChangedByEmpNo")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(30)")
-                        .HasColumnName("last_changed_by_emp_no");
-
-                    b.Property<DateTime>("LastChangedUtc")
-                        .HasColumnType("datetime")
-                        .HasColumnName("last_changed_utc");
-
-                    b.Property<string>("LastReasonCode")
-                        .HasMaxLength(80)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(80)")
-                        .HasColumnName("last_reason_code");
-
-                    b.Property<string>("PolicyKey")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(120)")
-                        .HasColumnName("policy_key");
-
-                    b.Property<string>("PolicyValue")
-                        .IsRequired()
-                        .HasMaxLength(240)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(240)")
-                        .HasColumnName("policy_value");
-
-                    b.Property<string>("RollbackPlan")
-                        .HasMaxLength(1000)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(1000)")
-                        .HasColumnName("rollback_plan");
-
-                    b.Property<int?>("SiteId")
-                        .HasColumnType("int")
-                        .HasColumnName("site_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PolicyKey")
-                        .IsUnique()
-                        .HasFilter("[site_id] IS NULL");
-
-                    b.HasIndex("PolicyKey", "SiteId")
-                        .IsUnique()
-                        .HasFilter("[site_id] IS NOT NULL");
-
-                    b.HasIndex("SiteId", "Category");
-
-                    b.ToTable("site_policy_configs", (string)null);
                 });
 
             modelBuilder.Entity("LPCylinderMES.Api.Models.StatusReasonCode", b =>
@@ -3996,16 +3733,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.Navigation("TankColor");
                 });
 
-            modelBuilder.Entity("LPCylinderMES.Api.Models.FeatureFlagConfig", b =>
-                {
-                    b.HasOne("LPCylinderMES.Api.Models.Site", "Site")
-                        .WithMany()
-                        .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Site");
-                });
-
             modelBuilder.Entity("LPCylinderMES.Api.Models.Item", b =>
                 {
                     b.HasOne("LPCylinderMES.Api.Models.ItemSize", "ItemSizeNavigation")
@@ -4414,26 +4141,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.Navigation("SalesOrderDetail");
 
                     b.Navigation("ScrapReason");
-                });
-
-            modelBuilder.Entity("LPCylinderMES.Api.Models.SetupConfigAudit", b =>
-                {
-                    b.HasOne("LPCylinderMES.Api.Models.Site", "Site")
-                        .WithMany()
-                        .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Site");
-                });
-
-            modelBuilder.Entity("LPCylinderMES.Api.Models.SitePolicyConfig", b =>
-                {
-                    b.HasOne("LPCylinderMES.Api.Models.Site", "Site")
-                        .WithMany()
-                        .HasForeignKey("SiteId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Site");
                 });
 
             modelBuilder.Entity("LPCylinderMES.Api.Models.StepChecklistResult", b =>
