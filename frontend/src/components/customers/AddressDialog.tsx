@@ -17,7 +17,13 @@ import {
   MessageBarBody,
 } from "@fluentui/react-components";
 import { addressesApi } from "../../services/customers";
-import type { Address, AddressCreate } from "../../types/customer";
+import type {
+  Address,
+  AddressCreate,
+  Contact,
+  SalesPersonLookup,
+} from "../../types/customer";
+import { extractApiMessage } from "../../utils/apiError";
 
 const useStyles = makeStyles({
   form: {
@@ -43,6 +49,8 @@ interface AddressDialogProps {
   open: boolean;
   customerId: number;
   address: Address | null;
+  contacts?: Contact[];
+  salesPeople?: SalesPersonLookup[];
   defaultType?: string;
   onClose: () => void;
   onSaved: () => void;
@@ -52,6 +60,8 @@ export function AddressDialog({
   open,
   customerId,
   address,
+  contacts = [],
+  salesPeople = [],
   defaultType,
   onClose,
   onSaved,
@@ -67,6 +77,14 @@ export function AddressDialog({
   const [state, setState] = useState(address?.state ?? "");
   const [postalCode, setPostalCode] = useState(address?.postalCode ?? "");
   const [country, setCountry] = useState(address?.country ?? "");
+  const [contactId, setContactId] = useState<string>(
+    address?.contactId != null ? String(address.contactId) : ""
+  );
+  const [defaultSalesEmployeeId, setDefaultSalesEmployeeId] = useState<string>(
+    address?.defaultSalesEmployeeId != null
+      ? String(address.defaultSalesEmployeeId)
+      : ""
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +98,12 @@ export function AddressDialog({
       setState(address?.state ?? "");
       setPostalCode(address?.postalCode ?? "");
       setCountry(address?.country ?? "");
+      setContactId(address?.contactId != null ? String(address.contactId) : "");
+      setDefaultSalesEmployeeId(
+        address?.defaultSalesEmployeeId != null
+          ? String(address.defaultSalesEmployeeId)
+          : ""
+      );
       setError(null);
     }
   }, [open, address, defaultType]);
@@ -101,6 +125,10 @@ export function AddressDialog({
         state: state.trim() || null,
         postalCode: postalCode.trim() || null,
         country: country.trim() || null,
+        contactId: contactId ? Number(contactId) : null,
+        defaultSalesEmployeeId: defaultSalesEmployeeId
+          ? Number(defaultSalesEmployeeId)
+          : null,
       };
       if (isEdit) {
         await addressesApi.update(customerId, address.id, data);
@@ -108,8 +136,8 @@ export function AddressDialog({
         await addressesApi.create(customerId, data);
       }
       onSaved();
-    } catch {
-      setError("Failed to save address.");
+    } catch (error) {
+      setError(extractApiMessage(error, "Failed to save address."));
     } finally {
       setSaving(false);
     }
@@ -188,6 +216,54 @@ export function AddressDialog({
                   onChange={(_, d) => setCountry(d.value)}
                 />
               </Field>
+              <div className={styles.row}>
+                <Field label="Contact">
+                  <Dropdown
+                    value={
+                      contactId
+                        ? (contacts.find((contact) => contact.id === Number(contactId))
+                            ?.firstName ?? "")
+                        : ""
+                    }
+                    selectedOptions={contactId ? [contactId] : []}
+                    onOptionSelect={(_, data) => setContactId(data.optionValue ?? "")}
+                    placeholder="Select Contact"
+                  >
+                    <Option value="">None</Option>
+                    {contacts.map((contact) => {
+                      const fullName = `${contact.firstName} ${contact.lastName ?? ""}`.trim();
+                      return (
+                        <Option key={contact.id} value={String(contact.id)}>
+                          {fullName}
+                        </Option>
+                      );
+                    })}
+                  </Dropdown>
+                </Field>
+                <Field label="Default Sales Employee">
+                  <Dropdown
+                    value={
+                      defaultSalesEmployeeId
+                        ? (salesPeople.find(
+                            (person) => person.id === Number(defaultSalesEmployeeId)
+                          )?.name ?? "")
+                        : ""
+                    }
+                    selectedOptions={defaultSalesEmployeeId ? [defaultSalesEmployeeId] : []}
+                    onOptionSelect={(_, data) =>
+                      setDefaultSalesEmployeeId(data.optionValue ?? "")
+                    }
+                    placeholder="Select Sales Employee"
+                  >
+                    <Option value="">None</Option>
+                    {salesPeople.map((person) => (
+                      <Option key={person.id} value={String(person.id)}>
+                        {person.name}
+                      </Option>
+                    ))}
+                  </Dropdown>
+                </Field>
+              </div>
             </div>
           </DialogContent>
           <DialogActions>

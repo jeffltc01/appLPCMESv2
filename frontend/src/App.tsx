@@ -8,6 +8,7 @@ import { OrderEntryPage } from "./pages/OrderEntryPage";
 import { OrderListPage } from "./pages/OrderListPage";
 import { InvoicePage } from "./pages/InvoicePage";
 import { CustomerDetailPage } from "./pages/CustomerDetailPage";
+import { CustomersPage } from "./pages/CustomersPage";
 import { TransportationDispatchPage } from "./pages/TransportationDispatchPage";
 import { MenuPage } from "./pages/MenuPage";
 import { ReceivingQueuePage } from "./pages/ReceivingQueuePage";
@@ -98,6 +99,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <OrderEntryPage invoiceMode />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/customers"
+              element={
+                <RequireAuth>
+                  <CustomersPage />
                 </RequireAuth>
               }
             />

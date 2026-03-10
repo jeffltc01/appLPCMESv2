@@ -1426,7 +1426,11 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                           appearance="subtle"
                           size="small"
                           className={styles.customerLabelAction}
-                          onClick={() => navigate(`/customers/${selectedCustomerId}`)}
+                          onClick={() =>
+                            navigate(`/customers/${selectedCustomerId}`, {
+                              state: { backTo: `${location.pathname}${location.search}` },
+                            })
+                          }
                         >
                           View Details
                         </Button>

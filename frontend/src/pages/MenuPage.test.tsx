@@ -177,6 +177,21 @@ describe("MenuPage", () => {
     expect(screen.getByTestId("current-path")).toHaveTextContent("/invoices");
   });
 
+  it("navigates to customers page from dashboard button", async () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <MenuPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(listMock).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Customers$/i }));
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/customers");
+  });
+
   it("navigates to receiving queue from receiving button", async () => {
     render(
       <MemoryRouter initialEntries={["/"]}>

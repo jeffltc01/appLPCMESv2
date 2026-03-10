@@ -17,6 +17,7 @@ import {
 } from "@fluentui/react-components";
 import { contactsApi } from "../../services/customers";
 import type { Contact, ContactCreate } from "../../types/customer";
+import { extractApiMessage } from "../../utils/apiError";
 
 const useStyles = makeStyles({
   form: {
@@ -92,8 +93,8 @@ export function ContactDialog({
         await contactsApi.create(customerId, data);
       }
       onSaved();
-    } catch {
-      setError("Failed to save contact.");
+    } catch (error) {
+      setError(extractApiMessage(error, "Failed to save contact."));
     } finally {
       setSaving(false);
     }

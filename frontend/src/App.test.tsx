@@ -35,6 +35,73 @@ vi.mock("./services/setup", () => ({
   },
 }));
 
+vi.mock("./services/customers", () => ({
+  customersApi: {
+    list: vi.fn().mockResolvedValue({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 25,
+    }),
+    get: vi.fn().mockResolvedValue({
+      id: 123,
+      name: "Acme Industrial",
+      customerCode: "ACME",
+      status: "Active",
+      email: "ops@acme.com",
+      notes: null,
+      customerParentId: null,
+      customerParentName: null,
+      defaultSalesEmployeeId: null,
+      defaultSalesEmployeeName: null,
+      tankColorId: null,
+      tankColorName: null,
+      lidColorId: null,
+      lidColorName: null,
+      defaultPaymentTermId: null,
+      defaultPaymentTermName: null,
+      defaultShipViaId: null,
+      defaultShipViaName: null,
+      defaultOrderContactId: null,
+      defaultOrderContactName: null,
+      defaultBillToId: null,
+      defaultPickUpId: null,
+      defaultShipToId: null,
+      defaultNeedCollars: null,
+      defaultNeedFillers: null,
+      defaultNeedFootRings: null,
+      defaultReturnScrap: null,
+      defaultReturnBrass: null,
+      defaultValveType: null,
+      defaultGauges: null,
+      addresses: [],
+      contacts: [],
+    }),
+    update: vi.fn(),
+    delete: vi.fn(),
+    create: vi.fn(),
+  },
+  addressesApi: {
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
+  contactsApi: {
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
+  lookupsApi: {
+    colors: vi.fn().mockResolvedValue([]),
+    paymentTerms: vi.fn().mockResolvedValue([]),
+    shipVias: vi.fn().mockResolvedValue([]),
+    salesPeople: vi.fn().mockResolvedValue([]),
+    sites: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 vi.mock("./services/auth", () => ({
   authApi: {
     operatorPreLogin: vi.fn(),
@@ -76,11 +143,16 @@ describe("App routing", () => {
     expect(await screen.findByText("Create New Sales Order")).toBeInTheDocument();
   });
 
-  it("opens customer detail placeholder route", async () => {
+  it("opens customers list route", async () => {
+    window.history.pushState({}, "", "/customers");
+    render(<App />);
+    expect(await screen.findByText("Customers")).toBeInTheDocument();
+  });
+
+  it("opens customer detail maintenance route", async () => {
     window.history.pushState({}, "", "/customers/123");
     render(<App />);
-    expect(await screen.findByText("Customer Detail (Placeholder)")).toBeInTheDocument();
-    expect(screen.getByText("Customer ID: 123")).toBeInTheDocument();
+    expect(await screen.findByText("Customer Maintenance")).toBeInTheDocument();
   });
 
   it("opens invoice queue route", async () => {

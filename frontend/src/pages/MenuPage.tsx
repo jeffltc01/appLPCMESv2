@@ -7,7 +7,9 @@ import {
   MenuList,
   MenuPopover,
   MenuTrigger,
+  Subtitle1,
   Title1,
+  Title2,
   makeStyles,
   mergeClasses,
   tokens,
@@ -29,6 +31,7 @@ import { getWorkspaceCurrentStatus, ordersApi } from "../services/orders";
 import type { OrderDraftListItem } from "../types/order";
 
 const NAV_ITEMS = [
+  { key: "customers", label: "Customers", icon: <PeopleTeam24Regular />, path: "/customers" },
   { key: "orderEntry", label: "Order Entry", icon: <ClipboardTask24Regular />, path: "/orders" },
   { key: "transportation", label: "Transportation", icon: <VehicleTruckProfile24Regular />, path: "/transportation" },
   { key: "receiving", label: "Receiving", icon: <ClipboardCheckmark24Regular />, path: "/receiving" },
@@ -57,7 +60,7 @@ const useStyles = makeStyles({
   },
   content: {
     display: "grid",
-    gridTemplateRows: "44px 52px auto",
+    gridTemplateRows: "44px 16px auto",
     minWidth: 0,
   },
   topUtility: {
@@ -107,7 +110,7 @@ const useStyles = makeStyles({
     alignItems: "center",
     justifyContent: "space-between",
     paddingRight: tokens.spacingHorizontalL,
-    paddingLeft: tokens.spacingHorizontalL,
+    paddingLeft: tokens.spacingHorizontalL
   },
   headerActions: {
     display: "flex",
@@ -309,11 +312,11 @@ const useStyles = makeStyles({
   },
   bucketChart: {
     width: "100%",
-    height: "220px",
+    height: "170px",
   },
   lineChartWrap: {
     width: "100%",
-    height: "220px",
+    height: "170px",
   },
   lineChartAxisLabel: {
     fontSize: "12px",
@@ -796,7 +799,7 @@ export function MenuPage() {
         </div>
 
         <div className={styles.headerBar}>
-          <Title1>LP Cylinder</Title1>
+          <Title2>LP Cylinder</Title2>
           <div className={styles.headerActions} />
         </div>
 

@@ -9,11 +9,14 @@ import {
   Button,
   Input,
   Field,
+  MessageBar,
+  MessageBarBody,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
 import { customersApi } from "../../services/customers";
 import type { CustomerDetail } from "../../types/customer";
+import { extractApiMessage } from "../../utils/apiError";
 
 const useStyles = makeStyles({
   form: {
@@ -59,8 +62,8 @@ export function NewCustomerDialog({
       setCode("");
       setEmail("");
       onCreated(result);
-    } catch {
-      setError("Failed to create customer.");
+    } catch (error) {
+      setError(extractApiMessage(error, "Failed to create customer."));
     } finally {
       setSaving(false);
     }
@@ -81,6 +84,11 @@ export function NewCustomerDialog({
           <DialogTitle>New Customer</DialogTitle>
           <DialogContent>
             <div className={styles.form}>
+              {error ? (
+                <MessageBar intent="error">
+                  <MessageBarBody>{error}</MessageBarBody>
+                </MessageBar>
+              ) : null}
               <Field label="Name" required validationMessage={error ?? undefined}>
                 <Input
                   value={name}
