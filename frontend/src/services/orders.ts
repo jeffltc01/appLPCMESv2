@@ -25,10 +25,10 @@ import type {
   SubmitInvoiceRequest,
   ApplyHoldRequest,
   ClearHoldRequest,
-  UpsertPromiseCommitmentRequest,
-  ClassifyPromiseMissRequest,
-  RecordPromiseNotificationRequest,
-  OrderPromiseChangeEvent,
+  UpdateScheduleRequest,
+  OrderScheduleChangeEvent,
+  ScheduleBoard,
+  BulkAssignScheduleRequest,
   OrderFieldAudit,
   OrderAuditTrailParams,
   OrderLifecycleMigrationResult,
@@ -313,17 +313,22 @@ export const ordersApi = {
   clearHold: (id: number, data: ClearHoldRequest) =>
     api.post<OrderDraftDetail>(`/orders/${id}/hold/clear`, data),
 
-  upsertPromiseCommitment: (id: number, data: UpsertPromiseCommitmentRequest) =>
-    api.post<OrderDraftDetail>(`/orders/${id}/promise-commitment`, data),
+  updateSchedule: (id: number, data: UpdateScheduleRequest) =>
+    api.put<OrderDraftDetail>(`/orders/${id}/schedule`, data),
 
-  classifyPromiseMiss: (id: number, data: ClassifyPromiseMissRequest) =>
-    api.post<OrderDraftDetail>(`/orders/${id}/promise-miss-classification`, data),
+  scheduleHistory: (id: number) =>
+    api.get<OrderScheduleChangeEvent[]>(`/orders/${id}/schedule-history`),
 
-  recordPromiseNotification: (id: number, data: RecordPromiseNotificationRequest) =>
-    api.post<OrderDraftDetail>(`/orders/${id}/promise-notification`, data),
+  getSchedule: (params: { weekOf: string; siteId?: number; lookbackDays?: number }) => {
+    const qs = new URLSearchParams();
+    qs.set("weekOf", params.weekOf);
+    if (params.siteId != null) qs.set("siteId", String(params.siteId));
+    if (params.lookbackDays != null) qs.set("lookbackDays", String(params.lookbackDays));
+    return api.get<ScheduleBoard>(`/orders/schedule?${qs.toString()}`);
+  },
 
-  promiseHistory: (id: number) =>
-    api.get<OrderPromiseChangeEvent[]>(`/orders/${id}/promise-history`),
+  bulkAssignSchedule: (data: BulkAssignScheduleRequest) =>
+    api.put<void>("/orders/schedule/bulk-assign", data),
 
   orderAuditTrail: (id: number, params: Omit<OrderAuditTrailParams, "orderId"> = {}) => {
     const qs = new URLSearchParams();

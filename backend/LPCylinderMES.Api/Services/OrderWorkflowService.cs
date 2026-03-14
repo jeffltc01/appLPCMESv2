@@ -516,9 +516,9 @@ public class OrderWorkflowService(
         return await AdvanceStatusAsync(orderId, OrderStatusCatalog.Invoiced, cancellationToken: cancellationToken);
     }
 
-    public async Task<OrderDraftDetailDto> UpsertPromiseCommitmentAsync(
+    public async Task<OrderDraftDetailDto> UpdateScheduleAsync(
         int orderId,
-        UpsertPromiseCommitmentDto dto,
+        UpdateScheduleDto dto,
         CancellationToken cancellationToken = default)
     {
         var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
@@ -527,244 +527,38 @@ public class OrderWorkflowService(
             throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
         }
 
-        var actingRole = TrimToNull(dto.ActingRole);
-        var changedBy = TrimToNull(dto.ChangedByEmpNo);
-        var reasonCode = TrimToNull(dto.PromiseChangeReasonCode);
-        var reasonNote = TrimToNull(dto.PromiseChangeReasonNote);
-        var notificationStatus = TrimToNull(dto.CustomerNotificationStatus);
-        var notificationChannel = TrimToNull(dto.CustomerNotificationChannel);
-        var notificationBy = TrimToNull(dto.CustomerNotificationByEmpNo) ?? changedBy;
-        var notificationUtc = dto.CustomerNotificationUtc ?? DateTime.UtcNow;
+        var oldScheduleWeekOf = order.ScheduleWeekOf;
+        var oldTargetDateUtc = order.TargetDateUtc;
+        var newScheduleWeekOf = dto.ScheduleWeekOf;
+        var newTargetDateUtc = dto.TargetDateUtc;
 
-        if (actingRole is null || changedBy is null)
+        var scheduleChanged = oldScheduleWeekOf != newScheduleWeekOf || oldTargetDateUtc != newTargetDateUtc;
+        if (!scheduleChanged)
         {
-            throw new ServiceException(
-                StatusCodes.Status400BadRequest,
-                "ActingRole and ChangedByEmpNo are required.");
+            return await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken)
+                   ?? throw new InvalidOperationException("Failed to load order detail.");
         }
 
-        ValidatePromiseActingRole(actingRole);
-        if (dto.RequestedDateUtc.HasValue)
-        {
-            order.RequestedDateUtc = dto.RequestedDateUtc.Value;
-        }
+        order.ScheduleWeekOf = newScheduleWeekOf;
+        order.TargetDateUtc = newTargetDateUtc;
 
-        var now = DateTime.UtcNow;
-        var isFirstCommit = !order.CurrentCommittedDateUtc.HasValue;
-        var oldCommitted = order.CurrentCommittedDateUtc;
-
-        if (isFirstCommit)
-        {
-            order.PromisedDateUtc = dto.NewCommittedDateUtc;
-            order.CurrentCommittedDateUtc = dto.NewCommittedDateUtc;
-            order.PromiseRevisionCount = 0;
-            order.PromiseDateLastChangedUtc = now;
-            order.PromiseDateLastChangedByEmpNo = changedBy;
-            order.PromiseMissReasonCode = null;
-
-            db.OrderPromiseChangeEvents.Add(new OrderPromiseChangeEvent
-            {
-                OrderId = order.Id,
-                EventType = "PromiseDateCommitted",
-                OldCommittedDateUtc = null,
-                NewCommittedDateUtc = dto.NewCommittedDateUtc,
-                PromiseChangeReasonCode = reasonCode,
-                PromiseChangeReasonNote = reasonNote,
-                ChangedByEmpNo = changedBy,
-                OccurredUtc = now,
-            });
-        }
-        else
-        {
-            var oldCommittedUtc = oldCommitted ?? dto.NewCommittedDateUtc;
-            if (string.IsNullOrWhiteSpace(reasonCode))
-            {
-                throw new ServiceException(
-                    StatusCodes.Status400BadRequest,
-                    "PromiseChangeReasonCode is required after first commitment.");
-            }
-
-            ValidateReasonCodePolicy(reasonCode!, actingRole, notificationStatus);
-            if (dto.NewCommittedDateUtc > oldCommittedUtc && string.IsNullOrWhiteSpace(notificationStatus))
-            {
-                throw new ServiceException(
-                    StatusCodes.Status400BadRequest,
-                    "CustomerNotificationStatus is required when commitment date is moved later.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(notificationStatus))
-            {
-                ValidateNotificationStatus(notificationStatus!);
-            }
-
-            order.CurrentCommittedDateUtc = dto.NewCommittedDateUtc;
-            order.PromiseRevisionCount = (order.PromiseRevisionCount ?? 0) + 1;
-            order.PromiseDateLastChangedUtc = now;
-            order.PromiseDateLastChangedByEmpNo = changedBy;
-            order.PromiseMissReasonCode = null;
-
-            db.OrderPromiseChangeEvents.Add(new OrderPromiseChangeEvent
-            {
-                OrderId = order.Id,
-                EventType = "PromiseDateRevised",
-                OldCommittedDateUtc = oldCommitted,
-                NewCommittedDateUtc = dto.NewCommittedDateUtc,
-                PromiseChangeReasonCode = reasonCode,
-                PromiseChangeReasonNote = reasonNote,
-                ChangedByEmpNo = changedBy,
-                OccurredUtc = now,
-                CustomerNotificationStatus = notificationStatus,
-                CustomerNotificationChannel = notificationChannel,
-                CustomerNotificationUtc = notificationStatus is null ? null : notificationUtc,
-                CustomerNotificationByEmpNo = notificationStatus is null ? null : notificationBy,
-            });
-        }
-
-        if (!string.IsNullOrWhiteSpace(notificationStatus))
-        {
-            db.OrderPromiseChangeEvents.Add(new OrderPromiseChangeEvent
-            {
-                OrderId = order.Id,
-                EventType = "CustomerCommitmentNotificationRecorded",
-                OldCommittedDateUtc = oldCommitted,
-                NewCommittedDateUtc = order.CurrentCommittedDateUtc,
-                PromiseChangeReasonCode = reasonCode,
-                PromiseChangeReasonNote = reasonNote,
-                ChangedByEmpNo = changedBy,
-                OccurredUtc = now,
-                CustomerNotificationStatus = notificationStatus,
-                CustomerNotificationChannel = notificationChannel,
-                CustomerNotificationUtc = notificationUtc,
-                CustomerNotificationByEmpNo = notificationBy,
-            });
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-        return await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken)
-               ?? throw new InvalidOperationException("Failed to load order detail after promise update.");
-    }
-
-    public async Task<OrderDraftDetailDto> ClassifyPromiseMissAsync(
-        int orderId,
-        ClassifyPromiseMissDto dto,
-        CancellationToken cancellationToken = default)
-    {
-        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
-        if (order is null)
-        {
-            throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
-        }
-
-        var missReason = TrimToNull(dto.MissReasonCode);
-        var actingRole = TrimToNull(dto.ActingRole);
-        var changedBy = TrimToNull(dto.ChangedByEmpNo);
-        var note = TrimToNull(dto.Note);
-        var notificationStatus = TrimToNull(dto.CustomerNotificationStatus);
-        var notificationChannel = TrimToNull(dto.CustomerNotificationChannel);
-        var notificationBy = TrimToNull(dto.CustomerNotificationByEmpNo) ?? changedBy;
-        var notificationUtc = dto.CustomerNotificationUtc ?? DateTime.UtcNow;
-        if (missReason is null || actingRole is null || changedBy is null)
-        {
-            throw new ServiceException(
-                StatusCodes.Status400BadRequest,
-                "MissReasonCode, ActingRole, and ChangedByEmpNo are required.");
-        }
-
-        order.PromiseMissReasonCode = missReason;
         var now = DateTime.UtcNow;
         db.OrderPromiseChangeEvents.Add(new OrderPromiseChangeEvent
         {
             OrderId = order.Id,
-            EventType = "PromiseMissClassified",
-            OldCommittedDateUtc = order.CurrentCommittedDateUtc,
-            NewCommittedDateUtc = order.CurrentCommittedDateUtc,
-            PromiseChangeReasonCode = missReason,
-            PromiseChangeReasonNote = note,
-            ChangedByEmpNo = changedBy,
+            OldDateUtc = oldTargetDateUtc ?? (oldScheduleWeekOf.HasValue ? oldScheduleWeekOf.Value.ToDateTime(TimeOnly.MinValue) : null),
+            NewDateUtc = newTargetDateUtc ?? (newScheduleWeekOf.HasValue ? newScheduleWeekOf.Value.ToDateTime(TimeOnly.MinValue) : null),
+            ChangedByEmpNo = TrimToNull(dto.ChangedByEmpNo),
             OccurredUtc = now,
-            MissReasonCode = missReason,
-            CustomerNotificationStatus = notificationStatus,
-            CustomerNotificationChannel = notificationChannel,
-            CustomerNotificationUtc = notificationStatus is null ? null : notificationUtc,
-            CustomerNotificationByEmpNo = notificationStatus is null ? null : notificationBy,
-        });
-
-        if (!string.IsNullOrWhiteSpace(notificationStatus))
-        {
-            ValidateNotificationStatus(notificationStatus!);
-            db.OrderPromiseChangeEvents.Add(new OrderPromiseChangeEvent
-            {
-                OrderId = order.Id,
-                EventType = "CustomerCommitmentNotificationRecorded",
-                OldCommittedDateUtc = order.CurrentCommittedDateUtc,
-                NewCommittedDateUtc = order.CurrentCommittedDateUtc,
-                PromiseChangeReasonCode = missReason,
-                PromiseChangeReasonNote = note,
-                ChangedByEmpNo = changedBy,
-                OccurredUtc = now,
-                CustomerNotificationStatus = notificationStatus,
-                CustomerNotificationChannel = notificationChannel,
-                CustomerNotificationUtc = notificationUtc,
-                CustomerNotificationByEmpNo = notificationBy,
-                MissReasonCode = missReason,
-            });
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-        return await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken)
-               ?? throw new InvalidOperationException("Failed to load order detail after miss classification.");
-    }
-
-    public async Task<OrderDraftDetailDto> RecordPromiseNotificationAsync(
-        int orderId,
-        RecordPromiseNotificationDto dto,
-        CancellationToken cancellationToken = default)
-    {
-        var order = await db.SalesOrders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
-        if (order is null)
-        {
-            throw new ServiceException(StatusCodes.Status404NotFound, "Order not found.");
-        }
-
-        var reasonCode = TrimToNull(dto.PromiseChangeReasonCode);
-        var actingRole = TrimToNull(dto.ActingRole);
-        var changedBy = TrimToNull(dto.ChangedByEmpNo);
-        var status = TrimToNull(dto.CustomerNotificationStatus);
-        var channel = TrimToNull(dto.CustomerNotificationChannel);
-        var note = TrimToNull(dto.Note);
-        var notificationBy = TrimToNull(dto.CustomerNotificationByEmpNo) ?? changedBy;
-        if (reasonCode is null || actingRole is null || changedBy is null || status is null)
-        {
-            throw new ServiceException(
-                StatusCodes.Status400BadRequest,
-                "PromiseChangeReasonCode, ActingRole, ChangedByEmpNo, and CustomerNotificationStatus are required.");
-        }
-
-        ValidateReasonCodePolicy(reasonCode, actingRole, status);
-        ValidateNotificationStatus(status);
-        db.OrderPromiseChangeEvents.Add(new OrderPromiseChangeEvent
-        {
-            OrderId = order.Id,
-            EventType = "CustomerCommitmentNotificationRecorded",
-            OldCommittedDateUtc = order.CurrentCommittedDateUtc,
-            NewCommittedDateUtc = order.CurrentCommittedDateUtc,
-            PromiseChangeReasonCode = reasonCode,
-            PromiseChangeReasonNote = note,
-            ChangedByEmpNo = changedBy,
-            OccurredUtc = DateTime.UtcNow,
-            CustomerNotificationStatus = status,
-            CustomerNotificationChannel = channel,
-            CustomerNotificationUtc = dto.CustomerNotificationUtc ?? DateTime.UtcNow,
-            CustomerNotificationByEmpNo = notificationBy,
-            MissReasonCode = order.PromiseMissReasonCode,
+            Note = TrimToNull(dto.Note),
         });
 
         await db.SaveChangesAsync(cancellationToken);
         return await orderQueryService.GetOrderDetailAsync(orderId, cancellationToken)
-               ?? throw new InvalidOperationException("Failed to load order detail after notification event.");
+               ?? throw new InvalidOperationException("Failed to load order detail after schedule update.");
     }
 
-    public async Task<List<OrderPromiseChangeEventDto>> GetPromiseHistoryAsync(
+    public async Task<List<OrderScheduleChangeEventDto>> GetScheduleHistoryAsync(
         int orderId,
         CancellationToken cancellationToken = default)
     {
@@ -779,21 +573,14 @@ public class OrderWorkflowService(
             .Where(e => e.OrderId == orderId)
             .OrderByDescending(e => e.OccurredUtc)
             .ThenByDescending(e => e.Id)
-            .Select(e => new OrderPromiseChangeEventDto(
+            .Select(e => new OrderScheduleChangeEventDto(
                 e.Id,
                 e.OrderId,
-                e.EventType,
-                e.OldCommittedDateUtc,
-                e.NewCommittedDateUtc,
-                e.PromiseChangeReasonCode,
-                e.PromiseChangeReasonNote,
+                e.OldDateUtc,
+                e.NewDateUtc,
                 e.ChangedByEmpNo,
                 e.OccurredUtc,
-                e.CustomerNotificationStatus,
-                e.CustomerNotificationChannel,
-                e.CustomerNotificationUtc,
-                e.CustomerNotificationByEmpNo,
-                e.MissReasonCode))
+                e.Note))
             .ToListAsync(cancellationToken);
     }
 
@@ -1122,6 +909,17 @@ public class OrderWorkflowService(
                     StatusCodes.Status409Conflict,
                     "Draft -> InboundLogisticsPlanned requires InboundMode to be set.");
             }
+
+            if (!order.BillToAddressId.HasValue || !order.PickUpAddressId.HasValue || !order.ShipToAddressId.HasValue)
+            {
+                var missing = new List<string>();
+                if (!order.BillToAddressId.HasValue) missing.Add("Bill To");
+                if (!order.PickUpAddressId.HasValue) missing.Add("Pick Up");
+                if (!order.ShipToAddressId.HasValue) missing.Add("Ship To");
+                throw new ServiceException(
+                    StatusCodes.Status409Conflict,
+                    $"Draft -> InboundLogisticsPlanned requires Bill To, Pick Up, and Ship To addresses. Missing: {string.Join(", ", missing)}.");
+            }
         }
 
         var isDirectImmediateDropoffReceive =
@@ -1330,24 +1128,16 @@ public class OrderWorkflowService(
 
         var requiresCommitment = string.Equals(targetStatus, OrderStatusCatalog.OutboundLogisticsPlanned, StringComparison.Ordinal) ||
                                  string.Equals(targetStatus, OrderStatusCatalog.DispatchedOrPickupReleased, StringComparison.Ordinal);
-        if (requiresCommitment && (!order.PromisedDateUtc.HasValue || !order.CurrentCommittedDateUtc.HasValue))
+        if (requiresCommitment && !order.ScheduleWeekOf.HasValue)
         {
             throw new ServiceException(
                 StatusCodes.Status409Conflict,
-                "PromisedDateUtc and CurrentCommittedDateUtc must be set before outbound release planning.");
+                "ScheduleWeekOf must be set before outbound release planning.");
         }
 
         if (string.Equals(currentStatus, OrderStatusCatalog.DispatchedOrPickupReleased, StringComparison.Ordinal) &&
             string.Equals(targetStatus, OrderStatusCatalog.InvoiceReady, StringComparison.Ordinal))
         {
-            if (order.CurrentCommittedDateUtc.HasValue &&
-                order.CurrentCommittedDateUtc.Value < DateTime.UtcNow &&
-                string.IsNullOrWhiteSpace(order.PromiseMissReasonCode))
-            {
-                throw new ServiceException(
-                    StatusCodes.Status409Conflict,
-                    "Promise miss classification is required before transitioning to InvoiceReady.");
-            }
 
             var missingEvidenceBehavior = await orderPolicyService.GetDecisionValueAsync(
                 OrderPolicyKeys.MissingDeliveryEvidenceBehavior,

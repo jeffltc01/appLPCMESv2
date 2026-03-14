@@ -16,7 +16,7 @@
     "You are correcting header, line, or attachment data for an existing editable order."
   ],
   "prerequisites": [
-    "Customer, site, and order date are available.",
+    "Customer, site, order date, and addresses (Bill To, Pick Up, Ship To) are available.",
     "For line edits, the order is still in an editable state."
   ],
   "stepByStepActions": [
@@ -33,6 +33,15 @@
       "cause": "One or more mandatory fields are blank.",
       "recovery": [
         "Fill each required field marked with an asterisk.",
+        "Save Draft again."
+      ]
+    },
+    {
+      "error": "Bill To, Pick Up, and Ship To addresses are required.",
+      "cause": "One or more address fields are blank.",
+      "recovery": [
+        "Select Bill To, Pick Up, and Ship To addresses from the customer's address list.",
+        "If the customer has no addresses, add them on the Customer detail page first.",
         "Save Draft again."
       ]
     },

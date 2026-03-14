@@ -53,6 +53,8 @@ public partial class LpcAppsDbContext : DbContext
     public virtual DbSet<StatusReasonCode> StatusReasonCodes { get; set; }
     public virtual DbSet<ProductionLine> ProductionLines { get; set; }
 
+    public virtual DbSet<ProductLine> ProductLines { get; set; }
+
     public virtual DbSet<ItemSize> ItemSizes { get; set; }
 
     public virtual DbSet<Manufacturer> Manufacturers { get; set; }
@@ -340,6 +342,7 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.ProductLine)
                 .IsUnicode(false)
                 .HasColumnName("product_line");
+            entity.Property(e => e.ProductLineId).HasColumnName("product_line_id");
             entity.Property(e => e.RequiresCollarOption).HasColumnName("requires_collar_option");
             entity.Property(e => e.RequiresFillerOption).HasColumnName("requires_filler_option");
             entity.Property(e => e.RequiresFootRingOption).HasColumnName("requires_foot_ring_option");
@@ -353,6 +356,9 @@ public partial class LpcAppsDbContext : DbContext
             entity.HasOne(d => d.ItemSizeNavigation).WithMany(p => p.Items)
                 .HasForeignKey(d => d.ItemSize)
                 .HasConstraintName("FK__items__item_size__34E8D562");
+            entity.HasOne(d => d.ProductLineNavigation).WithMany(p => p.Items)
+                .HasForeignKey(d => d.ProductLineId)
+                .HasConstraintName("FK_items_product_lines");
         });
 
         modelBuilder.Entity<OrderAttachment>(entity =>
@@ -681,24 +687,12 @@ public partial class LpcAppsDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.OrderId).HasColumnName("order_id");
-            entity.Property(e => e.EventType)
-                .HasMaxLength(60)
-                .IsUnicode(false)
-                .HasColumnName("event_type");
-            entity.Property(e => e.OldCommittedDateUtc)
+            entity.Property(e => e.OldDateUtc)
                 .HasColumnType("datetime")
-                .HasColumnName("old_committed_date_utc");
-            entity.Property(e => e.NewCommittedDateUtc)
+                .HasColumnName("old_date_utc");
+            entity.Property(e => e.NewDateUtc)
                 .HasColumnType("datetime")
-                .HasColumnName("new_committed_date_utc");
-            entity.Property(e => e.PromiseChangeReasonCode)
-                .HasMaxLength(80)
-                .IsUnicode(false)
-                .HasColumnName("promise_change_reason_code");
-            entity.Property(e => e.PromiseChangeReasonNote)
-                .HasMaxLength(500)
-                .IsUnicode(false)
-                .HasColumnName("promise_change_reason_note");
+                .HasColumnName("new_date_utc");
             entity.Property(e => e.ChangedByEmpNo)
                 .HasMaxLength(30)
                 .IsUnicode(false)
@@ -706,25 +700,10 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.OccurredUtc)
                 .HasColumnType("datetime")
                 .HasColumnName("occurred_utc");
-            entity.Property(e => e.CustomerNotificationStatus)
-                .HasMaxLength(30)
+            entity.Property(e => e.Note)
+                .HasMaxLength(500)
                 .IsUnicode(false)
-                .HasColumnName("customer_notification_status");
-            entity.Property(e => e.CustomerNotificationChannel)
-                .HasMaxLength(40)
-                .IsUnicode(false)
-                .HasColumnName("customer_notification_channel");
-            entity.Property(e => e.CustomerNotificationUtc)
-                .HasColumnType("datetime")
-                .HasColumnName("customer_notification_utc");
-            entity.Property(e => e.CustomerNotificationByEmpNo)
-                .HasMaxLength(30)
-                .IsUnicode(false)
-                .HasColumnName("customer_notification_by_emp_no");
-            entity.Property(e => e.MissReasonCode)
-                .HasMaxLength(80)
-                .IsUnicode(false)
-                .HasColumnName("miss_reason_code");
+                .HasColumnName("note");
 
             entity.HasOne(d => d.Order).WithMany(p => p.OrderPromiseChangeEvents)
                 .HasForeignKey(d => d.OrderId)
@@ -908,9 +887,6 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(200)
                 .IsUnicode(false)
                 .HasColumnName("attachment_email_skip_reason");
-            entity.Property(e => e.CurrentCommittedDateUtc)
-                .HasColumnType("datetime")
-                .HasColumnName("current_committed_date_utc");
             entity.Property(e => e.CustomerReadyContactName)
                 .HasMaxLength(150)
                 .IsUnicode(false)
@@ -1028,21 +1004,6 @@ public partial class LpcAppsDbContext : DbContext
                 .HasMaxLength(30)
                 .IsUnicode(false)
                 .HasColumnName("production_state");
-            entity.Property(e => e.PromiseDateLastChangedByEmpNo)
-                .HasMaxLength(30)
-                .IsUnicode(false)
-                .HasColumnName("promise_date_last_changed_by_emp_no");
-            entity.Property(e => e.PromiseDateLastChangedUtc)
-                .HasColumnType("datetime")
-                .HasColumnName("promise_date_last_changed_utc");
-            entity.Property(e => e.PromiseMissReasonCode)
-                .HasMaxLength(80)
-                .IsUnicode(false)
-                .HasColumnName("promise_miss_reason_code");
-            entity.Property(e => e.PromiseRevisionCount).HasColumnName("promise_revision_count");
-            entity.Property(e => e.PromisedDateUtc)
-                .HasColumnType("datetime")
-                .HasColumnName("promised_date_utc");
             entity.Property(e => e.ReadyToShipDate)
                 .HasColumnType("datetime")
                 .HasColumnName("ready_to_ship_date");
@@ -1052,6 +1013,12 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.RequestedDateUtc)
                 .HasColumnType("datetime")
                 .HasColumnName("requested_date_utc");
+            entity.Property(e => e.ScheduleWeekOf)
+                .HasColumnType("date")
+                .HasColumnName("schedule_week_of");
+            entity.Property(e => e.TargetDateUtc)
+                .HasColumnType("datetime")
+                .HasColumnName("target_date_utc");
             entity.Property(e => e.ReworkBlockingInvoice).HasColumnName("rework_blocking_invoice");
             entity.Property(e => e.ReworkState)
                 .HasMaxLength(40)
@@ -1824,6 +1791,20 @@ public partial class LpcAppsDbContext : DbContext
             entity.Property(e => e.UpdatedUtc).HasColumnType("datetime").HasColumnName("updated_utc");
             entity.HasIndex(e => e.Code).IsUnique();
             entity.HasIndex(e => e.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<ProductLine>(entity =>
+        {
+            entity.ToTable("product_lines");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(20).IsUnicode(false).HasColumnName("code");
+            entity.Property(e => e.Name).HasMaxLength(80).IsUnicode(false).HasColumnName("name");
+            entity.Property(e => e.IsFinishedGood).HasColumnName("is_finished_good");
+            entity.Property(e => e.WeeklyCapacityTarget).HasColumnName("weekly_capacity_target");
+            entity.Property(e => e.ScheduleColorHex).HasMaxLength(7).IsUnicode(false).HasColumnName("schedule_color_hex");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.HasIndex(e => e.Code).IsUnique();
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -55,12 +55,8 @@ public record OrderDraftListDto(
     string? InvoiceStagingError = null,
     string? ErpInvoiceReference = null,
     DateTime? RequestedDateUtc = null,
-    DateTime? PromisedDateUtc = null,
-    DateTime? CurrentCommittedDateUtc = null,
-    DateTime? PromiseDateLastChangedUtc = null,
-    string? PromiseDateLastChangedByEmpNo = null,
-    int PromiseRevisionCount = 0,
-    string? PromiseMissReasonCode = null,
+    DateOnly? ScheduleWeekOf = null,
+    DateTime? TargetDateUtc = null,
     string? IpadOrderNo = null);
 
 public record OrderDraftDetailDto(
@@ -118,12 +114,8 @@ public record OrderDraftDetailDto(
     bool IsInvoiceComplete = false,
     bool IsReworkOpen = false,
     DateTime? RequestedDateUtc = null,
-    DateTime? PromisedDateUtc = null,
-    DateTime? CurrentCommittedDateUtc = null,
-    int PromiseRevisionCount = 0,
-    DateTime? PromiseDateLastChangedUtc = null,
-    string? PromiseDateLastChangedByEmpNo = null,
-    string? PromiseMissReasonCode = null,
+    DateOnly? ScheduleWeekOf = null,
+    DateTime? TargetDateUtc = null,
     bool HasOpenRework = false,
     bool ReworkBlockingInvoice = false,
     string? InvoiceReviewCompletedByEmpNo = null,
@@ -319,53 +311,61 @@ public record OrderAdvanceStatusDto(
     string? Note,
     string? ActingEmpNo);
 
-public record UpsertPromiseCommitmentDto(
-    DateTime? RequestedDateUtc,
-    DateTime NewCommittedDateUtc,
-    string ActingRole,
-    string ChangedByEmpNo,
-    string? PromiseChangeReasonCode,
-    string? PromiseChangeReasonNote,
-    string? CustomerNotificationStatus,
-    string? CustomerNotificationChannel,
-    DateTime? CustomerNotificationUtc,
-    string? CustomerNotificationByEmpNo);
-
-public record ClassifyPromiseMissDto(
-    string MissReasonCode,
-    string ActingRole,
-    string ChangedByEmpNo,
+public record UpdateScheduleDto(
+    DateOnly? ScheduleWeekOf,
+    DateTime? TargetDateUtc,
     string? Note,
-    string? CustomerNotificationStatus,
-    string? CustomerNotificationChannel,
-    DateTime? CustomerNotificationUtc,
-    string? CustomerNotificationByEmpNo);
+    string? ChangedByEmpNo);
 
-public record RecordPromiseNotificationDto(
-    string PromiseChangeReasonCode,
-    string ActingRole,
-    string ChangedByEmpNo,
-    string CustomerNotificationStatus,
-    string? CustomerNotificationChannel,
-    DateTime? CustomerNotificationUtc,
-    string? CustomerNotificationByEmpNo,
+public record OrderScheduleChangeEventDto(
+    long Id,
+    int OrderId,
+    DateTime? OldDateUtc,
+    DateTime? NewDateUtc,
+    string? ChangedByEmpNo,
+    DateTime OccurredUtc,
     string? Note);
 
-public record OrderPromiseChangeEventDto(
-    long PromiseChangeEventId,
+public record ScheduleBoardDto(
+    List<ScheduleOrderCardDto> Carryover,
+    List<ScheduleOrderCardDto> Unscheduled,
+    List<ScheduleOrderCardDto> WeekPool,
+    List<ScheduleOrderCardDto> DayAssigned,
+    List<ProductLineScheduleInfoDto> ProductLines,
+    int ThroughputLookbackDays);
+
+public record ScheduleOrderCardDto(
     int OrderId,
-    string EventType,
-    DateTime? OldCommittedDate,
-    DateTime? NewCommittedDate,
-    string? PromiseChangeReasonCode,
-    string? PromiseChangeReasonNote,
-    string? ChangedByEmpNo,
-    DateTime ChangedUtc,
-    string? CustomerNotificationStatus,
-    string? CustomerNotificationChannel,
-    DateTime? CustomerNotificationUtc,
-    string? CustomerNotificationByEmpNo,
-    string? MissReasonCode);
+    string OrderNo,
+    string CustomerName,
+    DateOnly OrderDate,
+    DateTime? RequestedDateUtc,
+    DateOnly? ScheduleWeekOf,
+    DateTime? TargetDateUtc,
+    int TotalQty,
+    string LifecycleStatus,
+    List<OrderLineProductLineSummaryDto> ProductLineSummary);
+
+public record OrderLineProductLineSummaryDto(
+    string ProductLineCode,
+    string ProductLineName,
+    string? ColorHex,
+    int Qty);
+
+public record ProductLineScheduleInfoDto(
+    string Code,
+    string Name,
+    string? ColorHex,
+    int? WeeklyCapacityTarget,
+    decimal HistoricalAvgPerWeek,
+    int HistoricalPeakPerWeek);
+
+public record BulkAssignScheduleDto(
+    List<int> OrderIds,
+    DateOnly? ScheduleWeekOf,
+    DateTime? TargetDateUtc,
+    string? Note,
+    string? ChangedByEmpNo);
 
 public record ApplyHoldDto(
     string HoldOverlay,
@@ -758,7 +758,7 @@ public record WorkCenterQueueItemDto(
     string? CustomerName = null,
     string? ItemNo = null,
     string? ItemDescription = null,
-    DateTime? PromisedDateUtc = null,
+    DateTime? TargetDateUtc = null,
     int? Priority = null,
     string? LineNotes = null,
     string? OrderComments = null,

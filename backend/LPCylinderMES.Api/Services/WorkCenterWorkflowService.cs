@@ -597,7 +597,7 @@ public class WorkCenterWorkflowService(
                 s.OrderLineRouteInstance.SalesOrder.Customer.Name,
                 s.OrderLineRouteInstance.SalesOrderDetail.Item.ItemNo,
                 s.OrderLineRouteInstance.SalesOrderDetail.ItemName ?? s.OrderLineRouteInstance.SalesOrderDetail.Item.ItemDescription,
-                s.OrderLineRouteInstance.SalesOrder.PromisedDateUtc,
+                s.OrderLineRouteInstance.SalesOrder.TargetDateUtc,
                 s.OrderLineRouteInstance.SalesOrder.Priority,
                 s.OrderLineRouteInstance.SalesOrderDetail.Notes,
                 s.OrderLineRouteInstance.SalesOrder.Comments,

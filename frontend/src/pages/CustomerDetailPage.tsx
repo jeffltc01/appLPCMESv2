@@ -99,6 +99,14 @@ const useStyles = makeStyles({
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: "8px 12px",
   },
+  gridField: {
+    minWidth: 0,
+  },
+  selectControl: {
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+  },
   fullRow: {
     gridColumn: "1 / -1",
   },
@@ -538,8 +546,9 @@ export function CustomerDetailPage() {
                     }
                   />
                 </Field>
-                <Field label="Customer Parent">
+                <Field label="Customer Parent" className={styles.gridField}>
                   <Select
+                    className={styles.selectControl}
                     value={form.customerParentId != null ? String(form.customerParentId) : ""}
                     onChange={(event) =>
                       setForm((prev) =>

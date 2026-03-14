@@ -28,6 +28,7 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
     [InlineData("/api/orders/statuses")]
     [InlineData("/api/orders/receiving")]
     [InlineData("/api/orders/production")]
+    [InlineData("/api/orders/schedule?weekOf=2026-03-16")]
     [InlineData("/api/setup/production-lines")]
     [InlineData("/api/help/topics?route=/orders")]
     public async Task Get_EndpointRespondsSuccessfully(string endpoint)
@@ -58,6 +59,23 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("InvalidQuery", payload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Get_Schedule_ReturnsScheduleBoardDto()
+    {
+        var response = await _client.GetAsync("/api/orders/schedule?weekOf=2026-03-16");
+        var payload = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(payload);
+        var root = doc.RootElement;
+        Assert.True(root.TryGetProperty("carryover", out _));
+        Assert.True(root.TryGetProperty("unscheduled", out _));
+        Assert.True(root.TryGetProperty("weekPool", out _));
+        Assert.True(root.TryGetProperty("dayAssigned", out _));
+        Assert.True(root.TryGetProperty("productLines", out _));
+        Assert.True(root.TryGetProperty("throughputLookbackDays", out _));
     }
 
     [Fact]
@@ -99,6 +117,24 @@ public class ApiSmokeIntegrationTests : IClassFixture<ApiSmokeWebApplicationFact
 
         Assert.Equal(HttpStatusCode.OK, advanceResponse.StatusCode);
         Assert.Contains("\"orderLifecycleStatus\":\"InboundLogisticsPlanned\"", advancePayload, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Post_CreateOrder_WithoutAddresses_ReturnsBadRequest()
+    {
+        var createResponse = await _client.PostAsJsonAsync("/api/orders", new
+        {
+            customerId = 2,
+            siteId = 1,
+            inboundMode = "LpcArrangedPickup",
+            outboundMode = "LpcArrangedDelivery",
+        });
+        var payload = await createResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.BadRequest, createResponse.StatusCode);
+        Assert.Contains("Bill To", payload, StringComparison.Ordinal);
+        Assert.Contains("Pick Up", payload, StringComparison.Ordinal);
+        Assert.Contains("Ship To", payload, StringComparison.Ordinal);
+        Assert.Contains("required", payload, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -175,6 +211,44 @@ public sealed class ApiSmokeWebApplicationFactory : WebApplicationFactory<Progra
         {
             Id = 1,
             Name = "Test Customer",
+            DefaultBillToId = 1,
+            DefaultPickUpId = 2,
+            DefaultShipToId = 3,
+        });
+        db.Addresses.Add(new Address
+        {
+            Id = 1,
+            CustomerId = 1,
+            Type = "BillTo",
+            Address1 = "123 Main St",
+            City = "Test City",
+            State = "TS",
+            PostalCode = "12345",
+        });
+        db.Addresses.Add(new Address
+        {
+            Id = 2,
+            CustomerId = 1,
+            Type = "PickUp",
+            Address1 = "456 Pickup Ave",
+            City = "Test City",
+            State = "TS",
+            PostalCode = "12345",
+        });
+        db.Addresses.Add(new Address
+        {
+            Id = 3,
+            CustomerId = 1,
+            Type = "ShipTo",
+            Address1 = "789 Ship Ln",
+            City = "Test City",
+            State = "TS",
+            PostalCode = "12345",
+        });
+        db.Customers.Add(new Customer
+        {
+            Id = 2,
+            Name = "Customer Without Defaults",
         });
         db.Colors.Add(new Color
         {

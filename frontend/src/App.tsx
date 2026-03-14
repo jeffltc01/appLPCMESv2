@@ -24,6 +24,7 @@ import { TabletSetupPage } from "./pages/TabletSetupPage";
 import { WorkCenterOperatorPage } from "./pages/WorkCenterOperatorPage";
 import { OrderAuditLogPage } from "./pages/OrderAuditLogPage";
 import { PlantManagerBoardPage } from "./pages/PlantManagerBoardPage";
+import { ScheduleBoardPage } from "./pages/ScheduleBoardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MicrosoftPopupCompletePage } from "./pages/MicrosoftPopupCompletePage";
 import { ValveTypesSetupPage } from "./pages/ValveTypesSetupPage";
@@ -227,6 +228,16 @@ export default function App() {
               element={
                 <RequireAuth>
                   <PlantManagerBoardPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/schedule"
+              element={
+                <RequireAuth>
+                  <RequireRole roles={["Office", "Supervisor", "PlantManager", "Admin"]}>
+                    <ScheduleBoardPage />
+                  </RequireRole>
                 </RequireAuth>
               }
             />

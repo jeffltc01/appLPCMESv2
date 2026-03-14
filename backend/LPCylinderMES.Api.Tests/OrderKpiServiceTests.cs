@@ -21,8 +21,7 @@ public class OrderKpiServiceTests
             OutboundMode = "CustomerPickup",
             SiteId = 1,
             CustomerId = 10,
-            CurrentCommittedDateUtc = new DateTime(2026, 02, 26, 10, 0, 0, DateTimeKind.Utc),
-            PromiseRevisionCount = 2,
+            TargetDateUtc = new DateTime(2026, 02, 26, 10, 0, 0, DateTimeKind.Utc),
         });
         db.OrderLifecycleEvents.AddRange(
             new OrderLifecycleEvent
@@ -130,16 +129,20 @@ public class OrderKpiServiceTests
             new OrderPromiseChangeEvent
             {
                 OrderId = 501,
-                EventType = "PromiseDateRevised",
-                PromiseChangeReasonCode = "Logistics",
+                OldDateUtc = new DateTime(2026, 02, 22, 10, 0, 0, DateTimeKind.Utc),
+                NewDateUtc = new DateTime(2026, 02, 26, 10, 0, 0, DateTimeKind.Utc),
+                ChangedByEmpNo = "EMP1",
                 OccurredUtc = new DateTime(2026, 02, 23, 13, 0, 0, DateTimeKind.Utc),
+                Note = "Logistics",
             },
             new OrderPromiseChangeEvent
             {
                 OrderId = 501,
-                EventType = "CustomerCommitmentNotificationRecorded",
-                PromiseChangeReasonCode = "Logistics",
+                OldDateUtc = new DateTime(2026, 02, 26, 10, 0, 0, DateTimeKind.Utc),
+                NewDateUtc = new DateTime(2026, 02, 26, 10, 0, 0, DateTimeKind.Utc),
+                ChangedByEmpNo = "EMP1",
                 OccurredUtc = new DateTime(2026, 02, 26, 9, 0, 0, DateTimeKind.Utc),
+                Note = "Logistics",
             });
         await db.SaveChangesAsync();
 

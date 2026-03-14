@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace LPCylinderMES.Api.Models;
@@ -16,6 +16,10 @@ public partial class Item
     public int RequiresSerialNumbers { get; set; }
 
     public string? ProductLine { get; set; }
+
+    public int? ProductLineId { get; set; }
+
+    public virtual ProductLine? ProductLineNavigation { get; set; }
 
     public bool? RequiresGaugeOption { get; set; }
 

@@ -22,8 +22,6 @@ function getClient() {
       clientId,
       authority,
       redirectUri: `${window.location.origin}/login`,
-      // Recommended by MSAL when login is initiated on the same route as redirectUri.
-      navigateToLoginRequestUrl: false,
     },
     cache: {
       cacheLocation: "sessionStorage",

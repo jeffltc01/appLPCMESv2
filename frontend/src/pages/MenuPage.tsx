@@ -7,8 +7,6 @@ import {
   MenuList,
   MenuPopover,
   MenuTrigger,
-  Subtitle1,
-  Title1,
   Title2,
   makeStyles,
   mergeClasses,
@@ -22,6 +20,7 @@ import {
   Board24Regular,
   PeopleTeam24Regular,
   Settings24Regular,
+  CalendarLtr24Regular,
 } from "@fluentui/react-icons";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +36,7 @@ const NAV_ITEMS = [
   { key: "receiving", label: "Receiving", icon: <ClipboardCheckmark24Regular />, path: "/receiving" },
   { key: "invoicing", label: "Invoicing", icon: <Receipt24Regular />, path: "/invoices" },
   { key: "plantManager", label: "Plant Manager", icon: <PeopleTeam24Regular />, path: "/plant-manager" },
+  { key: "schedule", label: "Schedule board", icon: <CalendarLtr24Regular />, path: "/schedule" },
   { key: "workCenter", label: "Work Center", icon: <Board24Regular />, path: "/operator/work-center" },
 ];
 
@@ -328,15 +328,6 @@ const useStyles = makeStyles({
   },
 });
 
-const LIFECYCLE_STAGE_KEYS = [
-  "Draft",
-  "PendingOrderEntryValidation",
-  "InboundLogisticsPlanned",
-  "ReadyForProduction",
-  "InvoiceReady",
-] as const;
-
-const NEEDS_REVIEW_STATUSES = new Set(["Draft", "PendingOrderEntryValidation"]);
 const AWAITING_RECEIPT_STATUSES = new Set([
   "Draft",
   "PendingOrderEntryValidation",
@@ -653,7 +644,7 @@ export function MenuPage() {
               textAnchor="start"
               className={styles.lineChartAxisLabel}
             >
-              Goal {Math.round(goalDays)}d
+              Goal {Math.round(goalDays ?? 0)}d
             </text>
           </>
         ) : null}

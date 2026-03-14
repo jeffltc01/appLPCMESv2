@@ -367,12 +367,8 @@ export interface OrderDraftListItem {
   invoiceStagingError?: string | null;
   erpInvoiceReference?: string | null;
   requestedDateUtc?: string | null;
-  promisedDateUtc?: string | null;
-  currentCommittedDateUtc?: string | null;
-  promiseDateLastChangedUtc?: string | null;
-  promiseDateLastChangedByEmpNo?: string | null;
-  promiseRevisionCount?: number;
-  promiseMissReasonCode?: string | null;
+  scheduleWeekOf?: string | null;
+  targetDateUtc?: string | null;
 }
 
 export interface OrderLine {
@@ -462,12 +458,8 @@ export interface OrderDraftDetail {
   isInvoiceComplete?: boolean;
   isReworkOpen?: boolean;
   requestedDateUtc?: string | null;
-  promisedDateUtc?: string | null;
-  currentCommittedDateUtc?: string | null;
-  promiseRevisionCount?: number;
-  promiseDateLastChangedUtc?: string | null;
-  promiseDateLastChangedByEmpNo?: string | null;
-  promiseMissReasonCode?: string | null;
+  scheduleWeekOf?: string | null;
+  targetDateUtc?: string | null;
   hasOpenRework?: boolean;
   reworkBlockingInvoice?: boolean;
   invoiceReviewCompletedByEmpNo?: string | null;
@@ -864,56 +856,67 @@ export interface ClearHoldRequest {
   note?: string | null;
 }
 
-export interface UpsertPromiseCommitmentRequest {
-  requestedDateUtc?: string | null;
-  newCommittedDateUtc: string;
-  actingRole: string;
-  changedByEmpNo: string;
-  promiseChangeReasonCode?: string | null;
-  promiseChangeReasonNote?: string | null;
-  customerNotificationStatus?: "Notified" | "DeferredNotification" | "InternalOnly" | null;
-  customerNotificationChannel?: string | null;
-  customerNotificationUtc?: string | null;
-  customerNotificationByEmpNo?: string | null;
-}
-
-export interface ClassifyPromiseMissRequest {
-  missReasonCode: string;
-  actingRole: string;
-  changedByEmpNo: string;
+export interface UpdateScheduleRequest {
+  scheduleWeekOf?: string | null;
+  targetDateUtc?: string | null;
   note?: string | null;
-  customerNotificationStatus?: "Notified" | "DeferredNotification" | "InternalOnly" | null;
-  customerNotificationChannel?: string | null;
-  customerNotificationUtc?: string | null;
-  customerNotificationByEmpNo?: string | null;
-}
-
-export interface RecordPromiseNotificationRequest {
-  promiseChangeReasonCode: string;
-  actingRole: string;
-  changedByEmpNo: string;
-  customerNotificationStatus: "Notified" | "DeferredNotification" | "InternalOnly";
-  customerNotificationChannel?: string | null;
-  customerNotificationUtc?: string | null;
-  customerNotificationByEmpNo?: string | null;
-  note?: string | null;
-}
-
-export interface OrderPromiseChangeEvent {
-  promiseChangeEventId: number;
-  orderId: number;
-  eventType: string;
-  oldCommittedDate?: string | null;
-  newCommittedDate?: string | null;
-  promiseChangeReasonCode?: string | null;
-  promiseChangeReasonNote?: string | null;
   changedByEmpNo?: string | null;
-  changedUtc: string;
-  customerNotificationStatus?: string | null;
-  customerNotificationChannel?: string | null;
-  customerNotificationUtc?: string | null;
-  customerNotificationByEmpNo?: string | null;
-  missReasonCode?: string | null;
+}
+
+export interface OrderScheduleChangeEvent {
+  id: number;
+  orderId: number;
+  oldDateUtc?: string | null;
+  newDateUtc?: string | null;
+  changedByEmpNo?: string | null;
+  occurredUtc: string;
+  note?: string | null;
+}
+
+export interface ScheduleBoard {
+  carryover: ScheduleOrderCard[];
+  unscheduled: ScheduleOrderCard[];
+  weekPool: ScheduleOrderCard[];
+  dayAssigned: ScheduleOrderCard[];
+  productLines: ProductLineScheduleInfo[];
+  throughputLookbackDays: number;
+}
+
+export interface ScheduleOrderCard {
+  orderId: number;
+  orderNo: string;
+  customerName: string;
+  orderDate: string;
+  requestedDateUtc?: string | null;
+  scheduleWeekOf?: string | null;
+  targetDateUtc?: string | null;
+  totalQty: number;
+  lifecycleStatus: string;
+  productLineSummary: OrderLineProductLineSummary[];
+}
+
+export interface OrderLineProductLineSummary {
+  productLineCode: string;
+  productLineName: string;
+  colorHex?: string | null;
+  qty: number;
+}
+
+export interface ProductLineScheduleInfo {
+  code: string;
+  name: string;
+  colorHex?: string | null;
+  weeklyCapacityTarget?: number | null;
+  historicalAvgPerWeek: number;
+  historicalPeakPerWeek: number;
+}
+
+export interface BulkAssignScheduleRequest {
+  orderIds: number[];
+  scheduleWeekOf?: string | null;
+  targetDateUtc?: string | null;
+  note?: string | null;
+  changedByEmpNo?: string | null;
 }
 
 export interface OrderFieldAudit {
@@ -1105,7 +1108,7 @@ export interface WorkCenterQueueItem {
   customerName?: string | null;
   itemNo?: string | null;
   itemDescription?: string | null;
-  promisedDateUtc?: string | null;
+  targetDateUtc?: string | null;
   priority?: number | null;
   lineNotes?: string | null;
   orderComments?: string | null;

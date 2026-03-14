@@ -4,6 +4,7 @@ using LPCylinderMES.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LPCylinderMES.Api.Migrations
 {
     [DbContext(typeof(LpcAppsDbContext))]
-    partial class LpcAppsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260314123422_CollapsePromiseDatesToScheduleFields")]
+    partial class CollapsePromiseDatesToScheduleFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -779,10 +782,6 @@ namespace LPCylinderMES.Api.Migrations
                         .HasColumnType("varchar(max)")
                         .HasColumnName("product_line");
 
-                    b.Property<int?>("ProductLineId")
-                        .HasColumnType("int")
-                        .HasColumnName("product_line_id");
-
                     b.Property<bool?>("RequiresCollarOption")
                         .HasColumnType("bit")
                         .HasColumnName("requires_collar_option");
@@ -816,8 +815,6 @@ namespace LPCylinderMES.Api.Migrations
                         .HasName("PK__items__3213E83F05A16803");
 
                     b.HasIndex("ItemSize");
-
-                    b.HasIndex("ProductLineId");
 
                     b.HasIndex(new[] { "ItemNo" }, "UQ__items__5202274F1F373C3F")
                         .IsUnique();
@@ -1893,59 +1890,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.HasIndex(new[] { "Id" }, "ix_pricings_id");
 
                     b.ToTable("pricings", (string)null);
-                });
-
-            modelBuilder.Entity("LPCylinderMES.Api.Models.ProductLine", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasColumnName("id");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("code");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit")
-                        .HasColumnName("is_active");
-
-                    b.Property<bool>("IsFinishedGood")
-                        .HasColumnType("bit")
-                        .HasColumnName("is_finished_good");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(80)")
-                        .HasColumnName("name");
-
-                    b.Property<string>("ScheduleColorHex")
-                        .HasMaxLength(7)
-                        .IsUnicode(false)
-                        .HasColumnType("varchar(7)")
-                        .HasColumnName("schedule_color_hex");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int")
-                        .HasColumnName("sort_order");
-
-                    b.Property<int?>("WeeklyCapacityTarget")
-                        .HasColumnType("int")
-                        .HasColumnName("weekly_capacity_target");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("product_lines", (string)null);
                 });
 
             modelBuilder.Entity("LPCylinderMES.Api.Models.ProductionLine", b =>
@@ -3862,14 +3806,7 @@ namespace LPCylinderMES.Api.Migrations
                         .HasForeignKey("ItemSize")
                         .HasConstraintName("FK__items__item_size__34E8D562");
 
-                    b.HasOne("LPCylinderMES.Api.Models.ProductLine", "ProductLineNavigation")
-                        .WithMany("Items")
-                        .HasForeignKey("ProductLineId")
-                        .HasConstraintName("FK_items_product_lines");
-
                     b.Navigation("ItemSizeNavigation");
-
-                    b.Navigation("ProductLineNavigation");
                 });
 
             modelBuilder.Entity("LPCylinderMES.Api.Models.OperatorActivityLog", b =>
@@ -4486,11 +4423,6 @@ namespace LPCylinderMES.Api.Migrations
                     b.Navigation("Customers");
 
                     b.Navigation("SalesOrders");
-                });
-
-            modelBuilder.Entity("LPCylinderMES.Api.Models.ProductLine", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("LPCylinderMES.Api.Models.RouteTemplate", b =>

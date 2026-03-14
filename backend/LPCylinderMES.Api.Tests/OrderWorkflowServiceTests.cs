@@ -9,22 +9,14 @@ namespace LPCylinderMES.Api.Tests;
 public class OrderWorkflowServiceTests
 {
     [Fact]
-    public async Task UpsertPromiseCommitmentAsync_FirstCommit_SetsCanonicalDatesAndAppendsEvent()
+    public async Task UpdateScheduleAsync_SetsScheduleWeekAndTargetDateAndAppendsEvent()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(UpsertPromiseCommitmentAsync_FirstCommit_SetsCanonicalDatesAndAppendsEvent));
-        db.PromiseReasonPolicies.Add(new PromiseReasonPolicy
-        {
-            ReasonCode = "Capacity",
-            Description = "Capacity issue",
-            OwnerRole = "Office",
-            AllowedNotificationPolicies = "Notified,DeferredNotification,InternalOnly",
-            IsActive = true,
-            UpdatedUtc = DateTime.UtcNow,
-        });
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateScheduleAsync_SetsScheduleWeekAndTargetDateAndAppendsEvent));
+        var weekMonday = new DateOnly(2026, 3, 16);
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 901,
-            SalesOrderNo = "SO-PROM-901",
+            SalesOrderNo = "SO-SCHED-901",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
             OrderStatus = OrderStatusCatalog.New,
             OrderLifecycleStatus = OrderStatusCatalog.Draft,
@@ -38,87 +30,38 @@ public class OrderWorkflowServiceTests
             GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.New)),
         };
         var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
-        var requestedUtc = DateTime.UtcNow.Date.AddDays(5);
-        var committedUtc = DateTime.UtcNow.Date.AddDays(7);
+        var targetDateUtc = weekMonday.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(2);
 
-        await service.UpsertPromiseCommitmentAsync(901, new UpsertPromiseCommitmentDto(
-            requestedUtc,
-            committedUtc,
-            "Office",
-            "EMP901",
-            "Capacity",
-            "Initial commitment to customer.",
-            null,
-            null,
-            null,
-            null));
+        await service.UpdateScheduleAsync(901, new UpdateScheduleDto(
+            weekMonday,
+            targetDateUtc,
+            "Scheduled for Wednesday",
+            "EMP901"));
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 901);
-        Assert.Equal(requestedUtc, order.RequestedDateUtc);
-        Assert.Equal(committedUtc, order.PromisedDateUtc);
-        Assert.Equal(committedUtc, order.CurrentCommittedDateUtc);
-        Assert.Equal(0, order.PromiseRevisionCount);
+        Assert.Equal(weekMonday, order.ScheduleWeekOf);
+        Assert.Equal(targetDateUtc.Date, order.TargetDateUtc?.Date);
         var events = await db.OrderPromiseChangeEvents.Where(e => e.OrderId == 901).ToListAsync();
         Assert.Single(events);
-        Assert.Equal("PromiseDateCommitted", events[0].EventType);
+        Assert.Equal(targetDateUtc.Date, events[0].NewDateUtc?.Date);
+        Assert.Equal("Scheduled for Wednesday", events[0].Note);
     }
 
     [Fact]
-    public async Task UpsertPromiseCommitmentAsync_RevisionWithoutReason_ThrowsBadRequest()
+    public async Task UpdateScheduleAsync_NoChange_ReturnsDetailWithoutPersistingEvent()
     {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(UpsertPromiseCommitmentAsync_RevisionWithoutReason_ThrowsBadRequest));
-        db.PromiseReasonPolicies.Add(new PromiseReasonPolicy
-        {
-            ReasonCode = "Capacity",
-            Description = "Capacity issue",
-            OwnerRole = "Office",
-            AllowedNotificationPolicies = "Notified,DeferredNotification,InternalOnly",
-            IsActive = true,
-            UpdatedUtc = DateTime.UtcNow,
-        });
+        await using var db = TestInfrastructure.CreateDbContext(nameof(UpdateScheduleAsync_NoChange_ReturnsDetailWithoutPersistingEvent));
+        var weekMonday = new DateOnly(2026, 3, 16);
+        var targetDate = weekMonday.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 902,
-            SalesOrderNo = "SO-PROM-902",
+            SalesOrderNo = "SO-SCHED-902",
             OrderDate = DateOnly.FromDateTime(DateTime.Today),
             OrderStatus = OrderStatusCatalog.ReadyToShip,
             OrderLifecycleStatus = OrderStatusCatalog.ProductionComplete,
-            PromisedDateUtc = DateTime.UtcNow.Date.AddDays(2),
-            CurrentCommittedDateUtc = DateTime.UtcNow.Date.AddDays(2),
-            PromiseRevisionCount = 0,
-            CustomerId = 1,
-            SiteId = 1,
-        });
-        await db.SaveChangesAsync();
-
-        var service = new OrderWorkflowService(db, new FakeOrderQueryService(), new FakeOrderPolicyService());
-        var ex = await Assert.ThrowsAsync<ServiceException>(() => service.UpsertPromiseCommitmentAsync(902, new UpsertPromiseCommitmentDto(
-            null,
-            DateTime.UtcNow.Date.AddDays(3),
-            "Office",
-            "EMP902",
-            null,
-            "Slip by one day",
-            "DeferredNotification",
-            "Email",
-            null,
-            null)));
-
-        Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
-    }
-
-    [Fact]
-    public async Task ClassifyPromiseMissAsync_SetsMissReasonAndAppendsEvent()
-    {
-        await using var db = TestInfrastructure.CreateDbContext(nameof(ClassifyPromiseMissAsync_SetsMissReasonAndAppendsEvent));
-        db.SalesOrders.Add(new SalesOrder
-        {
-            Id = 903,
-            SalesOrderNo = "SO-PROM-903",
-            OrderDate = DateOnly.FromDateTime(DateTime.Today),
-            OrderStatus = OrderStatusCatalog.ReadyToInvoice,
-            OrderLifecycleStatus = OrderStatusCatalog.DispatchedOrPickupReleased,
-            CurrentCommittedDateUtc = DateTime.UtcNow.AddDays(-1),
+            ScheduleWeekOf = weekMonday,
+            TargetDateUtc = targetDate,
             CustomerId = 1,
             SiteId = 1,
         });
@@ -126,24 +69,14 @@ public class OrderWorkflowServiceTests
 
         var queries = new FakeOrderQueryService
         {
-            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToInvoice)),
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.ReadyToShip)),
         };
         var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
-        await service.ClassifyPromiseMissAsync(903, new ClassifyPromiseMissDto(
-            "Logistics",
-            "Office",
-            "EMP903",
-            "Carrier delay",
-            "Notified",
-            "Phone",
-            DateTime.UtcNow,
-            "EMP903"));
 
-        var order = await db.SalesOrders.FirstAsync(o => o.Id == 903);
-        Assert.Equal("Logistics", order.PromiseMissReasonCode);
-        var events = await db.OrderPromiseChangeEvents.Where(e => e.OrderId == 903).ToListAsync();
-        Assert.Contains(events, e => e.EventType == "PromiseMissClassified");
-        Assert.Contains(events, e => e.EventType == "CustomerCommitmentNotificationRecorded");
+        await service.UpdateScheduleAsync(902, new UpdateScheduleDto(weekMonday, targetDate, null, "EMP902"));
+
+        var events = await db.OrderPromiseChangeEvents.Where(e => e.OrderId == 902).ToListAsync();
+        Assert.Empty(events);
     }
 
     [Fact]
@@ -395,6 +328,10 @@ public class OrderWorkflowServiceTests
     public async Task AdvanceStatusAsync_LifecycleTransition_UpdatesLifecycleAndLegacyStatus()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_LifecycleTransition_UpdatesLifecycleAndLegacyStatus));
+        db.Addresses.AddRange(
+            new Address { Id = 101, CustomerId = 1, Type = "BillTo", Address1 = "123 Main", City = "City", State = "ST", PostalCode = "12345" },
+            new Address { Id = 102, CustomerId = 1, Type = "PickUp", Address1 = "456 Pickup", City = "City", State = "ST", PostalCode = "12345" },
+            new Address { Id = 103, CustomerId = 1, Type = "ShipTo", Address1 = "789 Ship", City = "City", State = "ST", PostalCode = "12345" });
         db.SalesOrders.Add(new SalesOrder
         {
             Id = 10,
@@ -406,6 +343,9 @@ public class OrderWorkflowServiceTests
             InboundMode = "LpcArrangedPickup",
             CustomerId = 1,
             SiteId = 1,
+            BillToAddressId = 101,
+            PickUpAddressId = 102,
+            ShipToAddressId = 103,
         });
         await db.SaveChangesAsync();
 
@@ -421,6 +361,38 @@ public class OrderWorkflowServiceTests
         Assert.Equal(OrderStatusCatalog.InboundLogisticsPlanned, order.OrderLifecycleStatus);
         Assert.Equal(OrderStatusCatalog.ReadyForPickup, order.OrderStatus);
         Assert.NotNull(order.StatusUpdatedUtc);
+    }
+
+    [Fact]
+    public async Task AdvanceStatusAsync_DraftToInboundLogisticsPlanned_WithoutAddresses_ThrowsConflict()
+    {
+        await using var db = TestInfrastructure.CreateDbContext(nameof(AdvanceStatusAsync_DraftToInboundLogisticsPlanned_WithoutAddresses_ThrowsConflict));
+        db.SalesOrders.Add(new SalesOrder
+        {
+            Id = 11,
+            SalesOrderNo = "SO-LIFE-11",
+            OrderDate = DateOnly.FromDateTime(DateTime.Today),
+            OrderStatus = OrderStatusCatalog.New,
+            OrderLifecycleStatus = OrderStatusCatalog.Draft,
+            OrderOrigin = "OfficeEntry",
+            InboundMode = "LpcArrangedPickup",
+            CustomerId = 1,
+            SiteId = 1,
+        });
+        await db.SaveChangesAsync();
+
+        var queries = new FakeOrderQueryService
+        {
+            GetOrderDetailHandler = (id, _) => Task.FromResult<OrderDraftDetailDto?>(TestInfrastructure.CreateOrderDraftDetail(id, OrderStatusCatalog.New)),
+        };
+        var service = new OrderWorkflowService(db, queries, new FakeOrderPolicyService());
+
+        var ex = await Assert.ThrowsAsync<ServiceException>(() =>
+            service.AdvanceStatusAsync(11, OrderStatusCatalog.InboundLogisticsPlanned));
+        Assert.Equal(StatusCodes.Status409Conflict, ex.StatusCode);
+        Assert.Contains("Bill To", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Pick Up", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("Ship To", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

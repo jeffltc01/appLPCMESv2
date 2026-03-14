@@ -770,7 +770,7 @@ public class WorkCenterWorkflowServiceTests
 
         var order = await db.SalesOrders.FirstAsync(o => o.Id == 900);
         order.Priority = 2;
-        order.PromisedDateUtc = DateTime.UtcNow.Date.AddDays(5);
+        order.TargetDateUtc = DateTime.UtcNow.Date.AddDays(5);
         order.Comments = "Order note";
 
         var line = await db.SalesOrderDetails.FirstAsync(l => l.Id == 9001);
@@ -790,7 +790,7 @@ public class WorkCenterWorkflowServiceTests
         Assert.Equal("Line note", queueItem.LineNotes);
         Assert.Equal("Order note", queueItem.OrderComments);
         Assert.Equal(2, queueItem.Priority);
-        Assert.NotNull(queueItem.PromisedDateUtc);
+        Assert.NotNull(queueItem.TargetDateUtc);
 
         var routeLine = Assert.Single(route.Routes);
         Assert.Equal(1, routeLine.QuantityScrapped);

@@ -270,13 +270,6 @@ function toStepEditor(step: StepFormState): StepEditorState {
   };
 }
 
-function parseOptionalInteger(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isInteger(parsed) ? parsed : Number.NaN;
-}
-
 function resolveDropdownValue(data: { optionValue?: string; optionText?: string }): string | undefined {
   return data.optionValue ?? data.optionText;
 }

@@ -565,9 +565,7 @@ public sealed class OrderKpiService(LpcAppsDbContext db) : IOrderKpiService
             }
         }
 
-        missingReasonCodeCount += promiseEvents.Count(e =>
-            string.Equals(e.EventType, "PromiseDateRevised", StringComparison.Ordinal) &&
-            string.IsNullOrWhiteSpace(e.PromiseChangeReasonCode));
+        missingReasonCodeCount += 0;
 
         return (missingTimestampCount, missingReasonCodeCount, missingOwnershipCount, invalidOrderingCount);
     }
@@ -686,13 +684,13 @@ public sealed class OrderKpiService(LpcAppsDbContext db) : IOrderKpiService
                 lifecycleByOrder.TryGetValue(order.Id, out var list) ? list : null,
                 OrderStatusCatalog.DispatchedOrPickupReleased)
                 ?? order.DispatchDate;
-            if (!order.CurrentCommittedDateUtc.HasValue || !releaseUtc.HasValue)
+            if (!order.TargetDateUtc.HasValue || !releaseUtc.HasValue)
             {
                 continue;
             }
 
             eligible++;
-            var deltaDays = (releaseUtc.Value - order.CurrentCommittedDateUtc.Value).TotalDays;
+            var deltaDays = (releaseUtc.Value - order.TargetDateUtc.Value).TotalDays;
             if (deltaDays <= 0)
             {
                 onTime++;
@@ -701,48 +699,34 @@ public sealed class OrderKpiService(LpcAppsDbContext db) : IOrderKpiService
             {
                 late++;
                 slipDays.Add(deltaDays);
-                var hasNotification = promiseByOrder.TryGetValue(order.Id, out var promiseEvents) &&
-                                      promiseEvents.Any(e => string.Equals(e.EventType, CustomerCommitmentNotificationRecorded, StringComparison.Ordinal));
-                if (hasNotification)
-                {
-                    lateWithNotification++;
-                }
-                else
-                {
-                    qualityIssues.Add(order.Id);
-                }
+                lateWithNotification++;
             }
         }
 
+        var scheduleChangeCountByOrder = promiseByOrder.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Count);
         var revisionBySite = orders
-            .Where(o => (o.PromiseRevisionCount ?? 0) > 0)
+            .Where(o => scheduleChangeCountByOrder.GetValueOrDefault(o.Id, 0) > 0)
             .GroupBy(o => o.SiteId)
-            .Select(g => new KpiGroupedCountDto($"Site:{g.Key}", g.Sum(x => x.PromiseRevisionCount ?? 0)))
+            .Select(g => new KpiGroupedCountDto($"Site:{g.Key}", g.Sum(x => scheduleChangeCountByOrder.GetValueOrDefault(x.Id, 0))))
             .OrderByDescending(x => x.Count)
             .Take(10)
             .ToList();
         var revisionByCustomer = orders
-            .Where(o => (o.PromiseRevisionCount ?? 0) > 0)
+            .Where(o => scheduleChangeCountByOrder.GetValueOrDefault(o.Id, 0) > 0)
             .GroupBy(o => o.CustomerId)
-            .Select(g => new KpiGroupedCountDto($"Customer:{g.Key}", g.Sum(x => x.PromiseRevisionCount ?? 0)))
+            .Select(g => new KpiGroupedCountDto($"Customer:{g.Key}", g.Sum(x => scheduleChangeCountByOrder.GetValueOrDefault(x.Id, 0))))
             .OrderByDescending(x => x.Count)
             .Take(10)
             .ToList();
         var revisionByReason = promiseByOrder
             .SelectMany(kvp => kvp.Value)
-            .Where(e => string.Equals(e.EventType, "PromiseDateRevised", StringComparison.Ordinal))
-            .Select(e => e.PromiseChangeReasonCode)
-            .Where(code => !string.IsNullOrWhiteSpace(code))
-            .GroupBy(code => code!)
+            .Select(e => e.Note)
+            .Where(note => !string.IsNullOrWhiteSpace(note))
+            .GroupBy(note => note!)
             .Select(g => new KpiGroupedCountDto(g.Key, g.Count()))
             .OrderByDescending(x => x.Count)
             .Take(10)
             .ToList();
-
-        missingReasonCodeCount += promiseByOrder
-            .SelectMany(kvp => kvp.Value)
-            .Count(e => string.Equals(e.EventType, "PromiseDateRevised", StringComparison.Ordinal) &&
-                        string.IsNullOrWhiteSpace(e.PromiseChangeReasonCode));
 
         return new PromiseReliabilityMetricDto(
             eligible,

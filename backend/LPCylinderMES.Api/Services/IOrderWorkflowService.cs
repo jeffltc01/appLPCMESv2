@@ -28,22 +28,12 @@ public interface IOrderWorkflowService
         SubmitInvoiceDto dto,
         CancellationToken cancellationToken = default);
 
-    Task<OrderDraftDetailDto> UpsertPromiseCommitmentAsync(
+    Task<OrderDraftDetailDto> UpdateScheduleAsync(
         int orderId,
-        UpsertPromiseCommitmentDto dto,
+        UpdateScheduleDto dto,
         CancellationToken cancellationToken = default);
 
-    Task<OrderDraftDetailDto> ClassifyPromiseMissAsync(
-        int orderId,
-        ClassifyPromiseMissDto dto,
-        CancellationToken cancellationToken = default);
-
-    Task<OrderDraftDetailDto> RecordPromiseNotificationAsync(
-        int orderId,
-        RecordPromiseNotificationDto dto,
-        CancellationToken cancellationToken = default);
-
-    Task<List<OrderPromiseChangeEventDto>> GetPromiseHistoryAsync(
+    Task<List<OrderScheduleChangeEventDto>> GetScheduleHistoryAsync(
         int orderId,
         CancellationToken cancellationToken = default);
 

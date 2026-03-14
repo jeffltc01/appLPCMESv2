@@ -19,3 +19,30 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Schedule board print styles */
+.schedule-board-print-only {
+  display: none !important;
+}
+@media print {
+  .schedule-board-print-hide {
+    display: none !important;
+  }
+  .schedule-board-print-only {
+    display: block !important;
+  }
+  .schedule-board-page main {
+    padding: 0 !important;
+  }
+  .schedule-board-page .schedule-board-sidebar {
+    display: none !important;
+  }
+  .schedule-board-page .schedule-board-area {
+    overflow: visible !important;
+    flex-wrap: wrap !important;
+  }
+  .schedule-board-page .schedule-board-column {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

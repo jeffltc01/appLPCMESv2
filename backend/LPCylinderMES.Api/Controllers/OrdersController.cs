@@ -17,7 +17,8 @@ public class OrdersController(
     IReceivingService receivingService,
     IProductionService productionService,
     IOrderAttachmentService orderAttachmentService,
-    IWorkCenterWorkflowService workCenterWorkflowService) : ControllerBase
+    IWorkCenterWorkflowService workCenterWorkflowService,
+    IScheduleService scheduleService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<OrderDraftListDto>>> GetAll(
@@ -89,6 +90,18 @@ public class OrdersController(
         var resolvedDefaultShipToId = customer.DefaultShipToId ?? customer.DefaultPickUpId;
         var resolvedDefaultPickUpId = customer.DefaultPickUpId ?? customer.DefaultShipToId;
 
+        var billToId = dto.BillToAddressId ?? customer.DefaultBillToId;
+        var pickUpId = dto.PickUpAddressId ?? resolvedDefaultPickUpId;
+        var shipToId = dto.ShipToAddressId ?? resolvedDefaultShipToId;
+        if (!billToId.HasValue || !pickUpId.HasValue || !shipToId.HasValue)
+        {
+            var missing = new List<string>();
+            if (!billToId.HasValue) missing.Add("Bill To");
+            if (!pickUpId.HasValue) missing.Add("Pick Up");
+            if (!shipToId.HasValue) missing.Add("Ship To");
+            return BadRequest(new { message = $"Bill To, Pick Up, and Ship To addresses are required. Missing: {string.Join(", ", missing)}." });
+        }
+
         const int maxCreateAttempts = 10;
         for (var attempt = 0; attempt < maxCreateAttempts; attempt++)
         {
@@ -109,9 +122,9 @@ public class OrdersController(
                 Comments = dto.Comments,
                 Priority = dto.Priority,
                 SalesPersonId = dto.SalesPersonId ?? customer.DefaultSalesEmployeeId,
-                BillToAddressId = dto.BillToAddressId ?? customer.DefaultBillToId,
-                PickUpAddressId = dto.PickUpAddressId ?? resolvedDefaultPickUpId,
-                ShipToAddressId = dto.ShipToAddressId ?? resolvedDefaultShipToId,
+                BillToAddressId = billToId,
+                PickUpAddressId = pickUpId,
+                ShipToAddressId = shipToId,
                 PickUpViaId = dto.PickUpViaId ?? customer.DefaultShipViaId,
                 ShipToViaId = dto.ShipToViaId ?? customer.DefaultShipViaId,
                 PaymentTermId = dto.PaymentTermId ?? customer.DefaultPaymentTermId,
@@ -149,13 +162,27 @@ public class OrdersController(
         if (order.OrderStatus != OrderStatusCatalog.New)
             return Conflict(new { message = $"Only orders in status '{OrderStatusCatalog.New}' can be edited in this sprint." });
 
-        var customerExists = await db.Customers.AnyAsync(c => c.Id == dto.CustomerId);
-        if (!customerExists)
+        var customer = await db.Customers.FindAsync(dto.CustomerId);
+        if (customer is null)
             return BadRequest(new { message = "Invalid customerId." });
 
         var siteExists = await db.Sites.AnyAsync(s => s.Id == dto.SiteId);
         if (!siteExists)
             return BadRequest(new { message = "Invalid siteId." });
+
+        var resolvedDefaultShipToId = customer.DefaultShipToId ?? customer.DefaultPickUpId;
+        var resolvedDefaultPickUpId = customer.DefaultPickUpId ?? customer.DefaultShipToId;
+        var billToId = dto.BillToAddressId ?? customer.DefaultBillToId;
+        var pickUpId = dto.PickUpAddressId ?? resolvedDefaultPickUpId;
+        var shipToId = dto.ShipToAddressId ?? resolvedDefaultShipToId;
+        if (!billToId.HasValue || !pickUpId.HasValue || !shipToId.HasValue)
+        {
+            var missing = new List<string>();
+            if (!billToId.HasValue) missing.Add("Bill To");
+            if (!pickUpId.HasValue) missing.Add("Pick Up");
+            if (!shipToId.HasValue) missing.Add("Ship To");
+            return BadRequest(new { message = $"Bill To, Pick Up, and Ship To addresses are required. Missing: {string.Join(", ", missing)}." });
+        }
 
         order.CustomerId = dto.CustomerId;
         order.SiteId = dto.SiteId;
@@ -168,9 +195,9 @@ public class OrdersController(
         order.Comments = dto.Comments;
         order.Priority = dto.Priority;
         order.SalesPersonId = dto.SalesPersonId;
-        order.BillToAddressId = dto.BillToAddressId;
-        order.PickUpAddressId = dto.PickUpAddressId;
-        order.ShipToAddressId = dto.ShipToAddressId;
+        order.BillToAddressId = billToId;
+        order.PickUpAddressId = pickUpId;
+        order.ShipToAddressId = shipToId;
         order.PickUpViaId = dto.PickUpViaId;
         order.ShipToViaId = dto.ShipToViaId;
         order.PaymentTermId = dto.PaymentTermId;
@@ -204,12 +231,12 @@ public class OrdersController(
         }
     }
 
-    [HttpPost("{id:int}/promise-commitment")]
-    public async Task<ActionResult<OrderDraftDetailDto>> UpsertPromiseCommitment(int id, UpsertPromiseCommitmentDto dto)
+    [HttpPut("{id:int}/schedule")]
+    public async Task<ActionResult<OrderDraftDetailDto>> UpdateSchedule(int id, UpdateScheduleDto dto)
     {
         try
         {
-            return Ok(await orderWorkflowService.UpsertPromiseCommitmentAsync(id, dto));
+            return Ok(await orderWorkflowService.UpdateScheduleAsync(id, dto));
         }
         catch (ServiceException ex)
         {
@@ -217,12 +244,12 @@ public class OrdersController(
         }
     }
 
-    [HttpPost("{id:int}/promise-miss-classification")]
-    public async Task<ActionResult<OrderDraftDetailDto>> ClassifyPromiseMiss(int id, ClassifyPromiseMissDto dto)
+    [HttpGet("{id:int}/schedule-history")]
+    public async Task<ActionResult<List<OrderScheduleChangeEventDto>>> GetScheduleHistory(int id)
     {
         try
         {
-            return Ok(await orderWorkflowService.ClassifyPromiseMissAsync(id, dto));
+            return Ok(await orderWorkflowService.GetScheduleHistoryAsync(id));
         }
         catch (ServiceException ex)
         {
@@ -230,30 +257,22 @@ public class OrdersController(
         }
     }
 
-    [HttpPost("{id:int}/promise-notification")]
-    public async Task<ActionResult<OrderDraftDetailDto>> RecordPromiseNotification(int id, RecordPromiseNotificationDto dto)
+    [HttpGet("schedule")]
+    public async Task<ActionResult<ScheduleBoardDto>> GetSchedule(
+        [FromQuery] DateOnly weekOf,
+        [FromQuery] int? siteId = null,
+        [FromQuery] int lookbackDays = 90,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            return Ok(await orderWorkflowService.RecordPromiseNotificationAsync(id, dto));
-        }
-        catch (ServiceException ex)
-        {
-            return this.ToActionResult(ex);
-        }
+        var result = await scheduleService.GetScheduleBoardAsync(weekOf, siteId, lookbackDays, cancellationToken);
+        return Ok(result);
     }
 
-    [HttpGet("{id:int}/promise-history")]
-    public async Task<ActionResult<List<OrderPromiseChangeEventDto>>> GetPromiseHistory(int id)
+    [HttpPut("schedule/bulk-assign")]
+    public async Task<IActionResult> BulkAssignSchedule(BulkAssignScheduleDto dto, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            return Ok(await orderWorkflowService.GetPromiseHistoryAsync(id));
-        }
-        catch (ServiceException ex)
-        {
-            return this.ToActionResult(ex);
-        }
+        await scheduleService.BulkAssignScheduleAsync(dto, cancellationToken);
+        return NoContent();
     }
 
     [HttpGet("{id:int}/audit-trail")]

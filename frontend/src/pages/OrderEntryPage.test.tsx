@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { OrderEntryPage } from "./OrderEntryPage";
-import { ordersApi } from "../services/orders";
+import { orderLookupsApi, ordersApi } from "../services/orders";
 import { orderPoliciesApi } from "../services/orderPolicies";
 
 vi.mock("../services/orders", () => ({
@@ -109,6 +109,34 @@ describe("OrderEntryPage", () => {
 
     expect(await screen.findByRole("button", { name: "Back to Orders" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Save Draft" })).toHaveLength(1);
+  });
+
+  it("defaults Bill To, Pickup, and Ship To to the single address when customer has only one per type", async () => {
+    vi.mocked(orderLookupsApi.activeCustomers).mockResolvedValue([
+      { id: 1, name: "Acme Corp" },
+    ]);
+    vi.mocked(orderLookupsApi.customerAddresses).mockImplementation((_customerId, type) => {
+      if (type === "BILL_TO") {
+        return Promise.resolve([{ id: 100, type: "BILL_TO", name: "Single Bill To" }]);
+      }
+      if (type === "SHIP_TO") {
+        return Promise.resolve([{ id: 200, type: "SHIP_TO", name: "Single Ship To" }]);
+      }
+      return Promise.resolve([]);
+    });
+    vi.mocked(orderLookupsApi.sites).mockResolvedValue([{ id: 1, name: "Main" }]);
+
+    renderNewOrderPage();
+
+    const combobox = await screen.findByPlaceholderText("Type to search customer");
+    fireEvent.click(combobox);
+    fireEvent.click(await screen.findByText("Acme Corp"));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Single Bill To")).toBeInTheDocument();
+    });
+    const shipToSelects = screen.getAllByDisplayValue("Single Ship To");
+    expect(shipToSelects).toHaveLength(2);
   });
 
   it("navigates back to dashboard for new order launched from dashboard", async () => {
@@ -508,8 +536,8 @@ describe("OrderEntryPage", () => {
     expect(screen.getByRole("switch", { name: "Customer Pickup" })).toBeDisabled();
     expect(screen.getByLabelText("Pickup Via")).toBeDisabled();
     expect(screen.getByLabelText("Ship Via")).toBeDisabled();
-    expect(screen.getByLabelText("Pickup Address")).toBeDisabled();
-    expect(screen.getByLabelText("Ship To Address")).toBeDisabled();
+    expect(screen.getByLabelText(/Pickup Address/)).toBeDisabled();
+    expect(screen.getByLabelText(/Ship To Address/)).toBeDisabled();
     expect(screen.getByLabelText("Return Scrap")).toBeDisabled();
     expect(screen.getByLabelText("Return Brass")).toBeDisabled();
   });

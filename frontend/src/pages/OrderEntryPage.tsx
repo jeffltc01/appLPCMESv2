@@ -23,7 +23,6 @@ import {
   TableHeaderCell,
   TableRow,
   Textarea,
-  Title2,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -100,6 +99,13 @@ function generateCorrelationId(): string {
     return crypto.randomUUID();
   }
   return `invoice-${Date.now()}`;
+}
+
+function formatDateOnly(value: string | null | undefined): string {
+  if (!value) return "-";
+  const parsed = new Date(value + "T00:00:00");
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 }
 
 interface OrderFormState {
@@ -846,6 +852,20 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
       .then(([loadedBillTo, loadedShipTo]) => {
         setBillToAddresses(loadedBillTo);
         setShipToAddresses(loadedShipTo);
+        setForm((prev) => {
+          const updates: Partial<OrderFormState> = {};
+          if (loadedBillTo.length === 1 && prev.billToAddressId == null) {
+            updates.billToAddressId = loadedBillTo[0].id;
+          }
+          if (loadedShipTo.length === 1 && prev.pickUpAddressId == null) {
+            updates.pickUpAddressId = loadedShipTo[0].id;
+          }
+          if (loadedShipTo.length === 1 && prev.shipToAddressId == null) {
+            updates.shipToAddressId = loadedShipTo[0].id;
+          }
+          if (Object.keys(updates).length === 0) return prev;
+          return { ...prev, ...updates };
+        });
       })
       .catch(() => {
         setError("Failed to load customer addresses.");
@@ -932,26 +952,34 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   }, [hasSerialRequiredLines, order?.id, showInvoiceSerialChecklist]);
 
   const handleInput = (key: keyof OrderFormState, value: string) => {
-    setForm((previous) => ({
-      ...previous,
-      [key]:
-        key === "customerId" ||
-        key === "siteId" ||
-        key === "priority" ||
-        key === "salesPersonId" ||
-        key === "billToAddressId" ||
-        key === "pickUpAddressId" ||
-        key === "shipToAddressId" ||
-        key === "pickUpViaId" ||
-        key === "shipToViaId" ||
-        key === "paymentTermId" ||
-        key === "returnScrap" ||
-        key === "returnBrass"
-          ? value === ""
-            ? null
-            : Number(value)
-          : value,
-    }));
+    setForm((previous) => {
+      const next: OrderFormState = {
+        ...previous,
+        [key]:
+          key === "customerId" ||
+          key === "siteId" ||
+          key === "priority" ||
+          key === "salesPersonId" ||
+          key === "billToAddressId" ||
+          key === "pickUpAddressId" ||
+          key === "shipToAddressId" ||
+          key === "pickUpViaId" ||
+          key === "shipToViaId" ||
+          key === "paymentTermId" ||
+          key === "returnScrap" ||
+          key === "returnBrass"
+            ? value === ""
+              ? null
+              : Number(value)
+            : value,
+      };
+      if (key === "customerId") {
+        next.billToAddressId = null;
+        next.pickUpAddressId = null;
+        next.shipToAddressId = null;
+      }
+      return next;
+    });
   };
 
   const saveOrder = async () => {
@@ -959,6 +987,14 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
     setShowValidationErrors(true);
     if (!form.customerId || !form.siteId || !form.orderDate) {
       setError("Customer, Site, and Order Date are required.");
+      return;
+    }
+    if (!form.billToAddressId || !form.pickUpAddressId || !form.shipToAddressId) {
+      const missing: string[] = [];
+      if (!form.billToAddressId) missing.push("Bill To");
+      if (!form.pickUpAddressId) missing.push("Pick Up");
+      if (!form.shipToAddressId) missing.push("Ship To");
+      setError(`Bill To, Pick Up, and Ship To addresses are required. Missing: ${missing.join(", ")}.`);
       return;
     }
 
@@ -1027,6 +1063,9 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
   const customerMissing = showValidationErrors && !form.customerId;
   const siteMissing = showValidationErrors && !form.siteId;
   const orderDateMissing = showValidationErrors && !form.orderDate;
+  const addressesMissing =
+    showValidationErrors &&
+    (!form.billToAddressId || !form.pickUpAddressId || !form.shipToAddressId);
   const hasErrorMessage = Boolean(loadError || error);
   const selectedCustomerId = form.customerId;
   const dropoffToggleOn = form.inboundMode === "CustomerDropoff";
@@ -1360,6 +1399,14 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                   <CheckmarkCircle20Filled color={Boolean(form.orderDate) ? "#107C10" : "#6E6E6E"} />
                   Required dates set
                 </span>
+                <span className={styles.checklistInlineItem}>
+                  <CheckmarkCircle20Filled
+                    color={
+                      form.billToAddressId && form.pickUpAddressId && form.shipToAddressId ? "#107C10" : "#6E6E6E"
+                    }
+                  />
+                  Bill To, Pick Up, Ship To addresses
+                </span>
                 {showInvoiceSerialChecklist ? (
                   <span className={styles.checklistInlineItem}>
                     <CheckmarkCircle20Filled
@@ -1505,14 +1552,32 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                       label={form.returnBrass === 1 ? "Yes" : "No"}
                     />
                   </Field>
-                  <Field label="Requested Delivery Date">
-                    <Input value={order?.requestedDateUtc ?? ""} readOnly />
+                  {order?.requestedDateUtc && (
+                    <Field label="Requested Date">
+                      <Input value={order.requestedDateUtc} readOnly />
+                    </Field>
+                  )}
+                  <Field label="Scheduled Week">
+                    <Input
+                      value={
+                        order?.scheduleWeekOf
+                          ? `Week of ${formatDateOnly(order.scheduleWeekOf)}`
+                          : "Unscheduled"
+                      }
+                      readOnly
+                    />
                   </Field>
-                  <Field label="Promised Date">
-                    <Input value={order?.promisedDateUtc ?? ""} readOnly />
-                  </Field>
-                  <Field label="Current Committed Date">
-                    <Input value={order?.currentCommittedDateUtc ?? ""} readOnly />
+                  <Field label="Start Day">
+                    <Input
+                      value={
+                        order?.targetDateUtc
+                          ? formatDateOnly(
+                              order.targetDateUtc.slice(0, 10)
+                            )
+                          : "Not assigned"
+                      }
+                      readOnly
+                    />
                   </Field>
 
                   <div className={styles.sectionDivider}>Site, Sales and Commercial</div>
@@ -1642,7 +1707,13 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                       </Select>
                     </Field>
                   ) : null}
-                  <Field label="Bill To Address">
+                  <Field
+                    label="Bill To Address *"
+                    validationState={addressesMissing && !form.billToAddressId ? "error" : "none"}
+                    validationMessage={
+                      addressesMissing && !form.billToAddressId ? "Bill To address is required." : undefined
+                    }
+                  >
                     <Select
                       value={form.billToAddressId != null ? String(form.billToAddressId) : ""}
                       onChange={(event) => handleInput("billToAddressId", event.target.value)}
@@ -1656,7 +1727,13 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Pickup Address">
+                  <Field
+                    label="Pickup Address *"
+                    validationState={addressesMissing && !form.pickUpAddressId ? "error" : "none"}
+                    validationMessage={
+                      addressesMissing && !form.pickUpAddressId ? "Pick Up address is required." : undefined
+                    }
+                  >
                     <Select
                       value={form.pickUpAddressId != null ? String(form.pickUpAddressId) : ""}
                       onChange={(event) => handleInput("pickUpAddressId", event.target.value)}
@@ -1671,7 +1748,13 @@ export function OrderEntryPage({ invoiceMode = false }: OrderEntryPageProps) {
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Ship To Address">
+                  <Field
+                    label="Ship To Address *"
+                    validationState={addressesMissing && !form.shipToAddressId ? "error" : "none"}
+                    validationMessage={
+                      addressesMissing && !form.shipToAddressId ? "Ship To address is required." : undefined
+                    }
+                  >
                     <Select
                       value={form.shipToAddressId != null ? String(form.shipToAddressId) : ""}
                       onChange={(event) => handleInput("shipToAddressId", event.target.value)}

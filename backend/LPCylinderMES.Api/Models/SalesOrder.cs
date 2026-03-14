@@ -161,17 +161,9 @@ public partial class SalesOrder
 
     public DateTime? RequestedDateUtc { get; set; }
 
-    public DateTime? PromisedDateUtc { get; set; }
+    public DateOnly? ScheduleWeekOf { get; set; }
 
-    public DateTime? CurrentCommittedDateUtc { get; set; }
-
-    public DateTime? PromiseDateLastChangedUtc { get; set; }
-
-    public string? PromiseDateLastChangedByEmpNo { get; set; }
-
-    public int? PromiseRevisionCount { get; set; }
-
-    public string? PromiseMissReasonCode { get; set; }
+    public DateTime? TargetDateUtc { get; set; }
 
     public string? InvoiceReviewCompletedByEmpNo { get; set; }
 
