@@ -196,7 +196,8 @@ GET /api/orders/{id}/schedule-history
 - **Lookback:** 7–365 days, default 90. Configurable via `lookbackDays` query param.
 - **Cache:** 1 hour; keyed by `siteId` and `lookbackDays`.
 - **Display:** Pills show `{code} avg {historicalAvgPerWeek}` (rounded integer).
-- **Product lines:** Only `IsFinishedGood` and `IsActive` product lines are included.
+- **Product lines:** Only `IsFinishedGood` and `IsActive` product lines are included in the API response.
+- **Display filter:** The capacity pills show only product lines that appear in orders currently on the board (unscheduled, carryover, week pool, day assigned). Product lines with no orders on the schedule are hidden.
 
 ## 7) UI Behavior (Schedule Board Page)
 

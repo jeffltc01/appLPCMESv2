@@ -472,6 +472,22 @@ export function ScheduleBoardPage() {
     return map;
   }, [data?.dayAssigned, dayColumns]);
 
+  const productLineCodesOnSchedule = useMemo(() => {
+    const cards = [
+      ...(data?.unscheduled ?? []),
+      ...(data?.carryover ?? []),
+      ...(data?.weekPool ?? []),
+      ...(data?.dayAssigned ?? []),
+    ];
+    const codes = new Set<string>();
+    for (const card of cards) {
+      for (const s of card.productLineSummary ?? []) {
+        codes.add(s.productLineCode);
+      }
+    }
+    return codes;
+  }, [data?.unscheduled, data?.carryover, data?.weekPool, data?.dayAssigned]);
+
   const capacityMetrics = useMemo(() => {
     if (!data?.productLines) return [];
     const currentByCode = computeCurrentThisWeek(
@@ -479,7 +495,9 @@ export function ScheduleBoardPage() {
       data.dayAssigned ?? []
     );
     const lookback = data.throughputLookbackDays;
-    return data.productLines.map((pl) => {
+    return data.productLines
+      .filter((pl) => productLineCodesOnSchedule.has(pl.code))
+      .map((pl) => {
       const current = currentByCode.get(pl.code) ?? 0;
       const reference =
         pl.weeklyCapacityTarget ?? Math.round(pl.historicalAvgPerWeek);
@@ -496,7 +514,7 @@ export function ScheduleBoardPage() {
         lookback,
       };
     });
-  }, [data?.productLines, data?.weekPool, data?.dayAssigned, data?.throughputLookbackDays]);
+  }, [data?.productLines, data?.weekPool, data?.dayAssigned, data?.throughputLookbackDays, productLineCodesOnSchedule]);
 
   return (
     <div className={`${styles.page} schedule-board-page`}>
