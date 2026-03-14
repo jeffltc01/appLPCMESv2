@@ -18,7 +18,8 @@ public class OrdersController(
     IProductionService productionService,
     IOrderAttachmentService orderAttachmentService,
     IWorkCenterWorkflowService workCenterWorkflowService,
-    IScheduleService scheduleService) : ControllerBase
+    IScheduleService scheduleService,
+    IScheduleSettingsService scheduleSettingsService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<OrderDraftListDto>>> GetAll(
@@ -261,10 +262,11 @@ public class OrdersController(
     public async Task<ActionResult<ScheduleBoardDto>> GetSchedule(
         [FromQuery] DateOnly weekOf,
         [FromQuery] int? siteId = null,
-        [FromQuery] int lookbackDays = 90,
+        [FromQuery] int? lookbackDays = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await scheduleService.GetScheduleBoardAsync(weekOf, siteId, lookbackDays, cancellationToken);
+        var effectiveLookback = lookbackDays ?? (await scheduleSettingsService.GetAsync(cancellationToken)).ThroughputLookbackDays;
+        var result = await scheduleService.GetScheduleBoardAsync(weekOf, siteId, effectiveLookback, cancellationToken);
         return Ok(result);
     }
 

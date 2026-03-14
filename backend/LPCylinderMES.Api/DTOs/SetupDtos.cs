@@ -18,13 +18,23 @@ public record ProductionLineDto(
     string Code,
     string Name,
     List<string> ShowWhere,
+    bool IsFinishedGood,
+    int? WeeklyCapacityTarget,
+    string? ScheduleColorHex,
+    int SortOrder,
+    bool IsActive,
     DateTime CreatedUtc,
     DateTime UpdatedUtc);
 
 public record ProductionLineUpsertDto(
     string Code,
     string Name,
-    List<string> ShowWhere);
+    List<string> ShowWhere,
+    bool IsFinishedGood,
+    int? WeeklyCapacityTarget,
+    string? ScheduleColorHex,
+    int SortOrder,
+    bool IsActive);
 
 public record AppRoleDto(
     int Id,
@@ -230,3 +240,7 @@ public record LookupOptionUpsertDto(
     string DisplayName,
     bool IsActive,
     int SortOrder);
+
+public record ScheduleSettingsDto(int ThroughputLookbackDays);
+
+public record ScheduleSettingsUpsertDto(int ThroughputLookbackDays);

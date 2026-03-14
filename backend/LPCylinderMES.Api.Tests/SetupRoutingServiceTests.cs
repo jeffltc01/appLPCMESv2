@@ -18,7 +18,12 @@ public class SetupRoutingServiceTests
         var created = await service.CreateProductionLineAsync(new ProductionLineUpsertDto(
             "PL-REFURB",
             "Refurb",
-            ["OrderProduct", "OrderReceiving"]));
+            ["OrderProduct", "OrderReceiving"],
+            true,
+            null,
+            null,
+            0,
+            true));
 
         Assert.Equal("PL-REFURB", created.Code);
         Assert.Equal("Refurb", created.Name);
@@ -33,7 +38,7 @@ public class SetupRoutingServiceTests
         var service = new SetupRoutingService(db);
 
         var ex = await Assert.ThrowsAsync<ServiceException>(() => service.CreateProductionLineAsync(
-            new ProductionLineUpsertDto("PL-EMPTY", "Empty", [])));
+            new ProductionLineUpsertDto("PL-EMPTY", "Empty", [], true, null, null, 0, true)));
 
         Assert.Equal(StatusCodes.Status400BadRequest, ex.StatusCode);
     }
@@ -42,12 +47,15 @@ public class SetupRoutingServiceTests
     public async Task DeleteProductionLineAsync_WhenReferencedByItem_ThrowsConflict()
     {
         await using var db = TestInfrastructure.CreateDbContext(nameof(DeleteProductionLineAsync_WhenReferencedByItem_ThrowsConflict));
-        db.ProductionLines.Add(new ProductionLine
+        db.ProductLines.Add(new ProductLine
         {
             Id = 1,
             Code = "PL-USED",
             Name = "Used",
             ShowWhereMask = 15,
+            IsFinishedGood = false,
+            IsActive = true,
+            SortOrder = 0,
             CreatedUtc = DateTime.UtcNow,
             UpdatedUtc = DateTime.UtcNow,
         });
@@ -57,6 +65,7 @@ public class SetupRoutingServiceTests
             ItemNo = "IT-10",
             ItemType = "Tank",
             ProductLine = "PL-USED",
+            ProductLineId = 1,
             RequiresSerialNumbers = 0,
         });
         await db.SaveChangesAsync();

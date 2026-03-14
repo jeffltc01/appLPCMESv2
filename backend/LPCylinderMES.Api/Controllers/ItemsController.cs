@@ -97,7 +97,7 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
         if (await db.Items.AnyAsync(i => i.ItemNo == dto.ItemNo))
             return Conflict(new { message = $"Item number '{dto.ItemNo}' already exists." });
 
-        var (isProductLineValid, productLineCode, productLineError) = await ValidateProductLineCodeAsync(dto.ProductLine);
+        var (isProductLineValid, productLineCode, productLineId, productLineError) = await ValidateProductLineCodeAsync(dto.ProductLine);
         if (!isProductLineValid)
             return BadRequest(new { message = productLineError });
 
@@ -107,6 +107,7 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
             ItemDescription = dto.ItemDescription,
             ItemType = dto.ItemType,
             ProductLine = productLineCode,
+            ProductLineId = productLineId,
             ItemSize = dto.ItemSizeId,
             RequiresSerialNumbers = 0,
         };
@@ -127,7 +128,7 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
         if (item.ItemNo != dto.ItemNo && await db.Items.AnyAsync(i => i.ItemNo == dto.ItemNo && i.Id != id))
             return Conflict(new { message = $"Item number '{dto.ItemNo}' already exists." });
 
-        var (isProductLineValid, productLineCode, productLineError) = await ValidateProductLineCodeAsync(dto.ProductLine);
+        var (isProductLineValid, productLineCode, productLineId, productLineError) = await ValidateProductLineCodeAsync(dto.ProductLine);
         if (!isProductLineValid)
             return BadRequest(new { message = productLineError });
 
@@ -135,6 +136,7 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
         item.ItemDescription = dto.ItemDescription;
         item.ItemType = dto.ItemType;
         item.ProductLine = productLineCode;
+        item.ProductLineId = productLineId;
         item.ItemSize = dto.ItemSizeId;
         item.SystemCode = dto.SystemCode;
         item.RequiresSerialNumbers = dto.RequiresSerialNumbers;
@@ -173,16 +175,20 @@ public class ItemsController(LpcAppsDbContext db) : ControllerBase
             ?? throw new InvalidOperationException("Failed to load item detail");
     }
 
-    private async Task<(bool IsValid, string? Code, string? Error)> ValidateProductLineCodeAsync(string? productLine)
+    private async Task<(bool IsValid, string? Code, int? ProductLineId, string? Error)> ValidateProductLineCodeAsync(string? productLine)
     {
         if (string.IsNullOrWhiteSpace(productLine))
-            return (true, null, null);
+            return (true, null, null, null);
 
         var normalizedCode = productLine.Trim();
-        var exists = await db.ProductionLines.AnyAsync(pl => pl.Code == normalizedCode);
-        if (!exists)
-            return (false, null, $"Product line code '{normalizedCode}' does not exist.");
+        var pl = await db.ProductLines
+            .AsNoTracking()
+            .Where(p => p.Code == normalizedCode && p.IsActive)
+            .Select(p => new { p.Id, p.Code })
+            .FirstOrDefaultAsync();
+        if (pl is null)
+            return (false, null, null, $"Product line code '{normalizedCode}' does not exist.");
 
-        return (true, normalizedCode, null);
+        return (true, pl.Code, pl.Id, null);
     }
 }

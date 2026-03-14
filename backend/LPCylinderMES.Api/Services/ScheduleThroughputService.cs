@@ -35,6 +35,15 @@ public sealed class ScheduleThroughputService(
         }) ?? [];
     }
 
+    private static readonly HashSet<string> CompletedLifecycleStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        OrderStatusCatalog.ProductionComplete,
+        OrderStatusCatalog.ProductionCompletePendingApproval,
+        OrderStatusCatalog.InvoiceReady,
+        OrderStatusCatalog.Invoiced,
+        "Closed",
+    };
+
     private async Task<List<ProductLineScheduleInfoDto>> ComputeThroughputAsync(
         int? siteId,
         int lookbackDays,
@@ -44,14 +53,38 @@ public sealed class ScheduleThroughputService(
 
         var completedOrdersQuery = db.SalesOrders
             .AsNoTracking()
-            .Where(o => o.ProductionCompletedUtc != null && o.ProductionCompletedUtc >= fromUtc);
+            .Where(o => CompletedLifecycleStatuses.Contains(o.OrderLifecycleStatus ?? ""));
 
         if (siteId.HasValue)
         {
             completedOrdersQuery = completedOrdersQuery.Where(o => o.SiteId == siteId.Value);
         }
 
-        var orderIds = await completedOrdersQuery.Select(o => o.Id).ToListAsync(cancellationToken);
+        var ordersWithDates = await completedOrdersQuery
+            .Select(o => new
+            {
+                o.Id,
+                o.ProductionCompletedUtc,
+                o.StatusUpdatedUtc,
+                o.InvoiceDate,
+                o.ClosedDate,
+            })
+            .ToListAsync(cancellationToken);
+
+        var orderCompletionDates = new Dictionary<int, DateTime>();
+        foreach (var o in ordersWithDates)
+        {
+            var completedUtc = o.ProductionCompletedUtc
+                ?? o.StatusUpdatedUtc
+                ?? (o.InvoiceDate.HasValue ? DateTime.SpecifyKind(o.InvoiceDate.Value, DateTimeKind.Utc) : (DateTime?)null)
+                ?? (o.ClosedDate.HasValue ? DateTime.SpecifyKind(o.ClosedDate.Value, DateTimeKind.Utc) : (DateTime?)null);
+            if (completedUtc.HasValue && completedUtc.Value >= fromUtc)
+            {
+                orderCompletionDates[o.Id] = completedUtc.Value;
+            }
+        }
+
+        var orderIds = orderCompletionDates.Keys.ToList();
         if (orderIds.Count == 0)
         {
             return await GetProductLineInfosWithZeroThroughputAsync(cancellationToken);
@@ -69,12 +102,6 @@ public sealed class ScheduleThroughputService(
                 d.QuantityAsReceived,
             })
             .ToListAsync(cancellationToken);
-
-        var orderCompletionDates = await db.SalesOrders
-            .AsNoTracking()
-            .Where(o => orderIds.Contains(o.Id))
-            .Select(o => new { o.Id, o.ProductionCompletedUtc })
-            .ToDictionaryAsync(o => o.Id, o => o.ProductionCompletedUtc!.Value, cancellationToken);
 
         var itemProductLines = await db.Items
             .AsNoTracking()

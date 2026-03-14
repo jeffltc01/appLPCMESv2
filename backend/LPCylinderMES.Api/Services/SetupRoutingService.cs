@@ -206,22 +206,23 @@ public sealed class SetupRoutingService(
     }
 
     public async Task<List<ProductionLineDto>> GetProductionLinesAsync(CancellationToken cancellationToken = default) =>
-        await db.ProductionLines
+        await db.ProductLines
             .AsNoTracking()
-            .OrderBy(p => p.Code)
+            .OrderBy(p => p.SortOrder)
+            .ThenBy(p => p.Code)
             .Select(p => ToProductionLineDto(p))
             .ToListAsync(cancellationToken);
 
     public async Task<ProductionLineDto> GetProductionLineAsync(int id, CancellationToken cancellationToken = default)
     {
-        var productionLine = await db.ProductionLines
+        var productLine = await db.ProductLines
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
-        if (productionLine is null)
-            throw new ServiceException(StatusCodes.Status404NotFound, $"Production line '{id}' was not found.");
+        if (productLine is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Product line '{id}' was not found.");
 
-        return ToProductionLineDto(productionLine);
+        return ToProductionLineDto(productLine);
     }
 
     public async Task<ProductionLineDto> CreateProductionLineAsync(ProductionLineUpsertDto dto, CancellationToken cancellationToken = default)
@@ -229,48 +230,60 @@ public sealed class SetupRoutingService(
         await ValidateProductionLineAsync(dto, null, cancellationToken);
 
         var now = DateTime.UtcNow;
-        var productionLine = new ProductionLine
+        var productLine = new ProductLine
         {
             Code = dto.Code.Trim(),
             Name = dto.Name.Trim(),
             ShowWhereMask = BuildShowWhereMask(dto.ShowWhere),
+            IsFinishedGood = dto.IsFinishedGood,
+            WeeklyCapacityTarget = dto.WeeklyCapacityTarget,
+            ScheduleColorHex = NormalizeScheduleColorHex(dto.ScheduleColorHex),
+            SortOrder = dto.SortOrder,
+            IsActive = dto.IsActive,
             CreatedUtc = now,
             UpdatedUtc = now,
         };
 
-        db.ProductionLines.Add(productionLine);
+        db.ProductLines.Add(productLine);
         await db.SaveChangesAsync(cancellationToken);
-        return ToProductionLineDto(productionLine);
+        return ToProductionLineDto(productLine);
     }
 
     public async Task<ProductionLineDto> UpdateProductionLineAsync(int id, ProductionLineUpsertDto dto, CancellationToken cancellationToken = default)
     {
-        var productionLine = await db.ProductionLines.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-        if (productionLine is null)
-            throw new ServiceException(StatusCodes.Status404NotFound, $"Production line '{id}' was not found.");
+        var productLine = await db.ProductLines.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (productLine is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Product line '{id}' was not found.");
 
         await ValidateProductionLineAsync(dto, id, cancellationToken);
 
-        productionLine.Code = dto.Code.Trim();
-        productionLine.Name = dto.Name.Trim();
-        productionLine.ShowWhereMask = BuildShowWhereMask(dto.ShowWhere);
-        productionLine.UpdatedUtc = DateTime.UtcNow;
+        productLine.Code = dto.Code.Trim();
+        productLine.Name = dto.Name.Trim();
+        productLine.ShowWhereMask = BuildShowWhereMask(dto.ShowWhere);
+        productLine.IsFinishedGood = dto.IsFinishedGood;
+        productLine.WeeklyCapacityTarget = dto.WeeklyCapacityTarget;
+        productLine.ScheduleColorHex = NormalizeScheduleColorHex(dto.ScheduleColorHex);
+        productLine.SortOrder = dto.SortOrder;
+        productLine.IsActive = dto.IsActive;
+        productLine.UpdatedUtc = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
-        return ToProductionLineDto(productionLine);
+        return ToProductionLineDto(productLine);
     }
 
     public async Task DeleteProductionLineAsync(int id, CancellationToken cancellationToken = default)
     {
-        var productionLine = await db.ProductionLines.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
-        if (productionLine is null)
-            throw new ServiceException(StatusCodes.Status404NotFound, $"Production line '{id}' was not found.");
+        var productLine = await db.ProductLines.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (productLine is null)
+            throw new ServiceException(StatusCodes.Status404NotFound, $"Product line '{id}' was not found.");
 
-        var isReferenced = await db.Items.AnyAsync(i => i.ProductLine != null && i.ProductLine.Trim() == productionLine.Code, cancellationToken);
+        var isReferenced = await db.Items.AnyAsync(i =>
+            i.ProductLineId == id || (i.ProductLine != null && i.ProductLine.Trim() == productLine.Code),
+            cancellationToken);
         if (isReferenced)
-            throw new ServiceException(StatusCodes.Status409Conflict, "Cannot delete production line because it is referenced by items.");
+            throw new ServiceException(StatusCodes.Status409Conflict, "Cannot delete product line because it is referenced by items.");
 
-        db.ProductionLines.Remove(productionLine);
+        db.ProductLines.Remove(productLine);
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -905,17 +918,30 @@ public sealed class SetupRoutingService(
         if (invalidValues.Count > 0)
             throw new ServiceException(StatusCodes.Status400BadRequest, $"Invalid ShowWhere values: {string.Join(", ", invalidValues)}.");
 
-        var duplicateCode = await db.ProductionLines.AnyAsync(
+        if (dto.WeeklyCapacityTarget.HasValue && dto.WeeklyCapacityTarget.Value < 0)
+            throw new ServiceException(StatusCodes.Status400BadRequest, "WeeklyCapacityTarget cannot be negative.");
+
+        var duplicateCode = await db.ProductLines.AnyAsync(
             p => p.Code == normalizedCode && (!existingId.HasValue || p.Id != existingId.Value),
             cancellationToken);
         if (duplicateCode)
-            throw new ServiceException(StatusCodes.Status409Conflict, $"Production line code '{normalizedCode}' already exists.");
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Product line code '{normalizedCode}' already exists.");
 
-        var duplicateName = await db.ProductionLines.AnyAsync(
+        var duplicateName = await db.ProductLines.AnyAsync(
             p => p.Name == normalizedName && (!existingId.HasValue || p.Id != existingId.Value),
             cancellationToken);
         if (duplicateName)
-            throw new ServiceException(StatusCodes.Status409Conflict, $"Production line name '{normalizedName}' already exists.");
+            throw new ServiceException(StatusCodes.Status409Conflict, $"Product line name '{normalizedName}' already exists.");
+    }
+
+    private static string? NormalizeScheduleColorHex(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("#", StringComparison.Ordinal))
+            return trimmed.Length == 7 ? trimmed : null;
+        return trimmed.Length == 6 ? "#" + trimmed : null;
     }
 
     private async Task ValidateRouteTemplateAsync(RouteTemplateUpsertDto dto, int? existingId, CancellationToken cancellationToken)
@@ -1137,14 +1163,19 @@ public sealed class SetupRoutingService(
         return currentHash;
     }
 
-    private static ProductionLineDto ToProductionLineDto(ProductionLine productionLine) =>
+    private static ProductionLineDto ToProductionLineDto(ProductLine productLine) =>
         new(
-            productionLine.Id,
-            productionLine.Code,
-            productionLine.Name,
-            ExtractShowWhereValues(productionLine.ShowWhereMask),
-            productionLine.CreatedUtc,
-            productionLine.UpdatedUtc);
+            productLine.Id,
+            productLine.Code,
+            productLine.Name,
+            ExtractShowWhereValues(productLine.ShowWhereMask),
+            productLine.IsFinishedGood,
+            productLine.WeeklyCapacityTarget,
+            productLine.ScheduleColorHex,
+            productLine.SortOrder,
+            productLine.IsActive,
+            productLine.CreatedUtc,
+            productLine.UpdatedUtc);
 
     private static WorkCenterDto ToWorkCenterDto(WorkCenter workCenter) =>
         new(

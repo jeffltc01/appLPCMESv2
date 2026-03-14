@@ -73,6 +73,11 @@ export interface ProductionLine {
   code: string;
   name: string;
   showWhere: ProductionLineShowWhere[];
+  isFinishedGood: boolean;
+  weeklyCapacityTarget: number | null;
+  scheduleColorHex: string | null;
+  sortOrder: number;
+  isActive: boolean;
   createdUtc: string;
   updatedUtc: string;
 }
@@ -81,6 +86,11 @@ export interface ProductionLineUpsert {
   code: string;
   name: string;
   showWhere: ProductionLineShowWhere[];
+  isFinishedGood: boolean;
+  weeklyCapacityTarget: number | null;
+  scheduleColorHex: string | null;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 export interface WorkCenterUpsert {

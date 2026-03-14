@@ -79,4 +79,8 @@ export const setupApi = {
     api.put<LookupOptionAdmin>(`/setup/gauges/${id}`, data),
   deleteGauge: (id: number) => api.delete<void>(`/setup/gauges/${id}`),
 
+  getScheduleSettings: () => api.get<{ throughputLookbackDays: number }>("/setup/schedule-settings"),
+  updateScheduleSettings: (data: { throughputLookbackDays: number }) =>
+    api.put<{ throughputLookbackDays: number }>("/setup/schedule-settings", data),
+
 };

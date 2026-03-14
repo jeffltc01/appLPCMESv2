@@ -47,6 +47,7 @@ const ADMIN_MENU_ITEMS = [
   { key: "gauges", label: "Gauges", path: "/setup/gauges", enabled: true },
   { key: "work-centers", label: "Work Centers", path: "/setup/work-centers", enabled: true },
   { key: "tablet-setup", label: "Tablet Setup", path: "/setup/tablet", enabled: true },
+  { key: "schedule-settings", label: "Schedule Settings", path: "/setup/schedule-settings", enabled: true },
   { key: "route-templates", label: "Route Templates", path: "/setup/route-templates", enabled: true },
   { key: "users", label: "Users", path: "/setup/users", enabled: true },
   { key: "roles", label: "Roles", path: "/setup/roles", enabled: true },

@@ -30,11 +30,6 @@ namespace LPCylinderMES.Api.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_items_product_line_id",
-                table: "items",
-                column: "product_line_id");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_product_lines_code",
                 table: "product_lines",
                 column: "code",
@@ -58,6 +53,11 @@ namespace LPCylinderMES.Api.Migrations
                 INNER JOIN product_lines pl ON LTRIM(RTRIM(i.product_line)) = pl.code
                 WHERE i.product_line IS NOT NULL AND LTRIM(RTRIM(i.product_line)) != ''
             ");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_items_product_line_id",
+                table: "items",
+                column: "product_line_id");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_items_product_lines",

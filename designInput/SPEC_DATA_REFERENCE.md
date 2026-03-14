@@ -17,6 +17,7 @@ This document provides a reference contract for:
 Primary related specs:
 - `designInput/SPEC_ORDER_TO_CASH_STATUS_FLOW.md`
 - `designInput/SPEC_WORKCENTER_OPERATOR_WORKFLOW.md`
+- `designInput/SPEC_SCHEDULE_BOARD.md`
 - `designInput/SECURITY_ROLES.md`
 - `designInput/SPEC_COMPONENT_TRACEABILITY_GENEALOGY.md`
 
@@ -213,14 +214,10 @@ Required cross-layer fields:
 - `HoldOverlay` (`string enum?`)
 - `Priority` (`int?`)
 - `RequestedDateUtc` (`datetime UTC?`)
-- `PromisedDateUtc` (`datetime UTC?`)
-- `CurrentCommittedDateUtc` (`datetime UTC?`; equals `PromisedDateUtc` at first commit)
-- `PromiseDateReasonCode` (`string?`)
-- `PromiseDateReasonNote` (`string?`)
-- `PromiseRevisionCount` (`int`, default `0`)
-- `PromiseDateLastChangedUtc` (`datetime UTC?`)
-- `PromiseDateLastChangedByEmpNo` (`string?`)
-- `PromiseMissReasonCode` (`string?`)
+
+Schedule board (see `SPEC_SCHEDULE_BOARD.md`):
+- `ScheduleWeekOf` (`DateOnly?`) — Monday of the week the order is scheduled for; null when unscheduled
+- `TargetDateUtc` (`datetime UTC?`) — specific target date within the week; used for day-assigned display and work-center queue ordering
 
 Integration and invoice tracking:
 - `InvoiceReviewCompletedByEmpNo` (`string?`)
@@ -405,8 +402,7 @@ Each event record should minimally store:
 - `OrderLifecycleStatus` transitions must follow configured transition rules.
 - Hold overlays block forward transitions unless policy exception is explicit.
 - `InvoiceReady -> Invoiced` requires successful staging handoff confirmation.
-- `CurrentCommittedDateUtc` changes after first commit require `ReasonCode` and actor/timestamp audit context.
-- When `CurrentCommittedDateUtc` moves later than prior commitment, a customer notification decision/event must be captured per policy.
+- `ScheduleWeekOf`/`TargetDateUtc` changes must create `OrderPromiseChangeEvent` with actor, timestamp, and optional note (see `SPEC_SCHEDULE_BOARD.md`).
 - For manual/hybrid time capture overrides, reason text is required.
 - For bad serial condition, scrap reason is required when policy enabled.
 - `UserIdentity` must be unique by (`ProviderType`, `Issuer`, `SubjectId`).

@@ -23,6 +23,11 @@ describe("ProductionLinesSetupPage", () => {
         code: "PL-REF",
         name: "Refurb",
         showWhere: ["OrderProduct", "OrderReceiving"],
+        isFinishedGood: true,
+        weeklyCapacityTarget: 100,
+        scheduleColorHex: "#123046",
+        sortOrder: 0,
+        isActive: true,
         createdUtc: "2026-02-28T00:00:00Z",
         updatedUtc: "2026-02-28T00:00:00Z",
       },
@@ -32,6 +37,11 @@ describe("ProductionLinesSetupPage", () => {
       code: "PL-REF",
       name: "Refurb",
       showWhere: ["OrderProduct", "OrderReceiving", "OrderComments"],
+      isFinishedGood: true,
+      weeklyCapacityTarget: 100,
+      scheduleColorHex: "#123046",
+      sortOrder: 0,
+      isActive: true,
       createdUtc: "2026-02-28T00:00:00Z",
       updatedUtc: "2026-02-28T00:00:00Z",
     });
@@ -69,6 +79,11 @@ describe("ProductionLinesSetupPage", () => {
         code: "PL-REF",
         name: "Refurb",
         showWhere: ["OrderProduct", "OrderReceiving", "OrderComments"],
+        isFinishedGood: true,
+        weeklyCapacityTarget: 100,
+        scheduleColorHex: "#123046",
+        sortOrder: 0,
+        isActive: true,
       });
     });
   });

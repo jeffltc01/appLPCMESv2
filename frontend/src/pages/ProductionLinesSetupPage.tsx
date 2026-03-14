@@ -13,6 +13,7 @@ import {
   Input,
   MessageBar,
   MessageBarBody,
+  Switch,
   Title1,
   makeStyles,
   tokens,
@@ -74,7 +75,7 @@ const useStyles = makeStyles({
   },
   gridHeaderRow: {
     display: "grid",
-    gridTemplateColumns: "10% 20% 50% 20%",
+    gridTemplateColumns: "8% 14% 6% 8% 8% 6% 6% 28% 16%",
     width: "100%",
     position: "sticky",
     top: 0,
@@ -84,14 +85,14 @@ const useStyles = makeStyles({
     fontWeight: 700,
     color: "#ffffff",
     backgroundColor: "#123046",
-    minWidth: "900px",
+    minWidth: "1100px",
   },
   gridBody: {
-    minWidth: "900px",
+    minWidth: "1100px",
   },
   gridBodyRow: {
     display: "grid",
-    gridTemplateColumns: "10% 20% 50% 20%",
+    gridTemplateColumns: "8% 14% 6% 8% 8% 6% 6% 28% 16%",
     width: "100%",
     alignItems: "start",
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -102,11 +103,19 @@ const useStyles = makeStyles({
   nameColumn: {
     width: "100%",
   },
-  showWhereColumn: {
-    width: "100%",
-  },
-  actionsColumn: {
-    width: "100%",
+  isFinishedGoodColumn: { width: "100%" },
+  weeklyCapColumn: { width: "100%" },
+  colorColumn: { width: "100%" },
+  sortOrderColumn: { width: "100%" },
+  isActiveColumn: { width: "100%" },
+  showWhereColumn: { width: "100%" },
+  actionsColumn: { width: "100%" },
+  colorSwatch: {
+    width: "20px",
+    height: "20px",
+    borderRadius: "4px",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    flexShrink: 0,
   },
   gridCell: {
     padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
@@ -156,12 +165,22 @@ interface FormState {
   code: string;
   name: string;
   showWhere: ProductionLineShowWhere[];
+  isFinishedGood: boolean;
+  weeklyCapacityTarget: string;
+  scheduleColorHex: string;
+  sortOrder: string;
+  isActive: boolean;
 }
 
 const EMPTY_FORM: FormState = {
   code: "",
   name: "",
   showWhere: ["OrderProduct"],
+  isFinishedGood: true,
+  weeklyCapacityTarget: "",
+  scheduleColorHex: "",
+  sortOrder: "0",
+  isActive: true,
 };
 
 export function ProductionLinesSetupPage() {
@@ -206,6 +225,11 @@ export function ProductionLinesSetupPage() {
       code: row.code,
       name: row.name,
       showWhere: row.showWhere,
+      isFinishedGood: row.isFinishedGood,
+      weeklyCapacityTarget: row.weeklyCapacityTarget != null ? String(row.weeklyCapacityTarget) : "",
+      scheduleColorHex: row.scheduleColorHex ?? "",
+      sortOrder: String(row.sortOrder),
+      isActive: row.isActive,
     });
     setDialogOpen(true);
   };
@@ -228,6 +252,16 @@ export function ProductionLinesSetupPage() {
       setError("Select at least one Show Where option.");
       return;
     }
+    const weeklyCap = form.weeklyCapacityTarget.trim() ? parseInt(form.weeklyCapacityTarget, 10) : null;
+    if (form.weeklyCapacityTarget.trim() && (isNaN(weeklyCap!) || weeklyCap! < 0)) {
+      setError("Weekly Capacity Target must be a non-negative number.");
+      return;
+    }
+    const sortOrder = parseInt(form.sortOrder, 10);
+    if (isNaN(sortOrder) || sortOrder < 0) {
+      setError("Sort Order must be a non-negative number.");
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -236,6 +270,11 @@ export function ProductionLinesSetupPage() {
         code: form.code.trim(),
         name: form.name.trim(),
         showWhere: form.showWhere,
+        isFinishedGood: form.isFinishedGood,
+        weeklyCapacityTarget: weeklyCap,
+        scheduleColorHex: form.scheduleColorHex.trim() || null,
+        sortOrder,
+        isActive: form.isActive,
       };
       if (editing) {
         await setupApi.updateProductionLine(editing.id, payload);
@@ -247,14 +286,14 @@ export function ProductionLinesSetupPage() {
     } catch (err: unknown) {
       const apiError = err as ApiError;
       const body = apiError.body as { detail?: string; message?: string } | undefined;
-      setError(body?.message ?? body?.detail ?? "Failed to save production line.");
+      setError(body?.message ?? body?.detail ?? "Failed to save product line.");
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (row: ProductionLine) => {
-    if (!window.confirm(`Delete production line '${row.code}'?`)) return;
+    if (!window.confirm(`Delete product line '${row.code}'?`)) return;
     setError(null);
     try {
       await setupApi.deleteProductionLine(row.id);
@@ -262,7 +301,7 @@ export function ProductionLinesSetupPage() {
     } catch (err: unknown) {
       const apiError = err as ApiError;
       const body = apiError.body as { detail?: string; message?: string } | undefined;
-      setError(body?.message ?? body?.detail ?? "Failed to delete production line.");
+      setError(body?.message ?? body?.detail ?? "Failed to delete product line.");
     }
   };
 
@@ -297,6 +336,11 @@ export function ProductionLinesSetupPage() {
         code: row.code,
         name: row.name,
         showWhere: nextShowWhere,
+        isFinishedGood: row.isFinishedGood,
+        weeklyCapacityTarget: row.weeklyCapacityTarget,
+        scheduleColorHex: row.scheduleColorHex,
+        sortOrder: row.sortOrder,
+        isActive: row.isActive,
       });
     } catch (err: unknown) {
       const apiError = err as ApiError;
@@ -351,6 +395,11 @@ export function ProductionLinesSetupPage() {
                 <div className={styles.gridHeaderRow}>
                   <div className={`${styles.gridCell} ${styles.codeColumn}`}>Code</div>
                   <div className={`${styles.gridCell} ${styles.nameColumn}`}>Name</div>
+                  <div className={`${styles.gridCell} ${styles.isFinishedGoodColumn}`}>FG</div>
+                  <div className={`${styles.gridCell} ${styles.weeklyCapColumn}`}>Weekly Cap (units/wk)</div>
+                  <div className={`${styles.gridCell} ${styles.colorColumn}`}>Color</div>
+                  <div className={`${styles.gridCell} ${styles.sortOrderColumn}`}>Sort</div>
+                  <div className={`${styles.gridCell} ${styles.isActiveColumn}`}>Active</div>
                   <div className={`${styles.gridCell} ${styles.showWhereColumn}`}>Show Where</div>
                   <div className={`${styles.gridCell} ${styles.actionsColumn}`}>Actions</div>
                 </div>
@@ -359,6 +408,29 @@ export function ProductionLinesSetupPage() {
                     <div key={row.id} className={styles.gridBodyRow}>
                       <div className={`${styles.gridCell} ${styles.codeColumn}`}>{row.code}</div>
                       <div className={`${styles.gridCell} ${styles.nameColumn}`}>{row.name}</div>
+                      <div className={`${styles.gridCell} ${styles.isFinishedGoodColumn}`}>
+                        {row.isFinishedGood ? "Yes" : "No"}
+                      </div>
+                      <div className={`${styles.gridCell} ${styles.weeklyCapColumn}`}>
+                        {row.weeklyCapacityTarget ?? "-"}
+                      </div>
+                      <div
+                        className={`${styles.gridCell} ${styles.colorColumn}`}
+                        style={{ display: "flex", alignItems: "center", gap: 4 }}
+                      >
+                        <div
+                          className={styles.colorSwatch}
+                          style={{
+                            backgroundColor: row.scheduleColorHex ?? tokens.colorNeutralStroke2,
+                          }}
+                          title={row.scheduleColorHex ?? "No color"}
+                        />
+                        <span>{row.scheduleColorHex ?? "-"}</span>
+                      </div>
+                      <div className={`${styles.gridCell} ${styles.sortOrderColumn}`}>{row.sortOrder}</div>
+                      <div className={`${styles.gridCell} ${styles.isActiveColumn}`}>
+                        {row.isActive ? "Yes" : "No"}
+                      </div>
                       <div className={`${styles.gridCell} ${styles.showWhereColumn}`}>
                         <div className={styles.showWhereInline}>
                           {SHOW_WHERE_OPTIONS.map((option) => (
@@ -408,6 +480,70 @@ export function ProductionLinesSetupPage() {
                 </Field>
                 <Field label="Name" required>
                   <Input value={form.name} onChange={(_, d) => setForm((prev) => ({ ...prev, name: d.value }))} />
+                </Field>
+                <Field label="Is Finished Good">
+                  <Checkbox
+                    label="Finished good (appears on schedule board)"
+                    checked={form.isFinishedGood}
+                    onChange={(_, d) => setForm((prev) => ({ ...prev, isFinishedGood: Boolean(d.checked) }))}
+                  />
+                </Field>
+                <Field
+                  label="Weekly Capacity Target (units per week)"
+                  hint="If set, this overrides the historical average on the schedule board."
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.weeklyCapacityTarget}
+                    onChange={(_, d) => setForm((prev) => ({ ...prev, weeklyCapacityTarget: d.value }))}
+                    placeholder="Optional"
+                  />
+                </Field>
+                <Field label="Schedule Color">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="color"
+                      value={
+                        form.scheduleColorHex && /^#?[0-9A-Fa-f]{6}$/.test(form.scheduleColorHex.replace(/^#/, ""))
+                          ? form.scheduleColorHex.startsWith("#")
+                            ? form.scheduleColorHex
+                            : `#${form.scheduleColorHex}`
+                          : "#123046"
+                      }
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, scheduleColorHex: e.target.value }))
+                      }
+                      style={{
+                        width: 40,
+                        height: 32,
+                        padding: 2,
+                        border: `1px solid ${tokens.colorNeutralStroke2}`,
+                        borderRadius: 4,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <Input
+                      value={form.scheduleColorHex}
+                      onChange={(_, d) => setForm((prev) => ({ ...prev, scheduleColorHex: d.value }))}
+                      placeholder="#123046 or 123046"
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                  </div>
+                </Field>
+                <Field label="Sort Order">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={form.sortOrder}
+                    onChange={(_, d) => setForm((prev) => ({ ...prev, sortOrder: d.value }))}
+                  />
+                </Field>
+                <Field label="Active">
+                  <Switch
+                    checked={form.isActive}
+                    onChange={(_, d) => setForm((prev) => ({ ...prev, isActive: Boolean(d.checked) }))}
+                  />
                 </Field>
                 <Field label="Show Where" required>
                   <div className={styles.showWhereGrid}>

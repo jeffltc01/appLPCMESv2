@@ -104,7 +104,7 @@ public class LookupsController(
     [HttpGet("product-lines")]
     public async Task<ActionResult<List<string>>> GetProductLines([FromQuery] string? showWhere = null)
     {
-        var query = db.ProductionLines.AsNoTracking().AsQueryable();
+        var query = db.ProductLines.AsNoTracking().Where(p => p.IsActive).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(showWhere) && ProductLineShowWhereFlags.TryGetValue(showWhere.Trim(), out var flag))
         {
@@ -112,7 +112,8 @@ public class LookupsController(
         }
 
         var lines = await query
-            .OrderBy(p => p.Name)
+            .OrderBy(p => p.SortOrder)
+            .ThenBy(p => p.Code)
             .Select(p => p.Code)
             .ToListAsync();
 

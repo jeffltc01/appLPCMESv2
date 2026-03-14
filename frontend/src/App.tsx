@@ -29,6 +29,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { MicrosoftPopupCompletePage } from "./pages/MicrosoftPopupCompletePage";
 import { ValveTypesSetupPage } from "./pages/ValveTypesSetupPage";
 import { GaugesSetupPage } from "./pages/GaugesSetupPage";
+import { ScheduleSettingsPage } from "./pages/ScheduleSettingsPage";
 
 export default function App() {
   return (
@@ -196,6 +197,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <TabletSetupPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/setup/schedule-settings"
+              element={
+                <RequireAuth>
+                  <ScheduleSettingsPage />
                 </RequireAuth>
               }
             />

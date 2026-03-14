@@ -42,6 +42,10 @@ Promise-date source-of-truth alignment:
 - `CurrentCommittedDateUtc` is owned by `SPEC_ORDER_TO_CASH_STATUS_FLOW.md` commitment governance.
 - Scheduler reads the active `CurrentCommittedDateUtc` projection from canonical order data; it does not author or revise customer commitments.
 
+### 3.1 Current Implementation
+
+The current scheduling feature is an order-level manual schedule board, not the finite-capacity model described in this document. For the as-built implementation (ScheduleBoardPage, ScheduleService, throughput display, API contracts), see `designInput/SPEC_SCHEDULE_BOARD.md`. That spec documents `SalesOrder.ScheduleWeekOf`, `SalesOrder.TargetDateUtc`, and the board UI as the source of truth for consistency. Evolution toward this finite-capacity target should preserve backward compatibility with the current schedule board until migration is complete.
+
 ## 4) Design Principles
 
 1. Explainability first: every plan decision must be traceable to constraints and objective weights.
